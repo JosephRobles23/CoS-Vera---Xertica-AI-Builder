@@ -88,6 +88,10 @@ function enviarConsolidado(sheetId, config, tipo, today) {
              ' con Summary para tu equipo.';
   }
 
-  MailApp.sendEmail(leaderEmail, asunto, cuerpo);
+  // El LLM devuelve TEXTO; el HTML lo arma email-runtime a partir de ese texto (nunca se le
+  // pide marcado al modelo). El texto plano va como fallback.
+  MailApp.sendEmail(leaderEmail, asunto, cuerpo, {
+    htmlBody: renderConsolidadoHtml_(tipo, leaderName, today, cuerpo)
+  });
   return { enviado: true, count: resumenes.length };
 }

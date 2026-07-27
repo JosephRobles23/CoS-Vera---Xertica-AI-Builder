@@ -31,6 +31,7 @@ Mismo patrón que el proyecto AOS de referencia: `tests/` + un **mock harness** 
 | `shared/prompts-runtime.js` | composición `soul + user + task` y **fallback a defaults** cuando la celda está vacía |
 | `shared/summaries-runtime.js` | **pass-through genérico**: extrae columnas variables y excluye las de contrato (`Nombre`/`Correo`/`Lider`/`Summary`); cruce de identidad contra `Equipo` |
 | `shared/consolidation-runtime.js` | filtro/agrupación de `Summary` por fecha de hoy |
+| `shared/email-runtime.js` | **parseo tolerante** de la salida del LLM a secciones + escapado del HTML |
 | `shared/invites-runtime.js` | formato de la guarda anti-dup y su lógica |
 | `shared/gemini-runtime.js` | con `UrlFetchApp` **mockeado**: forma del payload (modelo por llamada, split system/user), reintento en 429/5xx, respuesta vacía, key ausente → falla rápido |
 

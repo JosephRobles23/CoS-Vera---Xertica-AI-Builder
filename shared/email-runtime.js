@@ -1,0 +1,277 @@
+/**
+ * email-runtime.js — Plantilla HTML de los correos (invitaciones y consolidado).
+ *
+ * Único lugar donde se arma HTML. El resto del runtime pasa CONTENIDO (texto), nunca
+ * marcado: así el diseño es idéntico en todos los correos y el LLM no puede romperlo.
+ *
+ * Restricciones de Gmail que explican el estilo del marcado:
+ *  - Estilos SIEMPRE inline: Gmail descarta <style> en varios clientes (sobre todo móvil).
+ *  - Layout con <table>: flexbox/grid no son fiables en correo.
+ *  - Ancho máximo 600px y `bgcolor` además del inline, para clientes viejos.
+ *  - Siempre se manda también una versión de texto plano (3er argumento de sendEmail).
+ *
+ * Branding tomado de las variables CSS de xertica.ai.
+ *
+ * Sin import/export: runtime de Apps Script. Privados con sufijo "_".
+ */
+
+/** Paleta de marca (nombres tal como los define xertica.ai). */
+var MARCA_ = {
+  ink:      '#1a1814',   // texto principal (negro cálido)
+  ink2:     '#3d372f',   // texto de cuerpo
+  tenue:    '#6b6259',   // texto secundario
+  surface:  '#fffef8',   // fondo de la tarjeta principal
+  cream:    '#f2edd8',   // fondo del correo
+  cream2:   '#f5f0e8',   // fondo del pie
+  borde:    '#e6ddc4',
+  bordeSuave: '#ece3cd',
+  amarillo: '#faf338',   // acento de marca (solo como FONDO: sobre blanco no contrasta)
+  celeste:  '#1899af',
+  verde:    '#2e8b5a',
+  naranja:  '#e8651e',
+  rojo:     '#d9503b',
+  magenta:  '#c45baa',
+  morado:   '#5c3a8a'
+};
+
+var FUENTE_ = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+
+/**
+ * Color del filete de cada tarjeta según el tema de la sección. Se busca por
+ * coincidencia de palabra clave en el título, así el líder puede renombrar sus secciones
+ * en el prompt sin que esto deje de funcionar (lo no reconocido cae a `ink`).
+ */
+var COLOR_SECCION_ = [
+  { claves: ['LOGRO', 'AVANCE', 'HECHO'],                  color: MARCA_.verde },
+  { claves: ['BLOQUEO', 'AYUDA', 'IMPEDIMENTO'],           color: MARCA_.naranja },
+  { claves: ['RIESGO', 'ALERTA'],                          color: MARCA_.rojo },
+  { claves: ['APRENDIZAJE', 'COMENTARIO', 'NOTA'],         color: MARCA_.celeste },
+  { claves: ['AUTOMATIZA'],                                color: MARCA_.morado },
+  { claves: ['CARGA', 'PENDIENTE', 'PRÓXIMA', 'PROXIMA'],  color: MARCA_.magenta }
+];
+
+function colorDeSeccion_(titulo) {
+  var t = String(titulo || '').toUpperCase();
+  for (var i = 0; i < COLOR_SECCION_.length; i++) {
+    for (var j = 0; j < COLOR_SECCION_[i].claves.length; j++) {
+      if (t.indexOf(COLOR_SECCION_[i].claves[j]) > -1) return COLOR_SECCION_[i].color;
+    }
+  }
+  return MARCA_.ink;
+}
+
+/** Escapa texto para incrustarlo en HTML. TODO contenido dinámico pasa por aquí. */
+function escapeHtml_(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/** '2026-07-27' -> '27 jul 2026'. Devuelve la entrada tal cual si no calza el formato. */
+function fechaLegible_(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '').trim());
+  if (!m) return String(iso || '');
+  var meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  return parseInt(m[3], 10) + ' ' + meses[parseInt(m[2], 10) - 1] + ' ' + m[1];
+}
+
+// --- Piezas de la plantilla ---
+
+/**
+ * Envoltorio común: fondo crema, tarjeta de 600px, cabecera con el wordmark y pie.
+ *
+ * El wordmark va como TEXTO, no como imagen: los clientes de correo bloquean imágenes
+ * remotas por defecto (se vería un hueco), y la URL del logo en xertica.ai lleva un hash
+ * que cambia en cada despliegue del sitio.
+ */
+function emailShell_(titulo, subtitulo, contenidoHtml) {
+  return '' +
+  '<!DOCTYPE html><html><body style="margin:0;padding:0;background:' + MARCA_.cream + ';">' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="' + MARCA_.cream + '" style="background:' + MARCA_.cream + ';">' +
+  '<tr><td align="center" style="padding:24px 12px;">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="' + MARCA_.surface + '" style="width:100%;max-width:600px;background:' + MARCA_.surface + ';border:1px solid ' + MARCA_.borde + ';border-radius:14px;">' +
+
+    // Cabecera
+    '<tr><td bgcolor="' + MARCA_.ink + '" style="background:' + MARCA_.ink + ';padding:20px 28px;border-radius:13px 13px 0 0;">' +
+      '<div style="font:700 19px/1.2 ' + FUENTE_ + ';color:' + MARCA_.surface + ';letter-spacing:-0.4px;">' +
+        'Xertica<span style="color:' + MARCA_.amarillo + ';">.ai</span></div>' +
+      '<div style="font:400 10px/1.4 ' + FUENTE_ + ';color:#a89f92;letter-spacing:1.4px;text-transform:uppercase;padding-top:5px;">' +
+        'Chief of Staff AI</div>' +
+    '</td></tr>' +
+
+    // Título
+    '<tr><td style="padding:26px 28px 4px;">' +
+      '<div style="font:700 22px/1.3 ' + FUENTE_ + ';color:' + MARCA_.ink + ';">' + escapeHtml_(titulo) + '</div>' +
+      (subtitulo
+        ? '<div style="font:400 13px/1.5 ' + FUENTE_ + ';color:' + MARCA_.tenue + ';padding-top:6px;">' + escapeHtml_(subtitulo) + '</div>'
+        : '') +
+    '</td></tr>' +
+
+    // Contenido
+    '<tr><td style="padding:18px 28px 26px;">' + contenidoHtml + '</td></tr>' +
+
+    // Pie
+    '<tr><td bgcolor="' + MARCA_.cream2 + '" style="background:' + MARCA_.cream2 + ';padding:16px 28px;border-top:1px solid ' + MARCA_.borde + ';border-radius:0 0 13px 13px;">' +
+      '<div style="font:400 12px/1.5 ' + FUENTE_ + ';color:' + MARCA_.tenue + ';">' +
+        'Vera · Chief of Staff AI — correo automático de Xertica.ai</div>' +
+    '</td></tr>' +
+
+    '</table>' +
+  '</td></tr></table></body></html>';
+}
+
+/** Párrafo de cuerpo. */
+function parrafoHtml_(texto) {
+  return '<p style="margin:0 0 14px;font:400 15px/1.65 ' + FUENTE_ + ';color:' + MARCA_.ink2 + ';">' +
+    escapeHtml_(texto) + '</p>';
+}
+
+/** Botón de acción (amarillo de marca sobre texto ink: ~15:1 de contraste). */
+function botonHtml_(texto, url) {
+  return '' +
+  '<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 18px;"><tr>' +
+  '<td bgcolor="' + MARCA_.amarillo + '" style="background:' + MARCA_.amarillo + ';border-radius:8px;">' +
+  '<a href="' + escapeHtml_(url) + '" style="display:inline-block;padding:13px 26px;font:700 15px/1 ' + FUENTE_ +
+    ';color:' + MARCA_.ink + ';text-decoration:none;">' + escapeHtml_(texto) + '</a>' +
+  '</td></tr></table>';
+}
+
+/** Tarjeta de sección con filete de color a la izquierda. */
+function tarjetaHtml_(titulo, itemsHtml) {
+  var color = colorDeSeccion_(titulo);
+  return '' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" ' +
+    'style="width:100%;background:#ffffff;border:1px solid ' + MARCA_.bordeSuave + ';border-left:4px solid ' + color +
+    ';border-radius:10px;margin:0 0 12px;"><tr><td style="padding:14px 16px;">' +
+  '<div style="font:700 11px/1.3 ' + FUENTE_ + ';color:' + MARCA_.ink + ';letter-spacing:1.1px;text-transform:uppercase;padding-bottom:8px;">' +
+    escapeHtml_(titulo) + '</div>' +
+  itemsHtml +
+  '</td></tr></table>';
+}
+
+/** Cuerpo de una tarjeta: viñetas si las hay, párrafos si no. */
+function cuerpoSeccionHtml_(lineas) {
+  var vinetas = lineas.filter(function (l) { return l.esVineta; });
+  var sueltas = lineas.filter(function (l) { return !l.esVineta; });
+  var html = '';
+
+  sueltas.forEach(function (l) {
+    html += '<div style="font:400 14px/1.6 ' + FUENTE_ + ';color:' + MARCA_.ink2 + ';padding-bottom:4px;">' +
+      escapeHtml_(l.texto) + '</div>';
+  });
+
+  if (vinetas.length) {
+    html += '<ul style="margin:4px 0 0;padding-left:18px;">';
+    vinetas.forEach(function (l) {
+      html += '<li style="font:400 14px/1.6 ' + FUENTE_ + ';color:' + MARCA_.ink2 + ';padding-bottom:3px;">' +
+        escapeHtml_(l.texto) + '</li>';
+    });
+    html += '</ul>';
+  }
+  return html;
+}
+
+// --- Parseo tolerante de la salida del LLM ---
+
+/**
+ * ¿La línea parece un encabezado de sección? Tolerante a lo que devuelva el modelo:
+ * "LOGROS DE HOY", "## Logros", "**Logros:**". Criterio: línea corta, sin puntuación de
+ * frase, y en MAYÚSCULAS o marcada con markdown.
+ */
+function esEncabezado_(linea) {
+  var l = String(linea || '').trim();
+  if (!l || l.length > 60) return false;
+  if (/^#{1,6}\s+/.test(l)) return true;                       // "## Logros"
+  if (/^\*\*[^*]+\*\*:?$/.test(l)) return true;                // "**Logros**"
+
+  var limpio = l.replace(/[:*#]/g, '').trim();
+  if (!limpio || /[.?!,;]$/.test(limpio)) return false;        // termina como frase → no
+  if (!/[A-ZÁÉÍÓÚÑ]/.test(limpio)) return false;
+  return limpio === limpio.toUpperCase();                      // "LOGROS DE HOY"
+}
+
+/** Quita el marcado del encabezado: "## Logros:" -> "Logros". */
+function limpiarEncabezado_(linea) {
+  return String(linea).trim()
+    .replace(/^#{1,6}\s+/, '').replace(/^\*\*|\*\*$/g, '').replace(/:$/, '').trim();
+}
+
+/** ¿La línea es una viñeta? Devuelve el texto sin el marcador, o null. */
+function textoDeVineta_(linea) {
+  var m = /^\s*(?:[-*•·—]|\d+[.)])\s+(.*)$/.exec(String(linea));
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * Parte el texto del LLM en secciones. **Tolerante por diseño**: si no reconoce ningún
+ * encabezado (el modelo devolvió texto corrido), devuelve UNA sección sin título con todo
+ * el contenido — el correo se degrada a una tarjeta única en vez de romperse.
+ *
+ * @return {Array<{titulo:string, lineas:Array<{texto:string, esVineta:boolean}>}>}
+ */
+function parseSecciones_(texto) {
+  var lineas = String(texto == null ? '' : texto).split('\n');
+  var secciones = [];
+  var actual = null;
+
+  lineas.forEach(function (raw) {
+    var linea = String(raw).replace(/\s+$/, '');
+    if (!linea.trim()) return;
+
+    if (esEncabezado_(linea)) {
+      actual = { titulo: limpiarEncabezado_(linea), lineas: [] };
+      secciones.push(actual);
+      return;
+    }
+
+    if (!actual) { actual = { titulo: '', lineas: [] }; secciones.push(actual); }
+
+    var vineta = textoDeVineta_(linea);
+    actual.lineas.push(vineta !== null
+      ? { texto: vineta, esVineta: true }
+      : { texto: linea.trim(), esVineta: false });
+  });
+
+  return secciones.filter(function (s) { return s.titulo || s.lineas.length; });
+}
+
+// --- Render de cada correo ---
+
+/**
+ * Consolidado del líder. `cuerpoLlm` es el texto crudo de Gemini: se parsea a secciones y
+ * cada una se pinta como tarjeta. Todo el contenido va escapado.
+ */
+function renderConsolidadoHtml_(tipo, leaderName, today, cuerpoLlm) {
+  var titulo = (tipo === 'daily') ? 'Consolidado Diario' : 'Consolidado Semanal';
+  var subtitulo = 'Equipo ' + leaderName + ' · ' + fechaLegible_(today);
+
+  var secciones = parseSecciones_(cuerpoLlm);
+  var contenido = '';
+
+  secciones.forEach(function (s) {
+    var cuerpo = cuerpoSeccionHtml_(s.lineas);
+    // Sección sin título (texto corrido): párrafo suelto, sin caja.
+    contenido += s.titulo ? tarjetaHtml_(s.titulo, cuerpo) : cuerpo;
+  });
+
+  if (!contenido) contenido = parrafoHtml_(cuerpoLlm || '');
+  return emailShell_(titulo, subtitulo, contenido);
+}
+
+/** Invitación a llenar el Form: intro, botón y nota de la cuenta. */
+function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
+  var esDaily = (tipo === 'daily');
+  var titulo = 'Hola ' + (persona.nombre || '') + ',';
+
+  var contenido =
+    parrafoHtml_(intro) +
+    botonHtml_('Llenar mi ' + (esDaily ? 'Daily' : 'Weekly'), formUrl) +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="' + MARCA_.cream2 + '" ' +
+      'style="width:100%;background:' + MARCA_.cream2 + ';border-radius:8px;"><tr><td style="padding:12px 14px;">' +
+    '<div style="font:400 13px/1.55 ' + FUENTE_ + ';color:' + MARCA_.tenue + ';">' +
+      'Solo son las preguntas: responde con <strong style="color:' + MARCA_.ink + ';">' +
+      escapeHtml_(persona.correo) + '</strong> y tu nombre se registra solo.</div>' +
+    '</td></tr></table>';
+
+  return emailShell_(titulo, (esDaily ? 'Reporte diario' : 'Reporte semanal') + ' · equipo de ' + leaderName, contenido);
+}

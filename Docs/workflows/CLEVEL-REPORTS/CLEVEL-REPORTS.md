@@ -105,6 +105,31 @@ el líder al personalizar preguntas).
 > sin romper nada; la estructura de la salida la impone el system-prompt, no las columnas. Ver
 > [sidebar-and-prompts.md](sidebar-and-prompts.md#preguntas--resumen-pass-through).
 
+### Correos (HTML)
+
+Los tres correos (invitación Daily, invitación Weekly, consolidado) se arman en
+`shared/email-runtime.js` — **único lugar del runtime que genera HTML**. El resto pasa
+contenido en texto; nunca marcado.
+
+| Regla | Por qué |
+|---|---|
+| Estilos **inline**, layout con `<table>`, máx. 600px | Gmail descarta `<style>` en varios clientes y no soporta flex/grid |
+| Siempre se manda **texto plano + `htmlBody`** | Fallback para clientes sin HTML |
+| Todo contenido dinámico pasa por `escapeHtml_` | La salida del LLM y los nombres del roster son datos no confiables |
+| El wordmark va como **texto**, no imagen | Los clientes bloquean imágenes remotas por defecto |
+
+> **Al LLM nunca se le pide HTML.** El prompt define *qué dice* (secciones); el código define
+> *cómo se ve*. `parseSecciones_` hace un **parseo tolerante** del texto: reconoce encabezados en
+> MAYÚSCULAS, `## markdown` y `**negritas**`, y viñetas con `-`, `*`, `•` o numeradas. Si no
+> reconoce ninguna sección (el modelo devolvió texto corrido), degrada a una tarjeta única en vez
+> de romperse. El color del filete de cada tarjeta sale de una tabla de palabras clave
+> (LOGRO→verde, BLOQUEO→naranja, RIESGO→rojo…), así el líder puede renombrar sus secciones en el
+> prompt sin romper nada.
+
+Paleta tomada de las variables CSS de `xertica.ai`: `ink #1a1814`, `surface #fffef8`,
+`cream #f2edd8`, `amarillo #faf338` (solo como fondo — sobre blanco no contrasta), más los
+acentos `celeste / verde / naranja / rojo / magenta / morado`.
+
 ### Pestaña `Equipo` (roster del líder)
 
 | Columna | Uso |

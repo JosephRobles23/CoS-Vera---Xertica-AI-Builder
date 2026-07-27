@@ -28,6 +28,8 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     : 'Cierre de semana: comparte tu reporte semanal. Tu líder, ' + leaderName + ', lo revisa ' +
       'para entender logros, aprendizajes y lo que cargas para la próxima semana.';
 
+  // Versión de texto plano: es el fallback para clientes que no renderizan HTML, así que
+  // tiene que sostenerse sola (URL completa a la vista, no un "haz clic aquí").
   var cuerpo =
     'Hola ' + (persona.nombre || '') + ',\n\n' +
     intro + '\n\n' +
@@ -38,5 +40,7 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     'y tu nombre se registra solo.\n\n' +
     'Gracias,\nVera';
 
-  MailApp.sendEmail(persona.correo, asunto, cuerpo);
+  MailApp.sendEmail(persona.correo, asunto, cuerpo, {
+    htmlBody: renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro)
+  });
 }

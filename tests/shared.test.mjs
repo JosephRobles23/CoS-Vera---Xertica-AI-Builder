@@ -464,3 +464,110 @@ test('runDispatcher: consolidado Diario a closeDaily y Semanal a closeWeekly (vi
   assert.match(subjects, /Consolidado Diario/);
   assert.match(subjects, /Consolidado Semanal/);
 });
+
+// --- Correo HTML (email-runtime) ---
+
+const emailH = () => makeHarness();
+
+test('escapeHtml_ neutraliza marcado en el contenido dinámico', () => {
+  const { api } = emailH();
+  assert.equal(api.escapeHtml_('<script>alert("x")</script>'),
+    '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+  assert.equal(api.escapeHtml_(null), '');
+});
+
+test('fechaLegible_ formatea ISO y tolera lo que no lo es', () => {
+  const { api } = emailH();
+  assert.equal(api.fechaLegible_('2026-07-27'), '27 jul 2026');
+  assert.equal(api.fechaLegible_('2026-01-05'), '5 ene 2026');
+  assert.equal(api.fechaLegible_('mañana'), 'mañana');
+});
+
+test('parseSecciones_ reconoce MAYÚSCULAS, markdown y viñetas', () => {
+  const { api } = emailH();
+  const s = api.parseSecciones_(
+    'LOGROS DE HOY\n- Ana cerró el informe\n- Beto desplegó el fix\n\n' +
+    '## Bloqueos activos\n* Cira espera accesos\n\n' +
+    '**RIESGOS**\n1. Sin avance en la migración');
+
+  assert.equal(s.length, 3);
+  assert.equal(s[0].titulo, 'LOGROS DE HOY');
+  assert.equal(s[0].lineas.length, 2);
+  assert.equal(s[0].lineas[0].texto, 'Ana cerró el informe');
+  assert.equal(s[0].lineas[0].esVineta, true);
+  assert.equal(s[1].titulo, 'Bloqueos activos');
+  assert.equal(s[2].titulo, 'RIESGOS');
+  assert.equal(s[2].lineas[0].texto, 'Sin avance en la migración');
+});
+
+test('parseSecciones_ NO confunde una frase normal con encabezado', () => {
+  const { api } = emailH();
+  const s = api.parseSecciones_('El equipo avanzó bien hoy.\nQuedan dos pendientes.');
+  assert.equal(s.length, 1);
+  assert.equal(s[0].titulo, '');            // sin encabezado → sección única
+  assert.equal(s[0].lineas.length, 2);
+});
+
+test('parseo TOLERANTE: texto corrido se degrada a una tarjeta, no rompe', () => {
+  const { api } = emailH();
+  const html = api.renderConsolidadoHtml_('daily', 'Millenny', '2026-07-27',
+    'Hoy el equipo avanzó en varios frentes sin bloqueos relevantes.');
+
+  assert.match(html, /Consolidado Diario/);
+  assert.match(html, /Hoy el equipo avanzó/);
+  assert.equal(/text-transform:uppercase;padding-bottom:8px/.test(html), false);  // ninguna tarjeta
+});
+
+test('renderConsolidadoHtml_ pinta una tarjeta por sección y colorea por tema', () => {
+  const { api } = emailH();
+  const html = api.renderConsolidadoHtml_('weekly', 'Millenny', '2026-07-27',
+    'LOGROS DE LA SEMANA\n- Cerramos Q3\n\nRIESGOS\n- Migración detenida');
+
+  assert.match(html, /Consolidado Semanal/);
+  assert.match(html, /Equipo Millenny · 27 jul 2026/);
+  assert.match(html, /border-left:4px solid #2e8b5a/);   // verde → logros
+  assert.match(html, /border-left:4px solid #d9503b/);   // rojo  → riesgos
+  assert.match(html, /<li[^>]*>Cerramos Q3<\/li>/);
+});
+
+test('el consolidado escapa el contenido del LLM', () => {
+  const { api } = emailH();
+  const html = api.renderConsolidadoHtml_('daily', 'M', '2026-07-27',
+    'LOGROS\n- <img src=x onerror=alert(1)>');
+  assert.equal(html.includes('<img src=x'), false);
+  assert.match(html, /&lt;img src=x/);
+});
+
+test('enviarConsolidado manda texto plano + htmlBody', () => {
+  const hoy = new Date();
+  const config = {
+    sheets: { daily: 'Daily', weekly: 'Weekly', prompts: 'Prompts' },
+    models: { consolidated: 'm' },
+    leader: { email: 'mille@x.com', name: 'Millenny' },
+    timezone: 'America/Lima', options: {}
+  };
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal', 'Nombre', 'Summary'], [hoy, 'Ana', 'avanzó']] } },
+    scriptProperties: { GEMINI_API_KEY: 'k' },
+    fetch: () => httpResponse(200, geminiOk('LOGROS DE HOY\n- Ana avanzó'))
+  });
+  const today = h.api.Utilities.formatDate(hoy, config.timezone, 'yyyy-MM-dd');
+  h.api.enviarConsolidado('SID', config, 'daily', today);
+
+  const mail = h.sentEmails[0];
+  assert.match(mail.body, /LOGROS DE HOY/);            // fallback de texto plano intacto
+  assert.match(mail.html, /^<!DOCTYPE html>/);
+  assert.match(mail.html, /Xertica/);
+});
+
+test('la invitación lleva botón con la URL y el correo de la persona', () => {
+  const h = makeHarness();
+  h.api.enviarInvitacion_('daily', { nombre: 'Ana', correo: 'ana@x.com' }, 'Millenny', 'https://form/d');
+
+  const mail = h.sentEmails[0];
+  assert.match(mail.body, /https:\/\/form\/d/);        // texto plano: URL a la vista
+  assert.match(mail.html, /<a href="https:\/\/form\/d"[^>]*>Llenar mi Daily<\/a>/);
+  assert.match(mail.html, /background:#faf338/);       // botón en amarillo de marca
+  assert.match(mail.html, /ana@x\.com/);
+  assert.match(mail.html, /Hola Ana,/);
+});

@@ -25,6 +25,7 @@ const RUNTIME_FILES = [
   'gemini-runtime.js',
   'summaries-runtime.js',
   'consolidation-runtime.js',
+  'email-runtime.js',
   'invites-runtime.js',
   'dispatcher-runtime.js',
   'forms-runtime.js',
@@ -176,7 +177,9 @@ export function makeHarness(opts = {}) {
       }
     },
     MailApp: {
-      sendEmail: (to, subject, body) => { state.sentEmails.push({ to, subject, body }); }
+      sendEmail: (to, subject, body, options) => {
+        state.sentEmails.push({ to, subject, body, html: (options && options.htmlBody) || '' });
+      }
     },
     Logger: { log: (...a) => state.logs.push(a) },
     ScriptApp: { getOAuthToken: () => 'TEST_OAUTH_TOKEN' },
