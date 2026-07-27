@@ -1,0 +1,14 @@
+# Config real con IDs del entorno (usa cos.config.example.json como plantilla)
+cos.config.json
+
+# clasp — credenciales y (opcional) mapeo de scriptId
+.clasprc.json
+.clasp.json
+
+# Node
+node_modules/
+
+# Temporales / build
+.tmp/
+*.log
+.DS_Store

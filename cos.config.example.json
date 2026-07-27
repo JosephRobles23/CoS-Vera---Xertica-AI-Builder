@@ -1,0 +1,36 @@
+{
+  "//": "Copia este archivo a cos.config.json (gitignored) y completa los IDs de TU entorno.",
+  "//key": "La API key de Gemini NO va aquí — vive en Script Properties de la librería (GEMINI_API_KEY).",
+
+  "library": {
+    "scriptId": "<SCRIPT_ID de la librería standalone CLEVEL-REPORTS-Lib>",
+    "identifier": "CoSLib",
+    "version": "0",
+    "//version": "0 = HEAD (desarrollo). En producción los stubs apuntan a una versión fija."
+  },
+
+  "template": {
+    "sheetId": "<SHEET_ID de la plantilla que copian los líderes>",
+    "copyUrlHint": "https://docs.google.com/spreadsheets/d/<SHEET_ID>/copy"
+  },
+
+  "gemini": {
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta/models",
+    "//models": "Flash 3.6 (por fila) y Pro 3.1 preview (consolidado). El bridge es agnóstico: cambiar el modelo es solo editar aquí. Nota: -pro-preview es un modelo en preview (puede cambiar sin previo aviso).",
+    "modelPerRow": "gemini-3.6-flash",
+    "modelConsolidated": "gemini-3.1-pro-preview"
+  },
+
+  "runtime": {
+    "//timezone": "Fallback estático; la zona horaria REAL es por-líder (pestaña Ajustes, editable desde el sidebar).",
+    "timezone": "America/Lima",
+    "dispatchWindowMin": 5,
+    "sheets": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "roster": "Equipo",
+      "prompts": "Prompts",
+      "settings": "Ajustes"
+    }
+  }
+}

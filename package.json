@@ -1,0 +1,15 @@
+{
+  "name": "cos-agent",
+  "version": "0.5.0",
+  "private": true,
+  "description": "Chief of Staff Agent — automatización de reportería Daily/Weekly per-líder (Apps Script + Gemini)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "lib:push": "clasp push --project shared",
+    "lib:pull": "clasp pull --project shared"
+  },
+  "devDependencies": {
+    "@google/clasp": "^3.3.0"
+  }
+}
