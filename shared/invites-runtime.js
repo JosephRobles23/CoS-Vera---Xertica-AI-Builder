@@ -36,7 +36,7 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     // contra la pestaña Equipo. Si responden con otra cuenta, la fila queda sin nombre.
     'Solo son las preguntas: responde con esta misma cuenta (' + persona.correo + ') ' +
     'y tu nombre se registra solo.\n\n' +
-    'Gracias,\nChief of Staff AI';
+    'Gracias,\nVera';
 
   MailApp.sendEmail(persona.correo, asunto, cuerpo);
 }
