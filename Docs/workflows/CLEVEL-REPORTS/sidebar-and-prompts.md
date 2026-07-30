@@ -220,10 +220,12 @@ El panel ofrece estos tipos, mapeados a `FormApp`:
 
 ## Resumen del reparto (coherente con el patrón librería + stub)
 
-- **Stub bound:** `Sidebar.html`, `onOpen`, los wrappers de `google.script.run`, y la instalación
-  de triggers.
-- **Librería (`CoSLib`):** `FormApp`, composición de prompts + defaults, llamadas a Gemini,
-  lectura/escritura de las pestañas, y envío de correos.
+- **Stub bound (bootloader):** `onOpen`/`abrirSidebar`/`abrirDialogo` (delegan en la librería), el
+  puente `cosRun` + los wrappers nombrados de `google.script.run`, los slots de menú, y la
+  instalación de triggers.
+- **Librería (`CoSLib`):** el **menú y el HTML del sidebar** (`ui-runtime.js` + `Sidebar.html`),
+  `FormApp`, composición de prompts + defaults, llamadas a Gemini, lectura/escritura de las
+  pestañas, y envío de correos.
 - **Sheet del líder:** pestañas `Prompts`, `Equipo`, `Daily`, `Weekly` — toda la personalización
   *por persona*.
 

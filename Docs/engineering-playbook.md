@@ -55,6 +55,28 @@ Mantén las funciones de tarea del workflow legibles como orquestación:
   de ejemplo (ahí sí funcionan los breakpoints), o usa `console.log()` dentro de la librería (sus
   logs aparecen en el registro de ejecución del stub que la llamó).
 
+## Stub bootloader (qué va en el stub vs la librería)
+
+El stub bound de cada líder es un **bootloader delgado y estable**: expone solo lo que la plataforma
+**exige** que resida en el proyecto contenedor; todo lo demás vive en la librería para llegar por
+versión (y por el botón *Actualizar*), sin re-copiar.
+
+- **Debe quedarse en el stub** (no puede vivir en la librería):
+  - `onOpen` — trigger simple; solo puede construir el menú (sin scopes de autorización). Delega en
+    `CoSLib.construirMenu(ui)`, que **también** debe permanecer libre de servicios autorizados.
+  - Handlers de ítems de menú (se resuelven por **nombre** en el scope del stub, sin args): usa
+    facades (`abrirSidebar`, `actualizarVersion`) o los slots pre-provisionados `cosMenu1..5`.
+  - Callbacks de `google.script.run` (resuelven en el stub): usa el puente genérico
+    `cosRun(fnName, argsJson)` → `CoSLib.dispatch(...)` en vez de un wrapper por función.
+  - La llamada de UI final (`showSidebar`/`showModalDialog`) y `ScriptApp.getScriptId()`.
+- **Debe vivir en la librería** (para actualizarse por versión): estructura del menú, HTML del
+  sidebar/diálogos (`createHtmlOutputFromFile` carga del proyecto que ejecuta), y toda la lógica.
+- **Regla al agregar una función de servidor para el sidebar:** regístrala en `CoSLib.dispatch`
+  (convención `fn(sheetId, config, ...args)`) y llámala desde el cliente vía `cosRun` — **no** un
+  wrapper nuevo en el stub. Un ítem de menú con acción nueva usa un slot libre (`CoSLib.menuAction`).
+- **Auto-update destructivo:** `updateContent` reemplaza **todos** los archivos; reenvía cada uno
+  verbatim y parchea solo el `version` de la dependencia (por `libraryId`, no por `userSymbol`).
+
 ## Capas de prompts (contrato)
 
 Cada llamada al LLM compone, en este orden, un único bloque de sistema:

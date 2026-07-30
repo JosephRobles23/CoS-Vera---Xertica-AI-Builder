@@ -142,7 +142,8 @@ clasp list-versions
 ```bash
 cd ~/Projects/CoS-Agent/workflows/CLEVEL-REPORTS
 ```
-**Para qué:** entrar a la carpeta del stub (config.js, stub.js, triggers.js, Sidebar.html).
+**Para qué:** entrar a la carpeta del stub (config.js, stub.js, triggers.js). El `Sidebar.html`
+vive en `shared/` (lo sirve la librería), no aquí.
 
 ```bash
 clasp create --type sheets --title "CoS — Plantilla CLEVEL-REPORTS"

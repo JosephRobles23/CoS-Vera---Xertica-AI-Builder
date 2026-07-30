@@ -75,7 +75,7 @@ clasp create --type sheets --title "CoS — Plantilla CLEVEL-REPORTS"
 2. Sube el stub:
 
 ```bash
-clasp push --force         # sube config.js, stub.js, triggers.js, Sidebar.html, appsscript.json
+clasp push --force         # sube config.js, stub.js, triggers.js, appsscript.json (Sidebar.html vive en shared/)
 ```
 
 ## F. Primera autorización + activadores

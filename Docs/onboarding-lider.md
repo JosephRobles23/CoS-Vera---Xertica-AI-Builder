@@ -59,6 +59,9 @@ En Drive → abre `CLEVEL-REPORTS-Lib` → **Compartir** → agrega a la persona
 Pide al **admin de Google Workspace** que confíe en la app (allowlist por *OAuth Client ID*). Si no,
 el líder verá una advertencia al autorizar (puede continuar con **Configuración avanzada**).
 
+> El stub ahora también pide el scope `script.projects` (lo usa el botón *Actualizar CoS a la última
+> versión*, ver **Parte C**). Si allowlisteas por scopes, inclúyelo.
+
 ### A6. Comparte el enlace de copia
 Manda este link a la persona (fuerza "Hacer una copia"):
 ```
@@ -94,6 +97,27 @@ suya. La `GEMINI_API_KEY` es central (en la librería), así que **no** necesita
 
 ---
 
+## Parte C — Actualizaciones sin re-copiar (una vez en el onboarding)
+
+La UI (menú, sidebar, futuros diálogos) y la lógica viven en la **librería**. El líder recibe
+mejoras pulsando un botón, **sin** volver a copiar el Sheet ni entrar a Apps Script.
+
+**Habilitar una sola vez** (guíalo en el onboarding):
+1. Ir a **https://script.google.com/home/usersettings**.
+2. Activar **Google Apps Script API** (ON).
+
+**Cada vez que publiques una versión nueva** (ver A1), el líder solo:
+- **CoS → Actualizar CoS a la última versión** → confirmar → **recargar la hoja**.
+
+La primera vez pedirá re-autorizar (por el permiso nuevo `script.projects`). Su configuración
+(Ajustes/Prompts/Equipo/Forms/activadores) **no se toca**: solo cambia a qué versión de la librería
+apunta la copia.
+
+> Mensajes posibles del botón: *"Actualizado de vX a vY. Recarga…"*, *"Ya al día (vX)"*, o
+> *"Falta un paso: habilita la Apps Script API en …usersettings"* (si se saltó el paso de arriba).
+
+---
+
 ## Verificación rápida
 
 - En **Activadores** (⏰, panel izquierdo del editor) deben existir `onFormSubmit` y
@@ -112,12 +136,20 @@ suya. La `GEMINI_API_KEY` es central (en la librería), así que **no** necesita
 | No salen correos | No ejecutó `setupTriggers`, no ha llegado la hora, o no generó el Form. |
 | Al generar el Form da error de permisos | La copia heredó tus `forms.*` en `Ajustes` (falta limpiar la plantilla, **A3**). |
 | ¿Necesita su propia API key? | No — vive en la **librería** (central). |
+| "Falta un paso… usersettings" al Actualizar | No activó la Apps Script API (**Parte C**). Actívala y reintenta en unos minutos. |
+| Actualicé pero no veo cambios | Falta **recargar la hoja** tras el mensaje "Actualizado…". |
+| "No se pudo actualizar" con detalle HTTP | El líder no tiene acceso de **lectura** a la librería (**A4**), o la versión aún no está publicada (**A1**). |
 
 ---
 
 ## Recordatorio de versionado
 
 Cuando mejores el código: `clasp push` (HEAD) → `clasp create-version "vX"` → sube el `version`
-en el `appsscript.json` de la plantilla y `clasp push`. Los líderes existentes **no** ven el cambio
-hasta que copien una plantilla nueva o actualices la versión que su copia referencia. Detalle en
-[testing-and-deploy.md](testing-and-deploy.md).
+en el `appsscript.json` de la plantilla y `clasp push`. Esto último solo afecta a las **copias
+nuevas** (nacen apuntando a vX).
+
+Las **copias existentes** ya no dependen de re-copiar: cada líder pulsa **CoS → Actualizar CoS a la
+última versión** y su copia salta a la última versión publicada (**Parte C**). Como el menú, el
+sidebar y los diálogos viven en la librería, esa actualización también trae la **UI** nueva.
+Invariante: *la última versión publicada es producción* — no publiques una versión que no quieras que
+los líderes reciban al pulsar el botón. Detalle en [testing-and-deploy.md](testing-and-deploy.md).

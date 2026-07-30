@@ -12,22 +12,18 @@ CoS-Agent parte cada workflow en **dos piezas**:
 | **Stub** (uno por Sheet de líder) | Script **container-bound** al Sheet | Mínimo: `onOpen`, host del sidebar, wrappers de `google.script.run`, e instalación de triggers |
 
 ```javascript
-// Stub (container-bound) — esto es lo ÚNICO que ve el líder en su Sheet
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('CoS')
-    .addItem('Configurar', 'abrirSidebar')
-    .addToUi();
-}
-function abrirSidebar() {
-  const html = HtmlService.createHtmlOutputFromFile('Sidebar').setTitle('CoS — Configuración');
-  SpreadsheetApp.getUi().showSidebar(html);
-}
-// Wrapper que el sidebar invoca; delega TODO a la librería:
-function generarFormulario(tipo, preguntas) {
-  return CoSLib.generarFormulario(tipo, preguntas, SpreadsheetApp.getActive().getId());
+// Stub (container-bound) — un "bootloader" delgado. Menú, sidebar y diálogos los CONSTRUYE la
+// librería (llegan por versión, sin re-copiar); el stub solo expone lo que la plataforma exige.
+function onOpen()       { CoSLib.construirMenu(SpreadsheetApp.getUi()); }        // menú desde la librería
+function abrirSidebar() { SpreadsheetApp.getUi().showSidebar(CoSLib.buildSidebar()); }  // HTML en la librería
+// Puente genérico: google.script.run resuelve SIEMPRE en el stub → una sola función enruta a CoSLib,
+// así una función de servidor nueva no necesita wrapper nuevo aquí.
+function cosRun(fnName, argsJson) {
+  return CoSLib.dispatch(fnName, JSON.parse(argsJson || '[]'), getSheetId_(), getConfig_());
 }
 ```
+> El detalle del patrón (qué queda congelado en el stub, slots de menú, auto-actualización) está en
+> [engineering-playbook.md](engineering-playbook.md#stub-bootloader-qué-va-en-el-stub-vs-la-librería).
 
 ### Qué NO puede ir en la librería (por eso existe el stub)
 
@@ -83,19 +79,22 @@ shared/
 ├── forms-runtime.js         # generación/edición de Forms con FormApp
 ├── sheets-runtime.js        # acceso a hojas, mapa de encabezados, utilidades de hora
 ├── roster-runtime.js        # lectura de la pestaña Equipo
-└── settings-runtime.js      # pestaña Ajustes (editable) + construirConfig + soporte del sidebar
+├── settings-runtime.js      # pestaña Ajustes (editable) + construirConfig + soporte del sidebar
+├── ui-runtime.js            # menú, sidebar, diálogos y router (dispatch) — la UI vive aquí
+├── update-runtime.js        # auto-actualización de la copia (Apps Script REST API)
+└── Sidebar.html             # los 4 paneles del sidebar (servido por CoSLib.buildSidebar)
 ```
 
 Dentro de cada workflow bound (`workflows/CLEVEL-REPORTS/`):
 
 ```
 workflows/CLEVEL-REPORTS/
-├── appsscript.json          # manifiesto (scopes, dependencia de librería)
+├── appsscript.json          # manifiesto (scopes —incl. script.projects—, dependencia de librería)
 ├── config.js                # const CONFIG = { ... } — IDs, nombres de pestaña, patrones
-├── stub.js                  # onOpen, wrappers de google.script.run, delegación a la librería
-├── triggers.js              # setupTriggers(): onFormSubmit + dispatcher
-└── Sidebar.html             # los 4 paneles del sidebar
+├── stub.js                  # bootloader: onOpen/abrirSidebar/cosRun/abrirDialogo, slots, triggers
+└── triggers.js              # setupTriggers(): onFormSubmit + dispatcher
 ```
+> `Sidebar.html` se movió a `shared/` (la librería lo sirve); el stub ya no lo contiene.
 
 Regla de reparto: si un helper lo necesitaría un segundo workflow, va a `shared/`. Si es específico
 de este workflow, se queda local. Ver

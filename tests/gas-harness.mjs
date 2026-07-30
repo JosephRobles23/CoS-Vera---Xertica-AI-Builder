@@ -29,7 +29,9 @@ const RUNTIME_FILES = [
   'invites-runtime.js',
   'dispatcher-runtime.js',
   'forms-runtime.js',
-  'settings-runtime.js'
+  'settings-runtime.js',
+  'ui-runtime.js',
+  'update-runtime.js'
 ];
 
 let sheetIdSeq = 1;
@@ -193,7 +195,20 @@ export function makeHarness(opts = {}) {
       BandingTheme: { LIGHT_GREY: 'LIGHT_GREY' },
       BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' }
     },
-    FormApp: opts.FormApp || { DestinationType: { SPREADSHEET: 'SPREADSHEET' } }
+    FormApp: opts.FormApp || { DestinationType: { SPREADSHEET: 'SPREADSHEET' } },
+    HtmlService: {
+      // Devuelve un HtmlOutput mock encadenable que recuerda el archivo y los ajustes aplicados,
+      // para poder afirmar en tests qué archivo cargó buildSidebar/buildDialog.
+      createHtmlOutputFromFile: (name) => {
+        const out = {
+          _file: name, _title: null, _width: null, _height: null,
+          setTitle(t) { out._title = t; return out; },
+          setWidth(w) { out._width = w; return out; },
+          setHeight(h) { out._height = h; return out; }
+        };
+        return out;
+      }
+    }
   };
 
   vm.createContext(sandbox);

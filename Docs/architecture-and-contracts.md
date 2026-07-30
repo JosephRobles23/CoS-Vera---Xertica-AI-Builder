@@ -88,8 +88,10 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Superficie | Archivo canónico (planeado) | Estado |
 |---|---|---|
 | Config del workflow (estático) | `workflows/CLEVEL-REPORTS/config.js` | Implemented |
-| Wrappers del stub (menú + `google.script.run`) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
-| Host del sidebar (HTML, 4 paneles) | `workflows/CLEVEL-REPORTS/Sidebar.html` | Implemented |
+| Bootloader del stub (delegación + puente `cosRun` + triggers) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
+| UI de la librería (menú, sidebar, diálogos, `dispatch`) | `shared/ui-runtime.js` | Implemented |
+| HTML del sidebar (4 paneles) | `shared/Sidebar.html` | Implemented |
+| Auto-actualización de la copia | `shared/update-runtime.js` | Implemented |
 | Instalación de triggers | `workflows/CLEVEL-REPORTS/triggers.js` | Implemented |
 | Bridge único con Gemini | `shared/gemini-runtime.js` | Implemented |
 | Composición de prompts (soul+user+task) | `shared/prompts-runtime.js` | Implemented |

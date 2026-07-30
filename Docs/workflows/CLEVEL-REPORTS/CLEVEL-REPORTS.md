@@ -252,6 +252,36 @@ Reprogramar horarios desde el panel **Horarios** = borrar y recrear el trigger c
 
 ---
 
+## UI centralizada (bootloader) y auto-actualización
+
+El **stub** de cada líder es un *bootloader* delgado: la UI (menú, sidebar, diálogos) y la lógica
+viven en la **librería**, así que las mejoras llegan por **versión** sin re-copiar el Sheet.
+
+- **Menú:** `onOpen` (trigger simple del stub) delega en `CoSLib.construirMenu(ui)`. Los ítems
+  apuntan a funciones del stub **por nombre** (`abrirSidebar`, `actualizarVersion`, y slots
+  `cosMenu1..5`), porque los handlers de menú resuelven en el stub, no en la librería.
+- **Sidebar / diálogos:** `abrirSidebar` muestra `CoSLib.buildSidebar()`; el HTML vive en
+  `shared/Sidebar.html` (`createHtmlOutputFromFile` carga del proyecto que ejecuta = la librería).
+  Diálogos nuevos: se registran en `CoSLib` (`DIALOGOS_`) y el stub los abre con el opener genérico
+  `abrirDialogo(nombre)`.
+- **Server-API del sidebar:** `google.script.run` resuelve siempre en el stub. El puente genérico
+  `cosRun(fnName, argsJson)` → `CoSLib.dispatch(...)` deja registrar funciones nuevas en la librería
+  sin nuevo wrapper. Los 6 wrappers actuales se conservan por compatibilidad.
+
+**Auto-actualización** (`shared/update-runtime.js`, botón *CoS → Actualizar CoS a la última
+versión*): `autoActualizar(scriptId, token)` lee el manifiesto de la copia, busca la mayor versión
+publicada de CoSLib (Apps Script REST API, paginando) y, si es mayor, reescribe el HEAD de la copia
+con el manifiesto parcheado (reenviando **todos** los archivos, porque `updateContent` los
+reemplaza). Requiere el scope `script.projects` en el stub y que el líder habilite la Apps Script
+API una vez. No toca datos: solo cambia a qué versión apunta la copia. Ver
+[onboarding-lider.md](../../onboarding-lider.md) Parte C.
+
+**Qué queda congelado en el stub** (superficie estable, se re-empuja solo si cambia): `onOpen`,
+`abrirSidebar`, `abrirDialogo`, `cosRun`, slots `cosMenu1..5`, `actualizarVersion`, handlers de
+activadores (`onFormSubmit`, `dispatcher`) y los helpers de prueba del editor.
+
+---
+
 ## Límites conocidos (heredados del modelo v0.5)
 
 1. **Ventana de horas = 5 min:** un correo sale en `[hora, hora+5min)`; para precisión al minuto,

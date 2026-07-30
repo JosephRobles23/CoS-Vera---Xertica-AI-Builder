@@ -1,23 +1,65 @@
 /**
- * stub.js — Script container-bound (uno por líder). Delgado: solo menú, activadores y
- * wrappers de google.script.run. Toda la lógica vive en la librería `CoSLib`.
+ * stub.js — Script container-bound (uno por líder). Es un "bootloader" DELGADO y ESTABLE:
+ * la UI (menú, sidebar, diálogos) y toda la lógica viven en la librería `CoSLib`. El stub solo
+ * expone la superficie que la plataforma exige que resida en el proyecto contenedor:
+ *   - onOpen (trigger simple) → delega el menú a la librería,
+ *   - un puente genérico cosRun para google.script.run,
+ *   - un abridor genérico de diálogos,
+ *   - slots de menú pre-provisionados (cosMenu1..5) cuya acción define la librería,
+ *   - handlers de activadores y los helpers de prueba del editor.
+ * Así casi toda evolución de UI/lógica llega al líder por VERSIÓN de librería, sin re-copiar.
  *
  * Sin import/export: runtime de Apps Script (namespace global del stub).
  */
 
-// --- Menú + sidebar ---
+// --- Menú + sidebar + diálogos (construidos por la librería; el stub solo los muestra) ---
 
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('CoS')
-    .addItem('Configurar', 'abrirSidebar')
-    .addToUi();
+  CoSLib.construirMenu(SpreadsheetApp.getUi());
 }
 
 function abrirSidebar() {
-  var html = HtmlService.createHtmlOutputFromFile('Sidebar')
-    .setTitle('CoS — Configuración');
-  SpreadsheetApp.getUi().showSidebar(html);
+  SpreadsheetApp.getUi().showSidebar(CoSLib.buildSidebar());
+}
+
+// Abridor genérico de diálogos modales. Se invoca desde el sidebar vía google.script.run (que
+// SÍ admite argumentos), así un diálogo nuevo se crea en la librería sin tocar el stub.
+function abrirDialogo(nombre) {
+  var d = CoSLib.buildDialog(nombre);
+  SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+}
+
+// --- Puente genérico del server-API del sidebar (google.script.run resuelve SIEMPRE en el stub) ---
+// Una función de servidor nueva para el sidebar se registra en CoSLib.dispatch y llega al líder
+// por versión, sin nuevo wrapper aquí.
+function cosRun(fnName, argsJson) {
+  return CoSLib.dispatch(fnName, JSON.parse(argsJson || '[]'), getSheetId_(), getConfig_());
+}
+
+// --- Slots de menú pre-provisionados (handlers SIN args que el menú puede targetear por nombre) ---
+// El menú lo arma la librería (construirMenu); si mapea un ítem a uno de estos slots, su acción
+// se define en CoSLib.menuAction — nuevo comportamiento de menú sin tocar el stub.
+function cosMenu1() { return CoSLib.menuAction('cosMenu1', getSheetId_(), getConfig_()); }
+function cosMenu2() { return CoSLib.menuAction('cosMenu2', getSheetId_(), getConfig_()); }
+function cosMenu3() { return CoSLib.menuAction('cosMenu3', getSheetId_(), getConfig_()); }
+function cosMenu4() { return CoSLib.menuAction('cosMenu4', getSheetId_(), getConfig_()); }
+function cosMenu5() { return CoSLib.menuAction('cosMenu5', getSheetId_(), getConfig_()); }
+
+// --- Auto-actualización (única función que necesita el scriptId propio de la copia) ---
+
+function actualizarVersion() {
+  var ui = SpreadsheetApp.getUi();
+  if (ui.alert('Actualizar CoS', '¿Buscar e instalar la última versión?', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
+  var res = CoSLib.autoActualizar(ScriptApp.getScriptId(), ScriptApp.getOAuthToken());
+  if (res.actualizado) {
+    ui.alert('Listo', 'Actualizado de v' + res.de + ' a v' + res.a + '. Recarga la hoja para aplicar los cambios.', ui.ButtonSet.OK);
+  } else if (res.motivo === 'ya-al-dia') {
+    ui.alert('Ya al día', 'Tienes la última versión (v' + res.a + ').', ui.ButtonSet.OK);
+  } else if (res.motivo === 'api-no-habilitada') {
+    ui.alert('Falta un paso', 'Habilita la Apps Script API en ' + res.ayuda + ' y reintenta en unos minutos.', ui.ButtonSet.OK);
+  } else {
+    ui.alert('No se pudo actualizar', res.detalle || res.motivo, ui.ButtonSet.OK);
+  }
 }
 
 // --- Activadores (instalados por setupTriggers; NO ejecutar onFormSubmit a mano) ---
