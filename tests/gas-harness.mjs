@@ -30,8 +30,7 @@ const RUNTIME_FILES = [
   'dispatcher-runtime.js',
   'forms-runtime.js',
   'settings-runtime.js',
-  'ui-runtime.js',
-  'update-runtime.js'
+  'ui-runtime.js'
 ];
 
 let sheetIdSeq = 1;

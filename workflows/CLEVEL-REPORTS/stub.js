@@ -45,23 +45,6 @@ function cosMenu3() { return CoSLib.menuAction('cosMenu3', getSheetId_(), getCon
 function cosMenu4() { return CoSLib.menuAction('cosMenu4', getSheetId_(), getConfig_()); }
 function cosMenu5() { return CoSLib.menuAction('cosMenu5', getSheetId_(), getConfig_()); }
 
-// --- Auto-actualización (única función que necesita el scriptId propio de la copia) ---
-
-function actualizarVersion() {
-  var ui = SpreadsheetApp.getUi();
-  if (ui.alert('Actualizar CoS', '¿Buscar e instalar la última versión?', ui.ButtonSet.OK_CANCEL) !== ui.Button.OK) return;
-  var res = CoSLib.autoActualizar(ScriptApp.getScriptId(), ScriptApp.getOAuthToken());
-  if (res.actualizado) {
-    ui.alert('Listo', 'Actualizado de v' + res.de + ' a v' + res.a + '. Recarga la hoja para aplicar los cambios.', ui.ButtonSet.OK);
-  } else if (res.motivo === 'ya-al-dia') {
-    ui.alert('Ya al día', 'Tienes la última versión (v' + res.a + ').', ui.ButtonSet.OK);
-  } else if (res.motivo === 'api-no-habilitada') {
-    ui.alert('Falta un paso', 'Habilita la Apps Script API en ' + res.ayuda + ' y reintenta en unos minutos.', ui.ButtonSet.OK);
-  } else {
-    ui.alert('No se pudo actualizar', res.detalle || res.motivo, ui.ButtonSet.OK);
-  }
-}
-
 // --- Activadores (instalados por setupTriggers; NO ejecutar onFormSubmit a mano) ---
 
 function onFormSubmit(e) {
