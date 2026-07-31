@@ -28,8 +28,8 @@ test('construirMenu arma el menú CoS con handlers del stub por nombre', () => {
   assert.equal(ui._menu._name, 'CoS');
   assert.equal(ui._menu._added, true);
   const items = ui._items.filter((i) => i.kind === 'item');
-  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar', 'actualizarVersion']);
-  assert.deepEqual(items.map((i) => i.caption), ['Configurar', 'Actualizar CoS a la última versión']);
+  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar']);
+  assert.deepEqual(items.map((i) => i.caption), ['Configurar']);
 });
 
 test('buildSidebar carga el HTML de la librería con título', () => {

@@ -23,16 +23,14 @@
  * (sin servicios que requieran autorización). Para agregar/relabelar/reordenar ítems basta
  * editar esto y publicar versión: el cambio llega al líder sin tocar su copia.
  *
- * Los ítems targetean funciones del stub por nombre: 'abrirSidebar', 'actualizarVersion' y los
- * slots pre-provisionados 'cosMenu1'..'cosMenu5' (cuya acción se define en menuAction).
+ * Los ítems targetean funciones del stub por nombre: 'abrirSidebar' y los slots
+ * pre-provisionados 'cosMenu1'..'cosMenu5' (cuya acción se define en menuAction).
  *
  * @param {Ui} ui  SpreadsheetApp.getUi(), pasado por el stub
  */
 function construirMenu(ui) {
   ui.createMenu('CoS')
     .addItem('Configurar', 'abrirSidebar')
-    .addSeparator()
-    .addItem('Actualizar CoS a la última versión', 'actualizarVersion')
     .addToUi();
 }
 
