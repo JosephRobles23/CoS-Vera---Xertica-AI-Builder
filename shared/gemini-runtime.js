@@ -28,8 +28,8 @@ function getGeminiKey_() {
  * @param {string} model       ID del modelo, p.ej. 'gemini-2.5-flash' (desde CONFIG).
  * @param {string} systemText  Bloque de sistema ya compuesto (soul + user + task).
  * @param {string} userText    Bloque de usuario (solo datos).
- * @param {Object} [opts]      { maxOutputTokens?:number, temperature?:number }
- * @return {string} texto generado (no vacío).
+ * @param {Object} [opts]      { maxOutputTokens?:number, temperature?:number, responseSchema?:Object }
+ * @return {string} texto generado (no vacío). Con responseSchema, es JSON como string (parsear afuera).
  */
 function callGemini_(model, systemText, userText, opts) {
   if (!model) throw new Error('callGemini_: falta el ID de modelo.');
@@ -43,6 +43,12 @@ function callGemini_(model, systemText, userText, opts) {
   // finishReason:MAX_TOKENS. Al omitirlo, el modelo usa su máximo y siempre queda espacio
   // para la respuesta visible. Solo se limita si el caller lo pide explícito.
   if (opts.maxOutputTokens) generationConfig.maxOutputTokens = opts.maxOutputTokens;
+  // Salida estructurada: fuerza JSON contra un esquema (subconjunto OpenAPI). El JSON llega
+  // como texto en parts[].text (extractGeminiText_ no cambia); el caller hace JSON.parse.
+  if (opts.responseSchema) {
+    generationConfig.responseMimeType = 'application/json';
+    generationConfig.responseSchema = opts.responseSchema;
+  }
 
   var payload = {
     systemInstruction: { parts: [{ text: String(systemText == null ? '' : systemText) }] },

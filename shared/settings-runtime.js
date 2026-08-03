@@ -23,7 +23,14 @@ var AJUSTES_DEFAULTS_ = {
   'forms.dailyFormId': '',
   'forms.weeklyFormId': '',
   'questions.daily': '',     // JSON; '' → usa DEFAULT_QUESTIONS_.daily
-  'questions.weekly': ''
+  'questions.weekly': '',
+  // Metadatos del Form editables desde el modal (título/descr.) + último prompt generativo por tipo.
+  'form.title.daily': '',
+  'form.title.weekly': '',
+  'form.desc.daily': '',
+  'form.desc.weekly': '',
+  'prompt.gen.daily': '',
+  'prompt.gen.weekly': ''
 };
 
 /** Preguntas por defecto (pre-cargan el panel Preguntas en una copia nueva). */
@@ -185,7 +192,19 @@ function getAjustes_(sheetId, settingsSheetName) {
       dailyFormId:  str_(flat['forms.dailyFormId']),
       weeklyFormId: str_(flat['forms.weeklyFormId'])
     },
-    questions: { daily: str_(flat['questions.daily']), weekly: str_(flat['questions.weekly']) }
+    questions: { daily: str_(flat['questions.daily']), weekly: str_(flat['questions.weekly']) },
+    formMeta: {
+      daily: {
+        titulo:      str_(flat['form.title.daily']),
+        descripcion: str_(flat['form.desc.daily']),
+        prompt:      str_(flat['prompt.gen.daily'])
+      },
+      weekly: {
+        titulo:      str_(flat['form.title.weekly']),
+        descripcion: str_(flat['form.desc.weekly']),
+        prompt:      str_(flat['prompt.gen.weekly'])
+      }
+    }
   };
 }
 
@@ -238,7 +257,8 @@ function cargarConfig(sheetId, config) {
     preguntas: {
       daily: parseQuestions_(aj.questions.daily, 'daily'),
       weekly: parseQuestions_(aj.questions.weekly, 'weekly')
-    }
+    },
+    formMeta: aj.formMeta   // { daily:{titulo,descripcion,prompt}, weekly:{...} } para el modal
   };
 }
 
@@ -258,6 +278,36 @@ function configurarFormulario(tipo, preguntas, sheetId, config) {
     updates['forms.weeklyFormId'] = res.formId;
     updates['questions.weekly'] = JSON.stringify(preguntas || []);
   }
+  setAjustes_(sheetId, config.sheets.settings, updates);
+  return res.publishedUrl;
+}
+
+/**
+ * Genera/edita el Form desde el MODAL y persiste todo su estado en Ajustes: preguntas (con
+ * obligatoriedad/ayuda), URL/ID, título/descripción del Form y el último prompt generativo.
+ * Reescribe el MISMO Form si ya existe (conserva URL/ID/acceso/correo verificado).
+ *
+ * @param {string} tipo    'daily' | 'weekly'
+ * @param {Object} payload { preguntas:Array, titulo?:string, descripcion?:string, prompt?:string }
+ * @return {string} publishedUrl
+ */
+function guardarFormulario(sheetId, config, tipo, payload) {
+  payload = payload || {};
+  var preguntas = payload.preguntas || [];
+  var meta = { titulo: payload.titulo || '', descripcion: payload.descripcion || '' };
+
+  var aj = getAjustes_(sheetId, config.sheets.settings);
+  var existingId = (tipo === 'daily') ? aj.forms.dailyFormId : aj.forms.weeklyFormId;
+  var res = generarFormulario(tipo, preguntas, sheetId, config, existingId || null, meta);
+
+  var suf = (tipo === 'daily') ? 'daily' : 'weekly';
+  var updates = {};
+  updates['forms.' + suf + 'Url']  = res.publishedUrl;
+  updates['forms.' + suf + 'FormId'] = res.formId;
+  updates['questions.' + suf]       = JSON.stringify(preguntas);
+  updates['form.title.' + suf]      = meta.titulo;
+  updates['form.desc.' + suf]       = meta.descripcion;
+  updates['prompt.gen.' + suf]      = payload.prompt || '';
   setAjustes_(sheetId, config.sheets.settings, updates);
   return res.publishedUrl;
 }

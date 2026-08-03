@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ---- shadcn / Neutral (design tokens, OKLCH) — mismos que el sidebar ---- */
+    :root {
+      --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0); --card-foreground: oklch(0.145 0 0);
+      --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+      --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0);
+      --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+      --scroll: oklch(0.45 0 0 / 0.28); --scroll-hover: oklch(0.45 0 0 / 0.45);
+      --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+      --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
+        --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0);
+        --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
+        --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+        --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+        --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
+        --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
+        --destructive: oklch(0.704 0.191 22.216);
+        --border: oklch(1 0 0 / 0.1); --input: oklch(1 0 0 / 0.15); --ring: oklch(0.556 0 0);
+        --scroll: oklch(1 0 0 / 0.2); --scroll-hover: oklch(1 0 0 / 0.35);
+      }
+    }
+    * { box-sizing: border-box; margin: 0; scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--scroll); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scroll-hover); }
+
+    html, body { background: var(--background); }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+      font-size: 13px; line-height: 1.5; padding: 14px; -webkit-font-smoothing: antialiased;
+    }
+    [data-lucide] { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
+    svg { width: 16px; height: 16px; }
+
+    .app-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .app-header .logo {
+      width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--primary);
+      color: var(--primary-foreground); display: grid; place-items: center; flex: 0 0 auto;
+    }
+    .app-header .logo svg { width: 15px; height: 15px; }
+    .app-header h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .app-header p { font-size: 11px; color: var(--muted-foreground); }
+
+    h3 { font-size: 12px; font-weight: 600; margin: 14px 0 8px; letter-spacing: -0.01em; }
+    label { display: block; font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin: 10px 0 4px; }
+
+    input, select, textarea {
+      width: 100%; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--foreground);
+      background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
+      transition: border-color .15s, box-shadow .15s; outline: none;
+    }
+    input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: .65; }
+    input:focus, select:focus, textarea:focus { border-color: var(--ring); box-shadow: 0 0 0 3px oklch(0.708 0 0 / 0.25); }
+    select option { background: var(--popover); color: var(--popover-foreground); }
+    textarea { min-height: 76px; resize: vertical; }
+    #promptGen { min-height: 200px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0;
+      border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 500;
+      padding: 8px 12px; transition: opacity .15s, background .15s; width: 100%; margin-top: 10px;
+    }
+    .btn svg { width: 14px; height: 14px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+    .btn-primary:hover:not(:disabled) { opacity: .9; }
+    .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+    .btn-outline:hover:not(:disabled) { background: var(--accent); }
+    .btn-ghost { background: transparent; color: var(--muted-foreground); width: auto; margin-top: 8px; padding: 6px 8px; }
+    .btn-ghost:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
+
+    /* Barra de acciones inferior (Preview + Guardar en fila). */
+    .actions { display: flex; gap: 8px; margin-top: 12px; }
+    .actions .btn { margin-top: 0; }
+
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 10px; margin: 8px 0; }
+    .row { display: flex; gap: 6px; align-items: center; }
+    .row > * { flex: 1; }
+    .row .icon-btn { flex: 0 0 auto; }
+    .card input, .card select { margin-top: 6px; }
+    .card .row input, .card .row select { margin-top: 0; }
+
+    .icon-btn {
+      display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border);
+      background: var(--background); border-radius: var(--radius-sm); cursor: pointer; color: var(--muted-foreground);
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .icon-btn:hover:not(:disabled) { background: var(--destructive); color: #fff; border-color: var(--destructive); }
+    .icon-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .icon-btn svg { width: 14px; height: 14px; }
+    /* Flechas de reordenar: hover neutro (no destructivo). */
+    .icon-btn.ghost:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); border-color: var(--border); }
+
+    .opciones { margin-top: 8px; padding-left: 2px; }
+    .opc-label { font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px; display: block; }
+    .opciones .row { margin-bottom: 5px; }
+
+    /* Fila de meta por pregunta: obligatoriedad + ayuda. */
+    .meta-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .meta-row .ayuda { flex: 1; margin-top: 0; }
+    .chk {
+      flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+      font-weight: 500; color: var(--foreground); margin: 0; cursor: pointer; white-space: nowrap;
+      padding: 7px 9px; border: 1px solid var(--input); border-radius: var(--radius-sm);
+    }
+    .chk input { width: auto; margin: 0; }
+
+    /* Pestañas (padre Daily/Weekly y sub Preguntas/Generative). */
+    .sub { display: flex; gap: 4px; margin-bottom: 8px; }
+    .sub button {
+      flex: 1; padding: 7px; font: inherit; font-size: 12px; font-weight: 500; border: 1px solid var(--border);
+      background: var(--background); color: var(--muted-foreground); border-radius: var(--radius-sm); cursor: pointer;
+    }
+    .sub button.on { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--ring); }
+    .sub2 { margin-bottom: 12px; }
+
+    .tabpanel { display: none; animation: fade .18s ease; }
+    .tabpanel.active { display: block; }
+    @keyframes fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; } }
+
+    .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 8px; }
+    .hint a { color: var(--foreground); font-weight: 500; word-break: break-all; }
+    .divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+    /* Notas de la generación (degradados/cap). */
+    .notas { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; margin-top: 12px; background: var(--muted); }
+    .notas-h { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .notas-h svg { width: 14px; height: 14px; color: var(--muted-foreground); }
+    .nota { font-size: 11.5px; color: var(--muted-foreground); margin: 3px 0; }
+
+    /* Spinner (generación IA). */
+    .spin {
+      width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
+      border-radius: 50%; display: inline-block; animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #toast {
+      position: fixed; left: 14px; right: 14px; bottom: 14px; background: var(--popover); color: var(--popover-foreground);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+      padding: 10px 12px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 60;
+    }
+    #toast svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted-foreground); }
+
+    .overlay { position: fixed; inset: 0; background: oklch(0 0 0 / 0.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
+    .overlay.open { display: flex; }
+    .dialog {
+      background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow-md); width: 100%; max-width: 560px; max-height: 86vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; }
+    .dialog-body { padding: 14px; overflow: auto; }
+    .pv-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .pv-desc { font-size: 12px; color: var(--muted-foreground); margin-bottom: 14px; white-space: pre-wrap; }
+    .pv-q { margin-bottom: 16px; }
+    .pv-label { font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+    .pv-req { color: var(--destructive); margin-left: 2px; }
+    .pv-help { font-size: 11px; color: var(--muted-foreground); margin: 2px 0 6px; }
+    .pv-opt { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 5px 0; }
+    .pv-opt input { width: auto; }
+    .pv-scale { display: flex; gap: 8px; }
+    .pv-scale span { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; font-size: 12px; }
+    .pv-q input:disabled, .pv-q textarea:disabled, .pv-q select:disabled { opacity: .85; background: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app-header">
+    <div class="logo"><i data-lucide="clipboard-list"></i></div>
+    <div><h1>Preguntas y formularios</h1><p>Edita a mano o genera con IA — Daily y Weekly</p></div>
+  </div>
+
+  <!-- Sección padre: Daily / Weekly -->
+  <div class="sub">
+    <button id="tabDaily" class="on" onclick="setTipo('daily')">Daily</button>
+    <button id="tabWeekly" onclick="setTipo('weekly')">Weekly</button>
+  </div>
+
+  <!-- Sub-pestañas: Preguntas / Generative Form -->
+  <div class="sub sub2">
+    <button id="stPreguntas" class="on" onclick="setSubTab('preguntas')">Preguntas</button>
+    <button id="stGen" onclick="setSubTab('generative')">Generative Form</button>
+  </div>
+
+  <!-- PREGUNTAS (edición manual) -->
+  <div id="panelPreguntas" class="tabpanel active">
+    <label>Título del formulario</label>
+    <input id="formTitulo" placeholder="Ej.: Reporte Daily" oninput="capturar()">
+    <label>Descripción del formulario</label>
+    <textarea id="formDesc" placeholder="Texto que verá el equipo bajo el título (opcional)" oninput="capturar()"></textarea>
+
+    <h3>Preguntas</h3>
+    <div id="listaPreguntas"></div>
+    <button class="btn btn-ghost" onclick="addPregunta()"><i data-lucide="plus"></i> Agregar pregunta</button>
+
+    <div class="actions">
+      <button id="btnPreview" class="btn btn-outline" onclick="openPreview()" disabled><i data-lucide="eye"></i> Preview</button>
+      <button class="btn btn-primary" onclick="guardar()"><i data-lucide="file-plus-2"></i> Guardar / actualizar Form</button>
+    </div>
+    <p class="hint" id="formUrl"></p>
+  </div>
+
+  <!-- GENERATIVE FORM (prompt → IA) -->
+  <div id="panelGenerative" class="tabpanel">
+    <p class="hint">Pega un prompt con el detalle del formulario (qué preguntar, tipos, opciones,
+      obligatoriedad). La IA generará las preguntas; luego revísalas y edítalas en la pestaña
+      <strong>Preguntas</strong>. El prompt se guarda por tipo al generar o guardar.</p>
+    <textarea id="promptGen" placeholder="Ej.: Genera un reporte diario para el equipo de ventas con: 1) un párrafo sobre los avances del día; 2) una escala 1–5 de cómo se sienten; 3) una lista desplegable con la etapa del pipeline (Prospección, Propuesta, Cierre); 4) una casilla múltiple de bloqueos (Cliente, Interno, Producto). La primera pregunta es obligatoria."></textarea>
+    <button class="btn btn-primary" id="btnGen" onclick="generar()"><i data-lucide="sparkles"></i> Generar preguntas</button>
+    <div id="genNotas"></div>
+    <button class="btn btn-outline" onclick="openPreview()"><i data-lucide="eye"></i> Preview</button>
+  </div>
+
+  <!-- Overlay Preview -->
+  <div id="preview" class="overlay" onclick="if(event.target===this)closePreview()">
+    <div class="dialog">
+      <div class="dialog-head"><span>Vista previa · <span id="pvTipo"></span></span>
+        <button class="icon-btn ghost" onclick="closePreview()"><i data-lucide="x"></i></button></div>
+      <div id="pvBody" class="dialog-body"></div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    /* ---- Íconos Lucide inline (sin CDN) ---- */
+    var ICONS = {
+      'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+      'sparkles': '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+      'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      'file-plus-2': '<path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><path d="M14 2v6h6"/><path d="M3 15h6"/><path d="M6 12v6"/>',
+      'trash-2': '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+      'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      'eye': '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+      'chevron-up': '<path d="m18 15-6-6-6 6"/>',
+      'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+      'check': '<path d="M20 6 9 17l-5-5"/>',
+      'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+      'rotate': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'
+    };
+    function icons() {
+      document.querySelectorAll('[data-lucide]').forEach(function (el) {
+        var n = el.getAttribute('data-lucide');
+        if (ICONS[n]) el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[n] + '</svg>';
+      });
+    }
+
+    var TIPOS_PREGUNTA = ['texto', 'parrafo', 'opcion', 'casillas', 'lista', 'escala', 'fecha', 'hora'];
+    var CON_OPCIONES = ['opcion', 'casillas', 'lista'];
+    var ETIQUETA_TIPO = {
+      texto: 'Respuesta corta', parrafo: 'Párrafo', opcion: 'Opción única', casillas: 'Casillas',
+      lista: 'Lista desplegable', escala: 'Escala', fecha: 'Fecha', hora: 'Hora'
+    };
+    var state = {
+      preguntas: { daily: [], weekly: [] },
+      formMeta: { daily: { titulo: '', descripcion: '', prompt: '' }, weekly: { titulo: '', descripcion: '', prompt: '' } },
+      forms: { dailyUrl: '', weeklyUrl: '' }
+    };
+    var tipoActivo = 'daily';
+    var subTab = 'preguntas';
+
+    function g(id) { return document.getElementById(id); }
+    function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+    function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+    // --- google.script.run como Promise ---
+    // El stub solo expone el puente genérico `cosRun(fnName, argsJson)`; las funciones nuevas
+    // (generarPreguntasIA/guardarFormulario) viven en CoSLib.dispatch, no como métodos nombrados.
+    // Por eso TODAS las llamadas del modal viajan por cosRun → dispatch (cero cambios al stub).
+    function run(method) {
+      return function () {
+        var args = Array.prototype.slice.call(arguments);
+        return new Promise(function (resolve, reject) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+            .cosRun(method, JSON.stringify(args));
+        });
+      };
+    }
+    function toast(msg, icon) {
+      var t = g('toast');
+      t.innerHTML = '<i data-lucide="' + (icon || 'check') + '"></i><span></span>';
+      t.querySelector('span').textContent = msg; t.style.display = 'flex'; icons();
+      clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, 2600);
+    }
+
+    // --- Carga inicial ---
+    run('cargarConfig')().then(function (cfg) {
+      state.preguntas = cfg.preguntas || { daily: [], weekly: [] };
+      state.formMeta = cfg.formMeta || state.formMeta;
+      state.forms = cfg.forms || state.forms;
+      loadMetaInputs(); renderPreguntas(); icons();
+    }).catch(function (e) { toast('Error al cargar: ' + e.message, 'triangle-alert'); });
+
+    // --- Navegación ---
+    function setTipo(t) {
+      capturar();
+      tipoActivo = t;
+      g('tabDaily').classList.toggle('on', t === 'daily');
+      g('tabWeekly').classList.toggle('on', t === 'weekly');
+      g('formUrl').textContent = '';
+      renderNotas([]);
+      loadMetaInputs();
+      renderPreguntas();
+    }
+    function setSubTab(s) {
+      subTab = s;
+      g('stPreguntas').classList.toggle('on', s === 'preguntas');
+      g('stGen').classList.toggle('on', s === 'generative');
+      g('panelPreguntas').classList.toggle('active', s === 'preguntas');
+      g('panelGenerative').classList.toggle('active', s === 'generative');
+    }
+
+    // --- Meta del Form (título/descr./prompt) ---
+    function capturar() {
+      var m = state.formMeta[tipoActivo];
+      m.titulo = g('formTitulo').value;
+      m.descripcion = g('formDesc').value;
+      m.prompt = g('promptGen').value;
+    }
+    function loadMetaInputs() {
+      var m = state.formMeta[tipoActivo] || { titulo: '', descripcion: '', prompt: '' };
+      g('formTitulo').value = m.titulo || '';
+      g('formDesc').value = m.descripcion || '';
+      g('promptGen').value = m.prompt || '';
+    }
+
+    // --- Lista de preguntas (edición manual) ---
+    function renderPreguntas() {
+      var cont = g('listaPreguntas'); cont.innerHTML = '';
+      var arr = state.preguntas[tipoActivo];
+      if (!arr.length) {
+        cont.innerHTML = '<p class="hint">Aún no hay preguntas. Agrega una o genérala desde un prompt en «Generative Form».</p>';
+      }
+      arr.forEach(function (q, i) {
+        var div = document.createElement('div'); div.className = 'card';
+        var opts = TIPOS_PREGUNTA.map(function (t) {
+          return '<option value="' + t + '"' + (t === q.tipo ? ' selected' : '') + '>' + ETIQUETA_TIPO[t] + '</option>';
+        }).join('');
+        div.innerHTML =
+          '<div class="row">' +
+            '<select onchange="upd(' + i + ',\'tipo\',this.value)">' + opts + '</select>' +
+            '<button class="icon-btn ghost" title="Subir" onclick="mover(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '><i data-lucide="chevron-up"></i></button>' +
+            '<button class="icon-btn ghost" title="Bajar" onclick="mover(' + i + ',1)"' + (i === arr.length - 1 ? ' disabled' : '') + '><i data-lucide="chevron-down"></i></button>' +
+            '<button class="icon-btn" title="Borrar" onclick="delPregunta(' + i + ')"><i data-lucide="trash-2"></i></button>' +
+          '</div>' +
+          '<input placeholder="Enunciado de la pregunta" value="' + escAttr(q.titulo) + '" oninput="upd(' + i + ',\'titulo\',this.value)">' +
+          (CON_OPCIONES.indexOf(q.tipo) > -1 ? renderOpciones(q, i) : '') +
+          '<div class="meta-row">' +
+            '<label class="chk"><input type="checkbox"' + (q.requerido ? ' checked' : '') + ' onchange="upd(' + i + ',\'requerido\',this.checked)"> Obligatoria</label>' +
+            '<input class="ayuda" placeholder="Texto de ayuda (opcional)" value="' + escAttr(q.ayuda || '') + '" oninput="upd(' + i + ',\'ayuda\',this.value)">' +
+          '</div>';
+        cont.appendChild(div);
+      });
+      updatePreviewBtn(); icons();
+    }
+    function renderOpciones(q, i) {
+      var items = (q.opciones || []).map(function (op, j) {
+        return '<div class="row"><input placeholder="Opción ' + (j + 1) + '" value="' + escAttr(op) + '" oninput="updOpcItem(' + i + ',' + j + ',this.value)">' +
+               '<button class="icon-btn" onclick="delOpcion(' + i + ',' + j + ')"><i data-lucide="x"></i></button></div>';
+      }).join('');
+      return '<div class="opciones"><span class="opc-label">Opciones</span>' + items +
+             '<button class="btn btn-ghost" onclick="addOpcion(' + i + ')"><i data-lucide="plus"></i> Opción</button></div>';
+    }
+    function upd(i, campo, valor) {
+      var q = state.preguntas[tipoActivo][i]; q[campo] = valor;
+      if (campo === 'tipo') {
+        if (CON_OPCIONES.indexOf(valor) > -1 && (!q.opciones || !q.opciones.length)) q.opciones = [''];
+        renderPreguntas();
+      } else { updatePreviewBtn(); }
+    }
+    function updOpcItem(i, j, valor) { state.preguntas[tipoActivo][i].opciones[j] = valor; }
+    function addOpcion(i) { state.preguntas[tipoActivo][i].opciones.push(''); renderPreguntas(); }
+    function delOpcion(i, j) { state.preguntas[tipoActivo][i].opciones.splice(j, 1); renderPreguntas(); }
+    function addPregunta() { state.preguntas[tipoActivo].push({ tipo: 'parrafo', titulo: '', requerido: false }); renderPreguntas(); }
+    function delPregunta(i) { state.preguntas[tipoActivo].splice(i, 1); renderPreguntas(); }
+    function mover(i, d) {
+      var arr = state.preguntas[tipoActivo], j = i + d;
+      if (j < 0 || j >= arr.length) return;
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      renderPreguntas();
+    }
+    function updatePreviewBtn() { g('btnPreview').disabled = state.preguntas[tipoActivo].length === 0; }
+
+    // --- Generación por IA ---
+    function generar() {
+      capturar();
+      var prompt = g('promptGen').value.trim();
+      if (!prompt) { toast('Escribe un prompt antes de generar', 'triangle-alert'); return; }
+      var n = state.preguntas[tipoActivo].length;
+      if (n && !confirm('Esto reemplazará las ' + n + ' pregunta(s) actuales de ' + tipoActivo + '. ¿Continuar?')) return;
+
+      var btn = g('btnGen'), orig = btn.innerHTML;
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Generando…';
+      run('generarPreguntasIA')(tipoActivo, prompt).then(function (res) {
+        state.preguntas[tipoActivo] = res.preguntas || [];
+        if (res.titulo) state.formMeta[tipoActivo].titulo = res.titulo;
+        if (res.descripcion) state.formMeta[tipoActivo].descripcion = res.descripcion;
+        loadMetaInputs();
+        renderPreguntas();
+        renderNotas(res.notas || []);
+        toast('Se generaron ' + (res.preguntas || []).length + ' pregunta(s)', 'check');
+        setSubTab('preguntas');
+      }).catch(function (e) {
+        toast('Error: ' + e.message, 'triangle-alert');
+      }).then(function () {
+        btn.disabled = false; btn.innerHTML = orig; icons();
+      });
+    }
+    function renderNotas(notas) {
+      var c = g('genNotas');
+      if (!notas || !notas.length) { c.innerHTML = ''; return; }
+      c.innerHTML = '<div class="notas"><div class="notas-h"><i data-lucide="triangle-alert"></i> Ajustes al generar</div>' +
+        notas.map(function (n) { return '<div class="nota">• ' + escHtml(n) + '</div>'; }).join('') + '</div>';
+      icons();
+    }
+
+    // --- Guardar / actualizar el Form ---
+    function guardar() {
+      capturar();
+      var m = state.formMeta[tipoActivo];
+      var existe = tipoActivo === 'daily' ? state.forms.dailyUrl : state.forms.weeklyUrl;
+      if (existe && !confirm('Se reescribirá el Form ' + tipoActivo + ' (se conserva su enlace y accesos). ' +
+          'Si ya tiene respuestas, cambiar las preguntas puede desalinear columnas anteriores. ¿Continuar?')) return;
+      if (!existe && !state.preguntas[tipoActivo].length && !confirm('No hay preguntas. ¿Crear el Form vacío igual?')) return;
+
+      var payload = {
+        preguntas: state.preguntas[tipoActivo],
+        titulo: m.titulo, descripcion: m.descripcion, prompt: m.prompt
+      };
+      toast('Guardando…', 'rotate');
+      run('guardarFormulario')(tipoActivo, payload).then(function (url) {
+        if (tipoActivo === 'daily') state.forms.dailyUrl = url; else state.forms.weeklyUrl = url;
+        g('formUrl').innerHTML = 'Form listo: <a href="' + escAttr(url) + '" target="_blank">' + escHtml(url) + '</a>';
+        toast('Form ' + tipoActivo + ' actualizado', 'check');
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+
+    // --- Preview ---
+    function openPreview() {
+      capturar();
+      var m = state.formMeta[tipoActivo];
+      var tituloForm = (m.titulo && m.titulo.trim()) ? m.titulo.trim() : (tipoActivo === 'daily' ? 'Reporte Daily' : 'Reporte Weekly');
+      g('pvTipo').textContent = (tipoActivo === 'daily' ? 'Daily' : 'Weekly');
+      var head = '<div class="pv-title">' + escHtml(tituloForm) + '</div>' +
+        (m.descripcion && m.descripcion.trim() ? '<div class="pv-desc">' + escHtml(m.descripcion) + '</div>' : '');
+      var body = state.preguntas[tipoActivo].map(function (q, i) {
+        return '<div class="pv-q"><div class="pv-label">' + (i + 1) + '. ' +
+          (escHtml(q.titulo) || '<em>(sin título)</em>') +
+          (q.requerido ? '<span class="pv-req">*</span>' : '') + '</div>' +
+          (q.ayuda && q.ayuda.trim() ? '<div class="pv-help">' + escHtml(q.ayuda) + '</div>' : '') +
+          pvControl(q) + '</div>';
+      }).join('');
+      g('pvBody').innerHTML = head + (body || '<p class="hint">(sin preguntas)</p>');
+      g('preview').classList.add('open'); icons();
+    }
+    function closePreview() { g('preview').classList.remove('open'); }
+    function pvControl(q) {
+      var ops = (q.opciones || []).filter(function (o) { return o; });
+      switch (q.tipo) {
+        case 'texto': return '<input disabled placeholder="Respuesta corta">';
+        case 'parrafo': return '<textarea disabled placeholder="Respuesta larga"></textarea>';
+        case 'opcion': return ops.length ? ops.map(function (o) { return '<label class="pv-opt"><input type="radio" disabled> ' + escHtml(o) + '</label>'; }).join('') : '<span class="hint">(sin opciones)</span>';
+        case 'casillas': return ops.length ? ops.map(function (o) { return '<label class="pv-opt"><input type="checkbox" disabled> ' + escHtml(o) + '</label>'; }).join('') : '<span class="hint">(sin opciones)</span>';
+        case 'lista': return ops.length ? '<select disabled>' + ops.map(function (o) { return '<option>' + escHtml(o) + '</option>'; }).join('') + '</select>' : '<span class="hint">(sin opciones)</span>';
+        case 'escala': return '<div class="pv-scale">' + escalaRango(q).map(function (n) { return '<span>' + n + '</span>'; }).join('') + '</div>';
+        case 'fecha': return '<input type="date" disabled>';
+        case 'hora': return '<input type="time" disabled>';
+        default: return '<input disabled>';
+      }
+    }
+    function escalaRango(q) {
+      var min = (q.min == null ? 1 : q.min), max = (q.max == null ? 5 : q.max);
+      if (max <= min) max = min + 4;
+      var out = [];
+      for (var n = min; n <= max; n++) out.push(n);
+      return out;
+    }
+
+    icons();
+  </script>
+</body>
+</html>

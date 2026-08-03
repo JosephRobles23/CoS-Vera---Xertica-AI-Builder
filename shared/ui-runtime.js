@@ -26,11 +26,15 @@
  * Los ítems targetean funciones del stub por nombre: 'abrirSidebar' y los slots
  * pre-provisionados 'cosMenu1'..'cosMenu5' (cuya acción se define en menuAction).
  *
+ * 'Formularios' apunta al slot 'cosMenu1', cuya acción (MENU_ACTIONS_) abre el modal de
+ * preguntas: los ítems de menú no admiten argumentos, por eso no puede targetear abrirDialogo.
+ *
  * @param {Ui} ui  SpreadsheetApp.getUi(), pasado por el stub
  */
 function construirMenu(ui) {
   ui.createMenu('CoS')
     .addItem('Configurar', 'abrirSidebar')
+    .addItem('Formularios', 'cosMenu1')
     .addToUi();
 }
 
@@ -45,8 +49,8 @@ function buildSidebar() {
 /** Diálogos modales registrados (además del sidebar). Registrar aquí uno nuevo lo hace llegar
  *  al líder por versión de librería: el stub ya tiene un abridor genérico (abrirDialogo). */
 var DIALOGOS_ = {
-  // Ejemplo para el futuro (crear shared/DialogInforme.html y descomentar):
-  // informe: { archivo: 'DialogInforme', titulo: 'Informe CoS', ancho: 620, alto: 460 }
+  // Editor de preguntas + generación por IA (shared/DialogPreguntas.html).
+  preguntas: { archivo: 'DialogPreguntas', titulo: 'CoS — Preguntas y formularios', ancho: 760, alto: 660 }
 };
 
 /**
@@ -69,7 +73,12 @@ function buildDialog(nombre) {
 /** Acciones registradas para los slots 'cosMenu1'..'cosMenu5' que el stub reserva. Vacío por
  *  ahora: asignar aquí una acción la hace llegar al líder por versión (sin tocar su copia). */
 var MENU_ACTIONS_ = {
-  // Ejemplo: cosMenu1: function (sheetId, config) { return enviarConsolidado(sheetId, config, 'daily', hoy_(config)); }
+  // 'Formularios' → abre el modal de preguntas. Mostrar el diálogo desde la librería funciona
+  // porque la acción se ejecuta en el contexto del contenedor (invocada por el ítem de menú).
+  cosMenu1: function (sheetId, config) {
+    var d = buildDialog('preguntas');
+    SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  }
 };
 
 /**
@@ -100,7 +109,10 @@ var DISPATCH_ = {
   guardarPrompts:       function (sid, cfg, a) { return guardarPrompts(sid, cfg, a[0]); },
   guardarHorarios:      function (sid, cfg, a) { return guardarHorarios(sid, cfg, a[0]); },
   guardarEquipo:        function (sid, cfg, a) { return guardarEquipo(sid, cfg, a[0]); },
-  guardarLeader:        function (sid, cfg, a) { return guardarLeader(sid, cfg, a[0]); }
+  guardarLeader:        function (sid, cfg, a) { return guardarLeader(sid, cfg, a[0]); },
+  // Modal de preguntas (convención nueva fn(sheetId, config, ...args)):
+  generarPreguntasIA:   function (sid, cfg, a) { return generarPreguntasIA(sid, cfg, a[0], a[1]); },
+  guardarFormulario:    function (sid, cfg, a) { return guardarFormulario(sid, cfg, a[0], a[1]); }
 };
 
 /**

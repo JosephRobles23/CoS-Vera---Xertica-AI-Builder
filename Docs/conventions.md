@@ -22,7 +22,7 @@ function cosRun(fnName, argsJson) {
   return CoSLib.dispatch(fnName, JSON.parse(argsJson || '[]'), getSheetId_(), getConfig_());
 }
 ```
-> El detalle del patrón (qué queda congelado en el stub, slots de menú, auto-actualización) está en
+> El detalle del patrón (qué queda congelado en el stub, slots de menú, puente `cosRun`) está en
 > [engineering-playbook.md](engineering-playbook.md#stub-bootloader-qué-va-en-el-stub-vs-la-librería).
 
 ### Qué NO puede ir en la librería (por eso existe el stub)
@@ -64,37 +64,41 @@ el líder **no** agrega la librería a mano.
 
 ## Estructura de archivos de código
 
-> **Estado:** `Planned` — la estructura acordada; el código se crea en una fase posterior.
+> **Estado:** `Implemented`. Anclas de archivo/test en
+> [architecture-and-contracts.md](architecture-and-contracts.md#anclas-de-implementación).
 
 Dentro de la librería (`shared/`, se sincroniza al proyecto standalone):
 
 ```
 shared/
-├── gemini-runtime.js        # bridge único con Gemini (key desde Script Properties)
+├── gemini-runtime.js        # bridge único con Gemini (key desde Script Properties; responseSchema)
 ├── prompts-runtime.js       # compone soul.md + user.md + system-prompt de tarea + defaults
 ├── summaries-runtime.js     # resumen por fila (pass-through genérico de Q&A)
 ├── consolidation-runtime.js # consolidados diario/semanal al líder
+├── email-runtime.js         # plantillas HTML de correo (único lugar que genera HTML)
 ├── invites-runtime.js       # envío de invitaciones (redacción del correo)
 ├── dispatcher-runtime.js    # runDispatcher: timing + iteración + guardas anti-duplicado
-├── forms-runtime.js         # generación/edición de Forms con FormApp
+├── forms-runtime.js         # generación/edición de Forms con FormApp (título/descr./req./ayuda)
+├── forms-ai-runtime.js      # generarPreguntasIA: prompt → preguntas (schema + saneado/degradado/cap)
 ├── sheets-runtime.js        # acceso a hojas, mapa de encabezados, utilidades de hora
 ├── roster-runtime.js        # lectura de la pestaña Equipo
-├── settings-runtime.js      # pestaña Ajustes (editable) + construirConfig + soporte del sidebar
-├── ui-runtime.js            # menú, sidebar, diálogos y router (dispatch) — la UI vive aquí
-├── update-runtime.js        # auto-actualización de la copia (Apps Script REST API)
-└── Sidebar.html             # los 4 paneles del sidebar (servido por CoSLib.buildSidebar)
+├── settings-runtime.js      # pestaña Ajustes (editable) + construirConfig + formMeta + guardarFormulario
+├── ui-runtime.js            # menú, sidebar, modal, diálogos y router (dispatch) — la UI vive aquí
+├── Sidebar.html             # los 3 paneles del sidebar (servido por CoSLib.buildSidebar)
+└── DialogPreguntas.html     # modal de formularios: preguntas manual + generación por IA
 ```
 
 Dentro de cada workflow bound (`workflows/CLEVEL-REPORTS/`):
 
 ```
 workflows/CLEVEL-REPORTS/
-├── appsscript.json          # manifiesto (scopes —incl. script.projects—, dependencia de librería)
+├── appsscript.json          # manifiesto (scopes, dependencia de librería a versión fija)
 ├── config.js                # const CONFIG = { ... } — IDs, nombres de pestaña, patrones
 ├── stub.js                  # bootloader: onOpen/abrirSidebar/cosRun/abrirDialogo, slots, triggers
 └── triggers.js              # setupTriggers(): onFormSubmit + dispatcher
 ```
-> `Sidebar.html` se movió a `shared/` (la librería lo sirve); el stub ya no lo contiene.
+> `Sidebar.html` y `DialogPreguntas.html` viven en `shared/` (la librería los sirve); el stub no
+> contiene HTML.
 
 Regla de reparto: si un helper lo necesitaría un segundo workflow, va a `shared/`. Si es específico
 de este workflow, se queda local. Ver
@@ -115,6 +119,7 @@ El **stub** declara la dependencia de la librería y los scopes. Scopes esperado
     "https://www.googleapis.com/auth/script.send_mail",
     "https://www.googleapis.com/auth/script.scriptapp",
     "https://www.googleapis.com/auth/forms",
+    "https://www.googleapis.com/auth/forms.body",
     "https://www.googleapis.com/auth/script.container.ui"
   ],
   "dependencies": {
@@ -135,7 +140,9 @@ El **stub** declara la dependencia de la librería y los scopes. Scopes esperado
 - `script.send_mail` → enviar invitaciones y consolidados (`MailApp`, como el líder).
 - `script.scriptapp` → crear/borrar triggers.
 - `forms` → crear/editar Forms (`FormApp`).
-- `script.container.ui` → mostrar el sidebar.
+- `forms.body` → `batchUpdate` de la Forms REST API para el correo **verificado**
+  (`emailCollectionType: VERIFIED`).
+- `script.container.ui` → mostrar el sidebar y el modal de formularios.
 
 > **Versión de la librería.** En producción los stubs apuntan a una **versión fija** (`"1"`, `"2"`…),
 > no a HEAD. El desarrollo se hace contra HEAD en el proyecto de la librería; se "promueve"
@@ -147,7 +154,8 @@ El **stub** declara la dependencia de la librería y los scopes. Scopes esperado
 
 - **Pestañas del Sheet:** `Daily`, `Weekly`, `Equipo`, `Prompts`, `Ajustes` (nombres en
   `cos.config.json → runtime.sheets`). `Ajustes` (key/value) guarda lo editable en runtime:
-  líder, horarios, URLs/IDs de Forms y las preguntas (JSON). El resto del CONFIG es estático
+  líder, horarios, URLs/IDs de Forms, las preguntas (JSON) y la meta de cada Form
+  (título/descripción/prompt de generación). El resto del CONFIG es estático
   (código, en `config.js`); el stub los mezcla con `CoSLib.construirConfig`. Las pestañas
   auto-generadas (`Ajustes`, `Prompts`, `Equipo`) se crean con **formato de tabla** (encabezado
   oscuro + filas zebra + anchos) vía `estilizarTabla_`; `CoSLib.estilizarPestanas` re-aplica el

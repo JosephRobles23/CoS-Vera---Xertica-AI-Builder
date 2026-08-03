@@ -1,20 +1,26 @@
 # Sidebar and Prompts
 
-El sidebar es la **superficie de configuración** de CLEVEL-REPORTS: una mini-app HTML dentro del
-Sheet del líder que le permite personalizar preguntas, prompts, horarios y equipo sin tocar código.
-Es también donde vive la feature nueva de esta V0.5: **editar el system-prompt que genera el
-resumen por fila** (Daily y Weekly), además del consolidado, `soul.md` y `user.md`.
+CLEVEL-REPORTS tiene **dos superficies de configuración** HTML dentro del Sheet del líder, ambas
+servidas por la librería (`CoSLib`) y abiertas desde el menú **CoS**:
 
-> **Estado:** todo este documento es `High-level` (spec). No hay `.gs`/HTML aún.
+- **Sidebar** (`CoS → Configurar`, `shared/Sidebar.html`): tres paneles — **Prompts**, **Horarios**
+  y **Equipo**.
+- **Modal de formularios** (`CoS → Formularios`, `shared/DialogPreguntas.html`): editor de las
+  preguntas del Daily/Weekly, con edición manual **y** generación por IA. Ver
+  [§ Modal de formularios](#modal-de-formularios-preguntas--generación-por-ia).
 
-## Anatomía: un sidebar, cuatro paneles
+> **Estado:** `Implemented`. El editor de preguntas **se movió del sidebar a un modal** propio;
+> el sidebar quedó con 3 paneles. Anclas de archivo/test en
+> [../../architecture-and-contracts.md#anclas-de-implementación](../../architecture-and-contracts.md#anclas-de-implementación).
 
-El sidebar **no** son cuatro sidebars: es uno solo con navegación tipo pestañas (SPA). Los botones
-cambian el panel visible; no abren ventanas nuevas.
+## Anatomía: un sidebar, tres paneles
+
+El sidebar **no** son tres sidebars: es uno solo con navegación tipo pestañas (SPA). Los botones
+cambian el panel visible; no abren ventanas nuevas. Abre en **Prompts** por defecto.
 
 ```
 ┌─────────────────────────────────────┐
-│  [📝 Preguntas][🤖 Prompts][⏰ Horarios][👥 Equipo]  │  ← nav
+│  [🤖 Prompts][⏰ Horarios][👥 Equipo]  │  ← nav
 ├─────────────────────────────────────┤
 │                                     │
 │   (panel activo)                    │
@@ -25,49 +31,75 @@ cambian el panel visible; no abren ventanas nuevas.
 
 | Panel | Qué edita el líder | Persiste en | Efecto lateral |
 |---|---|---|---|
-| **Preguntas** | Preguntas del Daily/Weekly (tipo + texto + opciones) | (define los Forms) | Genera/actualiza los Forms con `FormApp` |
 | **Prompts** | `soul`, `user`, y los 4 system-prompts de tarea | Pestaña `Prompts` | Ninguno (se leen al generar texto) |
 | **Horarios** | `invitesDaily`, `invitesWeekly`, `closeDaily`, `closeWeekly`, `timezone` | Pestaña `Ajustes` | Ninguno (el dispatcher lee en vivo) |
-| **Equipo** | Miembros (Nombre, Correo, Rol) | Pestaña `Equipo` | Destinatarios de invitaciones |
+| **Equipo** | Miembros (Nombre, Correo, Rol) | Pestaña `Equipo` | Destinatarios de invitaciones + acceso a Forms |
+
+Las **preguntas** ya no viven en el sidebar: se editan en el
+[modal de formularios](#modal-de-formularios-preguntas--generación-por-ia).
 
 ---
 
 ## Contrato de comunicación (`google.script.run`)
 
-El JS del sidebar llama funciones del **stub bound** con `google.script.run`, usando
+Toda la UI (sidebar y modal) llama funciones del **stub bound** con `google.script.run`, usando
 `.withSuccessHandler()` / `.withFailureHandler()`. Regla clave:
 
 > `google.script.run` **solo puede llamar funciones del stub bound**, nunca directo a la librería.
-> Por eso cada acción del sidebar = un **wrapper delgado** en el stub que delega a `CoSLib`.
+
+Hay **dos canales**, y esta distinción es un contrato (ver
+[../../architecture-and-contracts.md#contract-based-development](../../architecture-and-contracts.md#contract-based-development)):
+
+1. **Wrappers nombrados** — un conjunto **fijo** de funciones que el stub declara explícitamente y
+   delega a `CoSLib`. Los usa el sidebar (código heredado). Agregar uno nuevo obliga a re-empujar
+   el stub a cada copia, así que **no se agregan más**.
+2. **Puente genérico `cosRun(fnName, argsJson)`** — el stub reenvía a `CoSLib.dispatch(fnName, …)`,
+   que enruta a `DISPATCH_` (`shared/ui-runtime.js`). Es el canal para **toda función de servidor
+   nueva**; permite sumar funciones **sin tocar el stub** (viajan por versión de librería). El modal
+   usa **solo** este canal.
+
+> ⚠️ Llamar una función nueva como método directo (`google.script.run.generarPreguntasIA(...)`) da
+> `undefined` y el wrapper cliente truena con *"Cannot read properties of undefined (reading
+> 'apply')"*. El HTML nuevo debe llamar `...cosRun(fnName, JSON.stringify(args))`. Ver memoria
+> `gsrun-bridge-cosrun`.
 
 ```html
-<!-- Sidebar.html (fragmento) -->
-<button onclick="generar('daily')">Generar Form Daily</button>
+<!-- DialogPreguntas.html (fragmento) — canal cosRun -->
 <script>
-  function generar(tipo) {
-    const preguntas = leerPanelPreguntas();      // arma el array desde la UI
-    google.script.run
-      .withSuccessHandler(url => mostrarLink(url))
-      .withFailureHandler(err => alert('Error: ' + err.message))
-      .generarFormulario(tipo, preguntas);       // ← wrapper del stub
+  function run(method) {
+    return function () {
+      var args = Array.prototype.slice.call(arguments);
+      return new Promise(function (resolve, reject) {
+        google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+          .cosRun(method, JSON.stringify(args));   // ← puente genérico → dispatch
+      });
+    };
   }
+  // uso: run('guardarFormulario')(tipo, { preguntas, titulo, descripcion, prompt })
 </script>
 ```
 
-Wrappers esperados en el stub (todos delegan a `CoSLib`):
+**Wrappers nombrados** en el stub (los usa el sidebar; todos delegan a `CoSLib`):
 
 | Wrapper (stub) | Delegación (`CoSLib.*`) | Devuelve |
 |---|---|---|
-| `cargarConfig()` | `cargarConfig(sheetId, config)` | estado de los 4 paneles para pintar la UI |
-| `configurarFormulario(tipo, preguntas)` | `configurarFormulario(tipo, preguntas, sheetId, config)` | URL publicada del Form (y persiste URL/ID/preguntas en `Ajustes`) |
+| `cargarConfig()` | `cargarConfig(sheetId, config)` | estado de los paneles + `formMeta` para pintar la UI |
+| `configurarFormulario(tipo, preguntas)` | `configurarFormulario(tipo, preguntas, sheetId, config)` | URL publicada del Form (compat; el modal usa `guardarFormulario`) |
 | `guardarPrompts(prompts)` | `guardarPrompts(sheetId, config, prompts)` | `{ ok }` |
 | `guardarHorarios(horarios)` | `guardarHorarios(sheetId, config, horarios)` | `{ ok }` |
 | `guardarLeader(leader)` | `guardarLeader(sheetId, config, leader)` | `{ ok }` |
 | `guardarEquipo(miembros)` | `guardarEquipo(sheetId, config, miembros)` | `{ ok, count }` |
 
-> Cada wrapper del stub resuelve `sheetId`/`config` con `getSheetId_()` / `getConfig_()` y solo
-> pasa los datos de la UI. Al abrir, el sidebar llama `cargarConfig()` una vez y pinta cada panel
-> con lo guardado (o los defaults).
+**Funciones vía `cosRun` → `DISPATCH_`** (las usa el modal; convención `fn(sheetId, config, …args)`):
+
+| Clave en `dispatch` | Función (`CoSLib.*`) | Devuelve |
+|---|---|---|
+| `generarPreguntasIA` | `generarPreguntasIA(sheetId, config, tipo, prompt)` | `{ titulo, descripcion, preguntas, notas }` (no persiste) |
+| `guardarFormulario` | `guardarFormulario(sheetId, config, tipo, payload)` | `{ publishedUrl }` (crea/reescribe el Form y persiste todo en `Ajustes`) |
+
+> Cada wrapper/entrada resuelve `sheetId`/`config` con `getSheetId_()` / `getConfig_()` y solo
+> recibe los datos de la UI. Al abrir, cada superficie llama `cargarConfig()` una vez y pinta con lo
+> guardado (o los defaults).
 
 ---
 
@@ -135,10 +167,54 @@ Resolución efectiva de un prompt: `valor de la celda` → si vacío → `defaul
 
 ---
 
-## Panel Preguntas ↔ Resumen (pass-through)
+## Modal de formularios (preguntas + generación por IA)
 
-El líder define sus preguntas (tipo + texto + opciones). Como cada líder puede tener preguntas
-distintas, el resumen **no** depende de encabezados fijos:
+Se abre desde `CoS → Formularios` (`shared/DialogPreguntas.html`). Reemplaza al viejo panel
+"Preguntas" del sidebar. Estructura:
+
+```
+┌───────────────────────────────────────────────┐
+│  [ Daily ][ Weekly ]                            │  ← secciones padre
+│  ┌─────────────────────────────────────────┐   │
+│  │ [ Preguntas ][ Generative Form ]         │   │  ← sub-pestañas
+│  │                                          │   │
+│  │  (edición manual  |  prompt → IA)        │   │
+│  │                                          │   │
+│  │  [ Preview ]  [ Guardar / actualizar ]   │   │
+│  └─────────────────────────────────────────┘   │
+└───────────────────────────────────────────────┘
+```
+
+- **Sección padre Daily / Weekly:** cada una tiene su propio set de preguntas, título/descripción
+  del Form y prompt de generación, persistidos por separado.
+- **Sub-pestaña Preguntas (manual):** inputs de **Título** y **Descripción** del Form; lista de
+  preguntas (por card: tipo, enunciado, opciones si aplica, **toggle Obligatorio**, **texto de
+  Ayuda**, **flechas ↑/↓** para reordenar, borrar); botones "Agregar pregunta", "Preview" y
+  "Guardar / actualizar Form".
+- **Sub-pestaña Generative Form (IA):** un `<textarea>` con el prompt detallado (precargado con el
+  guardado); "Generar" pide confirmación ("reemplazará las N preguntas actuales") → llama
+  `generarPreguntasIA` → autocompleta la lista de la sub-pestaña Preguntas más el título/descr. (si
+  el prompt los especifica) y muestra las **notas** (tipos degradados, cap aplicado). No persiste
+  hasta Guardar.
+- **Preview:** overlay in-modal que **renderiza el Form** tal como se vería (control por tipo,
+  **asterisco** si es obligatorio, texto de ayuda), sobre lo editado sin guardar. Es una maqueta
+  cliente, no el Form real.
+
+### Modelo de pregunta (retrocompatible)
+
+Cada pregunta es un objeto JSON persistido en `Ajustes` bajo `questions.<tipo>`:
+
+```json
+{ "tipo": "escala", "titulo": "¿Nivel de bloqueo?", "opciones": [],
+  "min": 1, "max": 5, "requerido": true, "ayuda": "1 = sin bloqueo" }
+```
+
+`requerido`, `ayuda`, `min` y `max` son **opcionales**: las preguntas viejas sin esos campos siguen
+válidas (`parseQuestions_` solo hace `JSON.parse`).
+
+### Pass-through al resumen
+
+Como cada líder puede tener preguntas distintas, el resumen **no** depende de encabezados fijos:
 
 - El Form generado lleva **solo** las preguntas del líder: no se agrega casilla de `Nombre` ni de
   `Correo`. La identidad sale del correo **verificado** de la sesión de Google del respondiente,
@@ -153,21 +229,18 @@ distintas, el resumen **no** depende de encabezados fijos:
 > Contrato relacionado en
 > [CLEVEL-REPORTS.md#contrato-de-datos](CLEVEL-REPORTS.md#contrato-de-datos).
 
-### Editor de opciones y Preview (UI)
+### Editor de opciones
 
-- Para los tipos con opciones (`opcion`, `casillas`, `lista`) el sidebar muestra **un campo por
+- Para los tipos con opciones (`opcion`, `casillas`, `lista`) el modal muestra **un campo por
   opción** (cada uno con su ✕ y un botón "+ Opción") — **no** se separan por comas. Se guardan como
   `opciones: []`. Al crear la pregunta con estos tipos se siembra una opción vacía.
-- Botón **"Preview"** (se habilita con ≥1 pregunta en el tipo activo): abre un diálogo que
-  **renderiza el Form** tal como se vería — respuesta corta/larga, radios, casillas, desplegable,
-  escala 1–5, fecha, hora. Es una **maqueta cliente**, no el Form real.
 - `forms-runtime` filtra opciones vacías antes de crear el Form (`setChoiceValues([])` lanzaría error).
 
 ### Tipos de pregunta soportados (FormApp)
 
-El panel ofrece estos tipos, mapeados a `FormApp`:
+El modal ofrece estos tipos, mapeados a `FormApp`:
 
-| Tipo en el sidebar | Método FormApp |
+| Tipo en el modal | Método FormApp |
 |---|---|
 | Respuesta corta | `addTextItem()` |
 | Párrafo | `addParagraphTextItem()` |
@@ -177,13 +250,31 @@ El panel ofrece estos tipos, mapeados a `FormApp`:
 | Escala | `addScaleItem().setBounds(1, 5)` |
 | Fecha / Hora | `addDateItem()` / `addTimeItem()` |
 
-### Generación de Forms
+Cada ítem aplica además `setRequired(true)` si `requerido` y `setHelpText(...)` si hay `ayuda`.
 
-- `generarFormulario(tipo, preguntas)` crea (o regenera) el Form del líder con `FormApp.create()`,
-  agrega los ítems según el panel, y fija el destino de respuestas al Sheet del líder con
-  `form.setDestination(FormApp.DestinationType.SPREADSHEET, sheetId)`.
-- Devuelve `form.getPublishedUrl()` para que el sidebar lo muestre y se guarde en
-  `CONFIG.forms.<tipo>Url` (lo usa la invitación).
+### Generación por IA (`generarPreguntasIA`)
+
+- `generarPreguntasIA(sheetId, config, tipo, promptDetallado)` (`shared/forms-ai-runtime.js`) llama a
+  Gemini (`config.models.perRow`) con **structured output** (`responseSchema` +
+  `responseMimeType:'application/json'`, ver [gemini-runtime](#)) y un system-prompt que fija idioma
+  español, tipos permitidos y reglas (escala 1–5 por defecto, opciones solo para los tipos que las
+  usan).
+- El texto JSON se parsea y **sanea**: tipos desconocidos se **degradan** al más cercano (con nota),
+  opciones vacías se descartan, `requerido` se coacciona a bool, la escala se hace clamp, y se
+  aplica un **cap de ~25 preguntas** (recorta + nota). **JSON inválido → error visible.**
+- Devuelve `{ titulo, descripcion, preguntas, notas }` y **no persiste** (eso ocurre al Guardar).
+
+### Guardar / regenerar el Form (`guardarFormulario`)
+
+- `guardarFormulario(sheetId, config, tipo, { preguntas, titulo, descripcion, prompt })`
+  (`shared/settings-runtime.js`) llama a `generarFormulario(...)` y persiste en un solo `setAjustes_`:
+  `questions.<tipo>` (JSON), `forms.<tipo>Url`/`FormId`, `form.title.<tipo>`, `form.desc.<tipo>` y
+  `prompt.gen.<tipo>`.
+- **Regenerar reescribe el MISMO Form** (conserva URL/ID, correo **verificado**, publicación y
+  acceso del equipo, y la pestaña de respuestas): la primera vez `FormApp.create()`; después edita el
+  Form existente por su `FormId`. Título/descr. solo se re-aplican si vienen no vacíos.
+- Devuelve `{ publishedUrl }` para mostrarlo; la URL se guarda en `CONFIG.forms.<tipo>Url` (la usa la
+  invitación).
 
 ---
 
@@ -223,8 +314,9 @@ El panel ofrece estos tipos, mapeados a `FormApp`:
 - **Stub bound (bootloader):** `onOpen`/`abrirSidebar`/`abrirDialogo` (delegan en la librería), el
   puente `cosRun` + los wrappers nombrados de `google.script.run`, los slots de menú, y la
   instalación de triggers.
-- **Librería (`CoSLib`):** el **menú y el HTML del sidebar** (`ui-runtime.js` + `Sidebar.html`),
-  `FormApp`, composición de prompts + defaults, llamadas a Gemini, lectura/escritura de las
+- **Librería (`CoSLib`):** el **menú, el HTML del sidebar y del modal** (`ui-runtime.js` +
+  `Sidebar.html` + `DialogPreguntas.html`), el `dispatch`/`DISPATCH_`, `FormApp`, generación de
+  preguntas por IA, composición de prompts + defaults, llamadas a Gemini, lectura/escritura de las
   pestañas, y envío de correos.
 - **Sheet del líder:** pestañas `Prompts`, `Equipo`, `Daily`, `Weekly` — toda la personalización
   *por persona*.

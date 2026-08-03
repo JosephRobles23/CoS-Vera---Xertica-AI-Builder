@@ -1,13 +1,14 @@
-# Distribución de actualizaciones — limitante actual y opciones
+# Distribución de actualizaciones — método actual y opciones
 
 Este documento registra **por qué la auto-actualización desde el menú no funciona** con el modelo
-actual (librería + stub container-bound), qué se intentó, y qué requiere cada alternativa —
-especialmente los **requerimientos de acceso/permisos** y **lo que debe hacer el admin de
-Workspace** para la Opción B (Editor Add-on).
+librería + stub container-bound, qué se intentó, cuál es el método **vigente**, y qué requiere la
+alternativa definitiva (Editor Add-on).
 
-> Estado: `Blocked`. El botón "Actualizar CoS a la última versión" está implementado en el código
-> (`shared/update-runtime.js`, `stub.js`, scope `script.projects`) pero **no es viable en producción**
-> por la limitante descrita abajo. Ninguna opción de desbloqueo se ha adoptado aún.
+> Estado: **la auto-actualización desde el menú se RETIRÓ en la v8.** El botón "Actualizar CoS a la
+> última versión", `shared/update-runtime.js` y el scope `script.projects` **ya no existen** (por la
+> limitante de la §2). El método vigente es la **Opción A** (§3): el admin promueve cada release con
+> `clasp push` a las copias; el líder solo **recarga la hoja**. La **Opción B** (Add-on) sigue siendo
+> la solución definitiva propuesta, aún no adoptada.
 
 ---
 
@@ -26,7 +27,10 @@ cómo mover ese número sin fricción para el C-level.
 
 ---
 
-## 2. La limitante (por qué el botón de auto-update no funciona)
+## 2. La limitante (por qué el botón de auto-update se retiró)
+
+> Contexto histórico: el botón existió hasta la v8; se removió al confirmarse esta limitante. Se
+> conserva la explicación porque justifica el método vigente (Opción A) y descarta la ruta.
 
 El botón llamaba a la **Apps Script REST API** (`script.googleapis.com`) desde dentro del stub, con
 el token de `ScriptApp.getOAuthToken()`, para reescribir el `appsscript.json` de la propia copia.
@@ -83,7 +87,9 @@ function diagUpdate() {
 
 ## 3. Opciones de desbloqueo
 
-### Opción A — Push del dev por clasp (pragmática, sin cambios de plataforma)
+### Opción A — Push del dev por clasp (VIGENTE, sin cambios de plataforma)
+
+> **Método adoptado desde la v8.** Es la ruta activa de distribución mientras no se migre a Add-on.
 
 El admin/dev promueve la actualización empujando el `appsscript.json` (versión bumpeada) a cada copia
 por su `scriptId`, con `clasp push`. El C-level solo **recarga la hoja**.
@@ -177,11 +183,11 @@ propagan solas.
 
 ## 5. Estado y decisión
 
-- **Hoy:** ninguna opción adoptada. El botón queda implementado pero **no operativo** (muestra el
-  error de GCP). Considerar en una **v8** **retirar el botón o volverlo informativo** (mostrar la
-  versión actual, sin llamar a la API) para no confundir al C-level.
-- **Recomendación:** Opción A como puente de corto plazo (si se acepta el acceso de editor + lista de
-  scriptIds); Opción B (Add-on) como solución definitiva de distribución.
+- **Hoy (desde la v8):** el botón, `shared/update-runtime.js` y el scope `script.projects` se
+  **retiraron**. La distribución vigente es la **Opción A**: el admin hace `clasp push` de la versión
+  nueva a cada copia y el C-level solo recarga la hoja.
+- **Recomendación:** mantener la Opción A como puente de corto plazo (acceso de editor + lista de
+  scriptIds); migrar a la **Opción B (Add-on)** como solución definitiva de distribución.
 
 > Referencias: modelo de distribución actual en
 > [conventions.md](conventions.md#un-stub-container-bound-por-líder) e

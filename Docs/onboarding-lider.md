@@ -59,8 +59,8 @@ En Drive → abre `CLEVEL-REPORTS-Lib` → **Compartir** → agrega a la persona
 Pide al **admin de Google Workspace** que confíe en la app (allowlist por *OAuth Client ID*). Si no,
 el líder verá una advertencia al autorizar (puede continuar con **Configuración avanzada**).
 
-> El stub ahora también pide el scope `script.projects` (lo usa el botón *Actualizar CoS a la última
-> versión*, ver **Parte C**). Si allowlisteas por scopes, inclúyelo.
+> Si allowlisteas por scopes, incluye los del stub: `spreadsheets`, `script.external_request`,
+> `script.send_mail`, `script.scriptapp`, `forms`, `forms.body`, `script.container.ui`.
 
 ### A6. Comparte el enlace de copia
 Manda este link a la persona (fuerza "Hacer una copia"):
@@ -81,40 +81,48 @@ https://docs.google.com/spreadsheets/d/1sJKQkZFihg5gNc7YyG4OgEH6cSssKFmC1whBxklD
    - **Horarios:** su **zona horaria**, horas de invitación y de cierre (Daily/Weekly), y su
      **nombre/correo** (recibe los consolidados) → *Guardar horarios y líder*.
    - **Prompts:** en blanco = usa los defaults, o personaliza → *Guardar prompts*.
-   - **Preguntas:** ajusta y pulsa **Generar Form** para **Daily** y para **Weekly** (crea sus
-     propios formularios bajo su cuenta).
+4. **CoS → Formularios** abre el modal de preguntas. Para **Daily** y para **Weekly**:
+   - Edita las preguntas a mano (pestaña **Preguntas**: tipo, enunciado, opciones, obligatoriedad,
+     ayuda, reordenar) **o** pega un prompt en **Generative Form** y pulsa **Generar** para que la IA
+     las cree; revisa con **Preview**.
+   - Pulsa **Guardar / actualizar Form** → crea (o reescribe el mismo) formulario bajo su cuenta.
      > 🖥️ **Un paso manual en cada Form recién creado:** ábrelo → **Configuración** → *Respuestas*
      > → **Recopilar direcciones de correo** → **Verificado**. Son 2 clics, una vez por Form.
      > Sin esto el Form muestra una casilla "Correo" de más: el nombre y el correo **no** se
      > preguntan, salen de la cuenta de Google de quien responde y se cruzan con la pestaña
      > `Equipo`. Por qué es manual: [deploy-terminal.md#2b](deploy-terminal.md).
-4. **Activar la automatización:** *Extensiones → Apps Script* → función **`setupTriggers`** →
+6. **Activar la automatización:** *Extensiones → Apps Script* → función **`setupTriggers`** →
    **Ejecutar** → **autorizar** los permisos con su correo (Sheets, correo, servicio externo, Forms).
-5. (Opcional) Ejecutar **`estilizarPestanas`** una vez para dar formato a las pestañas.
+7. (Opcional) Ejecutar **`estilizarPestanas`** una vez para dar formato a las pestañas.
 
 Listo: la automatización corre **como esa persona** — los correos salen de su cuenta y la cuota es
 suya. La `GEMINI_API_KEY` es central (en la librería), así que **no** necesita ninguna key propia.
 
 ---
 
-## Parte C — Actualizaciones sin re-copiar (una vez en el onboarding)
+## Parte C — Actualizaciones sin re-copiar (las hace el admin)
 
-La UI (menú, sidebar, futuros diálogos) y la lógica viven en la **librería**. El líder recibe
-mejoras pulsando un botón, **sin** volver a copiar el Sheet ni entrar a Apps Script.
+La UI (menú, sidebar, modal, diálogos) y la lógica viven en la **librería**, así que las mejoras
+llegan **sin** volver a copiar el Sheet. Ya **no** hay botón de auto-actualización (se retiró en la
+v8 por una limitante de la plataforma, ver
+[distribucion-de-actualizaciones.md](distribucion-de-actualizaciones.md)); el **admin** promueve cada
+release con `clasp push` a cada copia (Opción A).
 
-**Habilitar una sola vez** (guíalo en el onboarding):
-1. Ir a **https://script.google.com/home/usersettings**.
-2. Activar **Google Apps Script API** (ON).
+**Una vez por líder** (en el onboarding), para que el admin pueda empujar:
+1. El líder comparte su copia con la **cuenta admin** como **Editor** (Compartir normal).
+2. El admin anota el **Script ID** de la copia (en la copia → *Extensiones → Apps Script → ⚙️
+   Configuración del proyecto*).
 
-**Cada vez que publiques una versión nueva** (ver A1), el líder solo:
-- **CoS → Actualizar CoS a la última versión** → confirmar → **recargar la hoja**.
+**Cada vez que publiques una versión nueva** (ver A1), el admin, por cada copia:
+- `clasp push --force` del `appsscript.json` (con el `version` bumpeado) al `scriptId` de la copia.
+- El líder solo **recarga la hoja**.
 
-La primera vez pedirá re-autorizar (por el permiso nuevo `script.projects`). Su configuración
-(Ajustes/Prompts/Equipo/Forms/activadores) **no se toca**: solo cambia a qué versión de la librería
-apunta la copia.
+Su configuración (Ajustes/Prompts/Equipo/Forms/activadores) vive en el **Sheet**, no en el código, así
+que el push **no la toca**: solo cambia a qué versión de la librería apunta la copia.
 
-> Mensajes posibles del botón: *"Actualizado de vX a vY. Recarga…"*, *"Ya al día (vX)"*, o
-> *"Falta un paso: habilita la Apps Script API en …usersettings"* (si se saltó el paso de arriba).
+> ⚠️ `clasp push --force` reemplaza **todos** los archivos de código de la copia. Es seguro porque
+> `config.js`/`stub.js`/`triggers.js`/`appsscript.json` son idénticos entre copias. **Nunca** incluir
+> en el push archivos con IDs por-copia.
 
 ---
 
@@ -136,20 +144,20 @@ apunta la copia.
 | No salen correos | No ejecutó `setupTriggers`, no ha llegado la hora, o no generó el Form. |
 | Al generar el Form da error de permisos | La copia heredó tus `forms.*` en `Ajustes` (falta limpiar la plantilla, **A3**). |
 | ¿Necesita su propia API key? | No — vive en la **librería** (central). |
-| "Falta un paso… usersettings" al Actualizar | No activó la Apps Script API (**Parte C**). Actívala y reintenta en unos minutos. |
-| Actualicé pero no veo cambios | Falta **recargar la hoja** tras el mensaje "Actualizado…". |
-| "No se pudo actualizar" con detalle HTTP | El líder no tiene acceso de **lectura** a la librería (**A4**), o la versión aún no está publicada (**A1**). |
+| El menú **CoS → Formularios** no abre el modal | La copia apunta a una versión de librería vieja (< v9). El admin empuja la versión nueva (**Parte C**). |
+| Empujé la versión nueva pero el líder no ve cambios | Falta **recargar la hoja**; o el `clasp push` fue a otro `scriptId` (**Parte C**). |
+| `clasp push` falla con error de acceso | El admin no tiene **Editor** sobre la copia (**Parte C.1**), o falta la Apps Script API ON en *su* usersettings. |
 
 ---
 
 ## Recordatorio de versionado
 
-Cuando mejores el código: `clasp push` (HEAD) → `clasp create-version "vX"` → sube el `version`
-en el `appsscript.json` de la plantilla y `clasp push`. Esto último solo afecta a las **copias
-nuevas** (nacen apuntando a vX).
+Cuando mejores el código: `clasp push` (HEAD de la librería) → `clasp create-version "vX"` → sube el
+`version` en el `appsscript.json` de la plantilla y `clasp push`. Esto último solo afecta a las
+**copias nuevas** (nacen apuntando a vX).
 
-Las **copias existentes** ya no dependen de re-copiar: cada líder pulsa **CoS → Actualizar CoS a la
-última versión** y su copia salta a la última versión publicada (**Parte C**). Como el menú, el
-sidebar y los diálogos viven en la librería, esa actualización también trae la **UI** nueva.
-Invariante: *la última versión publicada es producción* — no publiques una versión que no quieras que
-los líderes reciban al pulsar el botón. Detalle en [testing-and-deploy.md](testing-and-deploy.md).
+Las **copias existentes** las actualiza el **admin**: `clasp push` del `appsscript.json` (versión
+bumpeada) al `scriptId` de cada copia; el líder solo recarga la hoja (**Parte C**). Como el menú, el
+sidebar, el modal y los diálogos viven en la librería, esa actualización también trae la **UI** nueva.
+Invariante: *la última versión publicada es producción* — no publiques una versión que no quieras
+distribuir. Detalle en [testing-and-deploy.md](testing-and-deploy.md).

@@ -24,7 +24,7 @@ La fuente de la librería es `shared/`.
 ```bash
 cd ~/Projects/CoS-Agent/shared
 clasp create --type standalone --title "CLEVEL-REPORTS-Lib"
-clasp push --force          # sube los 10 .js + appsscript.json
+clasp push --force          # sube los 13 .js + 2 .html + appsscript.json
 clasp open-script           # abre el IDE de la librería
 ```
 
@@ -75,7 +75,7 @@ clasp create --type sheets --title "CoS — Plantilla CLEVEL-REPORTS"
 2. Sube el stub:
 
 ```bash
-clasp push --force         # sube config.js, stub.js, triggers.js, appsscript.json (Sidebar.html vive en shared/)
+clasp push --force         # sube config.js, stub.js, triggers.js, appsscript.json (el HTML vive en shared/)
 ```
 
 ## F. Primera autorización + activadores
@@ -87,16 +87,20 @@ clasp push --force         # sube config.js, stub.js, triggers.js, appsscript.js
 
 ---
 
-## G. Configurar desde el sidebar
+## G. Configurar desde el sidebar y el modal
 
-En el Sheet: menú **CoS → Configurar**. En cada panel, **Guardar**:
+En el Sheet, menú **CoS → Configurar** (sidebar). En cada panel, **Guardar**:
 
 1. **Equipo** — nombre, correo y rol de cada miembro.
 2. **Horarios** — invitación Daily (L–V), Weekly (viernes), cierre (consolidados) + **líder**
    (nombre y correo que recibe los consolidados).
 3. **Prompts** — deja en blanco para usar los defaults, o personaliza `soul`/`user`/tareas.
-4. **Preguntas** — ajusta las preguntas Daily y Weekly y pulsa **Generar / actualizar Form**
-   (guarda la URL del Form en `Ajustes`).
+
+Luego, menú **CoS → Formularios** (modal), para **Daily** y **Weekly**:
+
+4. **Preguntas** — edítalas a mano (tipo, enunciado, opciones, obligatoriedad, ayuda) **o** genera
+   desde un prompt en **Generative Form**; revisa con **Preview** y pulsa **Guardar / actualizar
+   Form** (crea/reescribe el Form y guarda su URL en `Ajustes`).
 
 ---
 
@@ -146,5 +150,5 @@ Al mejorar la librería: `clasp push` (HEAD) → probar → `clasp create-versio
 | `Falta GEMINI_API_KEY` | No pusiste la propiedad en la **librería** (paso B). |
 | `onFormSubmit ... undefined (reading 'range')` | Lo ejecutaste a mano; es un activador. Usa `testResumenUltimaFilaDaily`. |
 | El stub no ve `CoSLib` | `libraryId` mal puesto en `appsscript.json`, o falta acceso de lectura a la librería. |
-| Invitación sin link | No has generado el Form en el panel Preguntas (falta `forms.dailyUrl` en `Ajustes`). |
+| Invitación sin link | No has generado el Form en el modal **CoS → Formularios** (falta `forms.dailyUrl` en `Ajustes`). |
 | El `Summary` no aparece | Encabezados de contrato movidos, o error de red — revisa Ver → Ejecuciones. |

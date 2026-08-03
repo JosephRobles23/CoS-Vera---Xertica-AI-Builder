@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeHarness, httpResponse } from './gas-harness.mjs';
+import { makeHarness, httpResponse, makeFormAppMock } from './gas-harness.mjs';
 
 const CONFIG = {
   sheets: { daily: 'Daily', weekly: 'Weekly', roster: 'Equipo', prompts: 'Prompts', settings: 'Ajustes' },
@@ -16,62 +16,6 @@ const CONFIG = {
 
 // Spreadsheet base mínimo (una hoja cualquiera para que exista el ID).
 const fresh = () => makeHarness({ spreadsheets: { SID: { Daily: [['Marca temporal']] } } });
-
-/**
- * Mock de FormApp para probar configurarFormulario y el acceso (publicación + respondientes).
- * `titulos` acumula el título de cada ítem agregado, para verificar QUÉ preguntas se crean.
- * `opts.soportaPublicacion=false` simula un Form antiguo (sin modelo de publicación).
- * Los forms viven en un registro por ID: openById devuelve el MISMO objeto, para poder
- * verificar la re-sincronización desde guardarEquipo.
- */
-function makeFormAppMock(titulos = [], opts = {}) {
-  const soporta = opts.soportaPublicacion !== false;
-  const yaRecolecta = opts.yaRecolectaCorreo === true;   // simula el default "Verificado" heredado
-  const registro = {};
-  let idc = 0;
-  const chain = () => {
-    const i = {
-      setTitle: (t) => { titulos.push(t); return i; },
-      setChoiceValues: () => i, setBounds: () => i, setRequired: () => i
-    };
-    return i;
-  };
-  const makeForm = () => {
-    const id = 'FORM' + (++idc);
-    const f = {
-      _publicado: false, _readers: [], _collectEmail: yaRecolecta, _setCollectEmailCalls: 0,
-      addTextItem: chain, addParagraphTextItem: chain, addMultipleChoiceItem: chain,
-      addCheckboxItem: chain, addListItem: chain, addScaleItem: chain,
-      addDateItem: chain, addTimeItem: chain,
-      getItems: () => [], deleteItem: () => {},
-      collectsEmail: () => f._collectEmail,
-      setCollectEmail: () => { f._collectEmail = true; f._setCollectEmailCalls++; },
-      setDestination: () => {}, getId: () => id,
-      getPublishedUrl: () => 'https://form/' + id, getEditUrl: () => 'https://edit/' + id,
-      // --- modelo de publicación / respondientes ---
-      supportsAdvancedResponderPermissions: () => soporta,
-      setPublished: (v) => {
-        if (!soporta) throw new Error('Form antiguo: no soporta publicación');
-        f._publicado = v; return f;
-      },
-      isPublished: () => f._publicado,
-      addPublishedReaders: (correos) => {
-        if (!soporta) throw new Error('Form antiguo: no soporta respondientes');
-        correos.forEach((c) => { if (!f._readers.includes(c)) f._readers.push(c); });
-        return f;
-      },
-      getPublishedReaders: () => f._readers.slice()
-    };
-    registro[id] = f;
-    return f;
-  };
-  return {
-    create: makeForm,
-    openById: (id) => registro[id] || makeForm(),
-    _registro: registro,
-    DestinationType: { SPREADSHEET: 'SPREADSHEET' }
-  };
-}
 
 test('getAjustes_ devuelve defaults cuando no hay pestaña Ajustes', () => {
   const h = fresh();
@@ -385,4 +329,131 @@ test('si la Forms API falla, el Form igual se genera (best-effort)', () => {
   const url = h.api.configurarFormulario('daily', [{ tipo: 'texto', titulo: 'X' }], 'SID', CONFIG);
   assert.match(url, /^https:\/\/form\//);              // no rompió
   assert.ok(h.logs.some((l) => String(l[0]).includes('VERIFICADO')));
+});
+
+// --- Metadatos del Form (título/descr./prompt) + modal (guardarFormulario) ---
+
+test('formMeta: round-trip de título/descr./prompt por tipo (getAjustes_ y cargarConfig)', () => {
+  const h = fresh();
+  h.api.setAjustes_('SID', 'Ajustes', {
+    'form.title.daily': 'Reporte Diario', 'form.desc.daily': 'Del equipo',
+    'prompt.gen.daily': 'genera 3 preguntas', 'form.title.weekly': 'Reporte Semanal'
+  });
+  const aj = h.api.getAjustes_('SID', 'Ajustes');
+  assert.deepEqual({ ...aj.formMeta.daily }, { titulo: 'Reporte Diario', descripcion: 'Del equipo', prompt: 'genera 3 preguntas' });
+  assert.equal(aj.formMeta.weekly.titulo, 'Reporte Semanal');
+
+  const cfg = h.api.cargarConfig('SID', CONFIG);
+  assert.equal(cfg.formMeta.daily.prompt, 'genera 3 preguntas');
+  assert.equal(cfg.formMeta.weekly.titulo, 'Reporte Semanal');
+  // cargarConfig sigue exponiendo las URLs de los forms para el modal.
+  assert.ok('dailyUrl' in cfg.forms && 'weeklyUrl' in cfg.forms);
+});
+
+test('cargarConfig en copia nueva trae formMeta vacío (defaults)', () => {
+  const h = fresh();
+  const cfg = h.api.cargarConfig('SID', CONFIG);
+  assert.deepEqual({ ...cfg.formMeta.daily }, { titulo: '', descripcion: '', prompt: '' });
+  assert.deepEqual({ ...cfg.formMeta.weekly }, { titulo: '', descripcion: '', prompt: '' });
+});
+
+test('guardarFormulario persiste preguntas, meta y prompt; devuelve la URL', () => {
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']] } },
+    FormApp: makeFormAppMock(),
+    fetch: () => httpResponse(200, '{}')
+  });
+  const payload = {
+    preguntas: [{ tipo: 'parrafo', titulo: '¿Avances?', requerido: true, ayuda: 'sé breve' }],
+    titulo: 'Reporte Daily', descripcion: 'Reporte del día', prompt: 'un párrafo de avances'
+  };
+  const url = h.api.guardarFormulario('SID', CONFIG, 'daily', payload);
+  assert.match(url, /^https:\/\/form\//);
+
+  const aj = h.api.getAjustes_('SID', 'Ajustes');
+  assert.equal(aj.forms.dailyUrl, url);
+  assert.ok(aj.forms.dailyFormId);
+  assert.equal(aj.formMeta.daily.titulo, 'Reporte Daily');
+  assert.equal(aj.formMeta.daily.descripcion, 'Reporte del día');
+  assert.equal(aj.formMeta.daily.prompt, 'un párrafo de avances');
+  const savedQs = JSON.parse(aj.questions.daily);
+  assert.equal(savedQs[0].requerido, true);
+  assert.equal(savedQs[0].ayuda, 'sé breve');
+});
+
+test('generarFormulario aplica título y descripción del Form al crear', () => {
+  const FormAppMock = makeFormAppMock();
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']] } },
+    FormApp: FormAppMock,
+    fetch: () => httpResponse(200, '{}')
+  });
+  h.api.guardarFormulario('SID', CONFIG, 'daily', {
+    preguntas: [{ tipo: 'texto', titulo: 'X' }], titulo: 'Mi Reporte', descripcion: 'Una descripción'
+  });
+  const form = FormAppMock._registro['FORM1'];
+  assert.equal(form._titulo, 'Mi Reporte');
+  assert.equal(form._descripcion, 'Una descripción');
+});
+
+test('guardarFormulario reescribe el MISMO Form (conserva ID/URL) y re-aplica meta', () => {
+  const FormAppMock = makeFormAppMock();
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']] } },
+    FormApp: FormAppMock,
+    fetch: () => httpResponse(200, '{}')
+  });
+  const url1 = h.api.guardarFormulario('SID', CONFIG, 'daily', {
+    preguntas: [{ tipo: 'texto', titulo: 'A' }], titulo: 'V1', descripcion: 'D1'
+  });
+  const url2 = h.api.guardarFormulario('SID', CONFIG, 'daily', {
+    preguntas: [{ tipo: 'texto', titulo: 'B' }], titulo: 'V2', descripcion: 'D2'
+  });
+  assert.equal(url1, url2);                                   // misma URL/ID
+  assert.equal(Object.keys(FormAppMock._registro).length, 1); // no creó un segundo Form
+  const form = FormAppMock._registro['FORM1'];
+  assert.equal(form._titulo, 'V2');                          // re-aplicó título en edición
+  assert.equal(form._descripcion, 'D2');
+  assert.deepEqual(form.getItems().map((i) => i._titulo), ['B']);  // reemplazó las preguntas
+});
+
+test('addPregunta_ aplica obligatoriedad y texto de ayuda por pregunta', () => {
+  const FormAppMock = makeFormAppMock();
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']] } },
+    FormApp: FormAppMock,
+    fetch: () => httpResponse(200, '{}')
+  });
+  h.api.guardarFormulario('SID', CONFIG, 'daily', {
+    preguntas: [
+      { tipo: 'texto', titulo: 'Obligatoria', requerido: true, ayuda: 'una pista' },
+      { tipo: 'texto', titulo: 'Opcional' }
+    ]
+  });
+  const items = FormAppMock._registro['FORM1'].getItems();
+  assert.equal(items[0]._required, true);
+  assert.equal(items[0]._help, 'una pista');
+  assert.equal(items[1]._required, false);
+  assert.equal(items[1]._help, null);
+});
+
+test('dispatch enruta guardarFormulario con (tipo, payload)', () => {
+  const FormAppMock = makeFormAppMock();
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']] } },
+    FormApp: FormAppMock,
+    fetch: () => httpResponse(200, '{}')
+  });
+  const url = h.api.dispatch('guardarFormulario', ['daily', { preguntas: [{ tipo: 'texto', titulo: 'X' }], titulo: 'T' }], 'SID', CONFIG);
+  assert.match(url, /^https:\/\/form\//);
+  assert.equal(FormAppMock._registro['FORM1']._titulo, 'T');
+});
+
+test('dispatch enruta generarPreguntasIA con (tipo, prompt)', () => {
+  const h = makeHarness({ scriptProperties: { GEMINI_API_KEY: 'K' } });
+  h.setFetch(() => httpResponse(200,
+    JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"preguntas":[{"tipo":"texto","titulo":"X"}]}' }] } }] })));
+  const res = h.api.dispatch('generarPreguntasIA', ['daily', 'crea un form'], 'SID', CONFIG);
+  assert.equal(res.preguntas.length, 1);
+  assert.equal(res.preguntas[0].titulo, 'X');
 });

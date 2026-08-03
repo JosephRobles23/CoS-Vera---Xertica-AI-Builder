@@ -28,8 +28,8 @@ test('construirMenu arma el menú CoS con handlers del stub por nombre', () => {
   assert.equal(ui._menu._name, 'CoS');
   assert.equal(ui._menu._added, true);
   const items = ui._items.filter((i) => i.kind === 'item');
-  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar']);
-  assert.deepEqual(items.map((i) => i.caption), ['Configurar']);
+  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar', 'cosMenu1']);
+  assert.deepEqual(items.map((i) => i.caption), ['Configurar', 'Formularios']);
 });
 
 test('buildSidebar carga el HTML de la librería con título', () => {
@@ -39,14 +39,32 @@ test('buildSidebar carga el HTML de la librería con título', () => {
   assert.equal(out._title, 'CoS — Configuración');
 });
 
+test('buildDialog(\'preguntas\') resuelve el modal desde el HTML de la librería', () => {
+  const { api } = makeHarness();
+  const d = api.buildDialog('preguntas');
+  assert.equal(d.html._file, 'DialogPreguntas');    // shared/DialogPreguntas.html
+  assert.equal(d.html._width, 760);
+  assert.equal(d.html._height, 660);
+  assert.match(d.titulo, /Preguntas/);
+});
+
 test('buildDialog lanza en un nombre desconocido', () => {
   const { api } = makeHarness();
   assert.throws(() => api.buildDialog('inexistente'), /Diálogo desconocido/);
 });
 
+test('menuAction(\'cosMenu1\') abre el modal de preguntas con showModalDialog', () => {
+  const h = makeHarness();
+  h.api.menuAction('cosMenu1', SID, config);
+  assert.equal(h.uiCalls.length, 1);
+  assert.equal(h.uiCalls[0].kind, 'modal');
+  assert.equal(h.uiCalls[0].html._file, 'DialogPreguntas');
+  assert.match(h.uiCalls[0].titulo, /Preguntas/);
+});
+
 test('menuAction lanza si el slot no tiene acción asignada', () => {
   const { api } = makeHarness();
-  assert.throws(() => api.menuAction('cosMenu1', SID, config), /no asignada/);
+  assert.throws(() => api.menuAction('cosMenu2', SID, config), /no asignada/);
 });
 
 test('dispatch enruta cargarConfig igual que la llamada directa', () => {

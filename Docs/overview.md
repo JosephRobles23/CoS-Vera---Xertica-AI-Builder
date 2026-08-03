@@ -19,8 +19,8 @@ CoS-Agent:
 1. **Invita** a cada persona del equipo a llenar su Daily/Weekly a una hora configurable.
 2. **Resume** automáticamente cada respuesta en una columna `Summary` de la fila (vía Gemini).
 3. **Consolida** al cierre del día/semana todos los `Summary` en un correo ejecutivo al líder.
-4. Permite al líder **personalizar** preguntas, prompts, horarios y equipo desde un sidebar,
-   sin tocar código.
+4. Permite al líder **personalizar** prompts, horarios y equipo desde un sidebar, y las preguntas de
+   los Forms (a mano o generadas por IA) desde un modal — sin tocar código.
 
 ---
 
@@ -43,8 +43,8 @@ El MVP corre en **Google Apps Script + Google Drive** porque:
 
 - **Cero infraestructura.** Un workflow se distribuye como un Sheet + un script + Forms. No hay
   servidores que aprovisionar.
-- **Participación no-técnica.** El líder configura todo (preguntas, prompts, horarios, equipo)
-  desde un sidebar dentro de su Sheet — nunca ve código.
+- **Participación no-técnica.** El líder configura todo (prompts, horarios, equipo desde el sidebar;
+  preguntas desde el modal de formularios) dentro de su Sheet — nunca ve código.
 - **El modelo de distribución ES el artefacto.** Repartir la automatización = compartir una
   **plantilla** que el líder copia. Copiar el Sheet copia el stub y su enganche a la librería.
 
@@ -66,8 +66,9 @@ Cada Sheet de líder trae un **stub** delgado que llama a la librería. Así:
 
 - Un workflow activo: **[CLEVEL-REPORTS](workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md)** —
   captura Daily (L–V) y Weekly (viernes), resumen por fila y consolidados al líder.
-- Un **sidebar de 4 paneles** (Preguntas, Prompts, Horarios, Equipo) para que el líder
-  configure todo — ver [sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md).
+- Un **sidebar de 3 paneles** (Prompts, Horarios, Equipo) y un **modal de formularios** (preguntas
+  manuales o generadas por IA con Gemini) para que el líder configure todo — ver
+  [sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md).
 - **Prompts editables por líder** en capas (`soul.md` = voz, `user.md` = contexto,
   system-prompts por tarea), con defaults baked-in en la librería.
 - Motor de texto en **Gemini** vía API key de Google AI Studio (Flash por fila, Pro para
@@ -75,8 +76,8 @@ Cada Sheet de líder trae un **stub** delgado que llama a la librería. Así:
 - Triggers: `onFormSubmit` (resumen por fila) + `dispatcher` cada 5 min (invitaciones y
   consolidados por hora).
 
-> **Estado global:** todo lo anterior está hoy como **spec** (`High-level`). El código `.gs`
-> se implementará en una fase posterior; este repo entrega la documentación y el scaffolding.
+> **Estado global:** todo lo anterior está **implementado** en la librería `CoSLib` y cubierto por
+> tests. Lo que queda `High-level` son extensiones futuras (p. ej. la migración a Add-on).
 
 ---
 

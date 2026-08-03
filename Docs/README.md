@@ -12,7 +12,7 @@ español; el código, identificadores y claves de config quedan en inglés.
 | 3 | [conventions.md](conventions.md) | El patrón **librería + stub**, un script container-bound por líder, estructura de archivos y manifiesto. |
 | 4 | [engineering-playbook.md](engineering-playbook.md) | Reglas prácticas para escribir el código: modularización, runtime, capas de prompts y el bridge de Gemini. |
 | 5 | [workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md](workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md) | El workflow integrado Daily + Weekly: intent, supuestos, mapa, config y flujos. |
-| 6 | [workflows/CLEVEL-REPORTS/sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md) | El sidebar de 4 paneles y el contrato de prompts editables. |
+| 6 | [workflows/CLEVEL-REPORTS/sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md) | El sidebar de 3 paneles, el modal de formularios (preguntas + IA) y el contrato de prompts editables. |
 | 7 | [testing-and-deploy.md](testing-and-deploy.md) | Estrategia de tests (Node + mocks GAS, smoke manual) y flujo clasp: push, versionamiento y promoción a los líderes. |
 | 8 | [installation.md](installation.md) | Paso a paso de despliegue: crear librería + plantilla con clasp, cablear scriptId, key, versión, configurar el sidebar y checklist de smoke. |
 | 9 | [deploy-terminal.md](deploy-terminal.md) | Runbook de terminal: cada comando `clasp` en orden con **para qué sirve**; marca los pasos de navegador. Copiar/pegar. |
@@ -24,8 +24,8 @@ español; el código, identificadores y claves de config quedan en inglés.
   - `Implemented` — el código existe hoy y su comportamiento es parte del contrato de runtime.
   - `High-level` — solo está definido el *intent* de negocio; el spec detallado es TBD.
 
-  > Como este repo aún **no tiene código `.gs`**, casi todo está marcado `High-level`.
-  > A medida que se implemente, se irá promoviendo a `Implemented`.
+  > El runtime ya está **implementado** en la librería `CoSLib`; lo que queda `High-level` son
+  > extensiones futuras (p. ej. la migración a Add-on).
 
 - **Contratos sobre abstracción.** Si un comportamiento debe reusarse, se define un contrato en
   `shared/`, se documenta aquí y se cubre con un test. Si es específico de un workflow, se queda

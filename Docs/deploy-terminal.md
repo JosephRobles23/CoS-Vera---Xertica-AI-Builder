@@ -193,9 +193,9 @@ por defecto que Apps Script crea solo, no se puede habilitar.
 
 > ⚠️ Y el proyecto que cuenta es el del **stub**, no el de la librería. Aunque el código viva en
 > `CoSLib`, una librería no tiene identidad propia en runtime: la llamada se ejecuta con el token
-> del script que la invoca, y quien aprieta "Generar Form" es el líder desde su sidebar. Como cada
-> copia del Sheet nace con un proyecto Cloud por defecto nuevo, habilitarla sería un trámite de GCP
-> **por cada líder** — más caro que los 2 clics. Por eso se dejó manual.
+> del script que la invoca, y quien aprieta "Guardar / actualizar Form" es el líder desde el modal
+> de formularios. Como cada copia del Sheet nace con un proyecto Cloud por defecto nuevo, habilitarla
+> sería un trámite de GCP **por cada líder** — más caro que los 2 clics. Por eso se dejó manual.
 >
 > *(Tampoco existe un servicio avanzado de Forms en Apps Script que evite el trámite: la lista
 > incluye Docs, Drive, Sheets y Slides, pero Forms solo está como servicio integrado `FormApp`.)*
@@ -270,7 +270,7 @@ clasp create --type sheets --title "CoS — Plantilla CLEVEL-REPORTS"
 # 🖥️ edita appsscript.json: libraryId = scriptId de la librería
 clasp push --force
 # 🖥️ en el Sheet: ejecuta setupTriggers y autoriza
-# 🖥️ genera los Forms desde el sidebar y pon cada uno en
+# 🖥️ genera los Forms desde el modal (CoS → Formularios) y pon cada uno en
 #    Configuración → Recopilar direcciones de correo → Verificado (ver 2b)
 ```
 
@@ -281,7 +281,10 @@ cd ~/Projects/CoS-Agent/shared
 clasp push                      # sube el cambio a HEAD
 # probar (npm test + smoke)
 clasp create-version "v0.5.1 - descripcion"
-# 🖥️ sube "version" en el appsscript.json de los stubs y clasp push del stub
+# 🖥️ sube "version" en el appsscript.json de la plantilla y clasp push  (→ copias NUEVAS)
+# 🖥️ para copias EXISTENTES: el admin hace clasp push del stub a cada scriptId (Opción A)
+#    ver distribucion-de-actualizaciones.md
 ```
 **Para qué:** `push` solo cambia HEAD; hasta que **no** creas una versión nueva y apuntas los stubs
-a ella, los líderes siguen estables en la versión anterior.
+a ella, los líderes siguen estables en la versión anterior. Ya **no** hay botón de auto-actualización
+(se retiró en la v8): las copias existentes se actualizan con `clasp push` del admin.

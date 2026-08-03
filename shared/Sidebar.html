@@ -116,10 +116,6 @@
     .icon-btn:hover { background: var(--destructive); color: #fff; border-color: var(--destructive); }
     .icon-btn svg { width: 14px; height: 14px; }
 
-    .opciones { margin-top: 8px; padding-left: 2px; }
-    .opc-label { font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px; display: block; }
-    .opciones .row { margin-bottom: 5px; }
-
     /* ---- Time picker (popover custom) ---- */
     .tp { position: relative; }
     .tp-trigger {
@@ -143,13 +139,6 @@
     .tp-item:hover { background: var(--accent); color: var(--accent-foreground); }
     .tp-item.sel { background: var(--primary); color: var(--primary-foreground); }
 
-    .sub { display: flex; gap: 4px; margin-bottom: 8px; }
-    .sub button {
-      flex: 1; padding: 6px; font: inherit; font-size: 12px; font-weight: 500; border: 1px solid var(--border);
-      background: var(--background); color: var(--muted-foreground); border-radius: var(--radius-sm); cursor: pointer;
-    }
-    .sub button.on { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--ring); }
-
     .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 8px; }
     .hint a { color: var(--foreground); font-weight: 500; word-break: break-all; }
     .divider { height: 1px; background: var(--border); margin: 14px 0; }
@@ -161,22 +150,6 @@
     }
     #toast svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted-foreground); }
 
-    .overlay { position: fixed; inset: 0; background: oklch(0 0 0 / 0.5); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
-    .overlay.open { display: flex; }
-    .dialog {
-      background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border);
-      border-radius: var(--radius); box-shadow: var(--shadow-md); width: 100%; max-height: 86vh;
-      display: flex; flex-direction: column; overflow: hidden;
-    }
-    .dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; }
-    .dialog-body { padding: 14px; overflow: auto; }
-    .pv-q { margin-bottom: 16px; }
-    .pv-label { font-size: 12px; font-weight: 500; margin-bottom: 6px; }
-    .pv-opt { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 5px 0; }
-    .pv-opt input { width: auto; }
-    .pv-scale { display: flex; gap: 8px; }
-    .pv-scale span { width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; font-size: 12px; }
-    .pv-q input:disabled, .pv-q textarea:disabled, .pv-q select:disabled { opacity: .85; background: var(--muted); }
   </style>
 </head>
 <body>
@@ -186,27 +159,13 @@
   </div>
 
   <nav>
-    <button data-tab="preguntas" class="active"><i data-lucide="clipboard-list"></i>Preguntas</button>
-    <button data-tab="prompts"><i data-lucide="sparkles"></i>Prompts</button>
+    <button data-tab="prompts" class="active"><i data-lucide="sparkles"></i>Prompts</button>
     <button data-tab="horarios"><i data-lucide="clock"></i>Horarios</button>
     <button data-tab="equipo"><i data-lucide="users"></i>Equipo</button>
   </nav>
 
-  <!-- PREGUNTAS -->
-  <div id="preguntas" class="panel active">
-    <div class="sub">
-      <button id="tabDaily" class="on" onclick="setTipo('daily')">Daily</button>
-      <button id="tabWeekly" onclick="setTipo('weekly')">Weekly</button>
-    </div>
-    <div id="listaPreguntas"></div>
-    <button class="btn btn-ghost" onclick="addPregunta()"><i data-lucide="plus"></i> Agregar pregunta</button>
-    <button id="btnPreview" class="btn btn-outline" onclick="openPreview()" disabled><i data-lucide="eye"></i> Preview</button>
-    <button class="btn btn-primary" onclick="generarForm()"><i data-lucide="file-plus-2"></i> Generar / actualizar Form</button>
-    <p class="hint" id="formUrl"></p>
-  </div>
-
   <!-- PROMPTS -->
-  <div id="prompts" class="panel">
+  <div id="prompts" class="panel active">
     <p class="hint">El placeholder muestra el prompt por defecto. Vacío = usa ese default.</p>
     <label>soul.md — voz del asistente</label><textarea id="p_soul"></textarea>
     <label>user.md — contexto del líder / equipo</label><textarea id="p_user"></textarea>
@@ -287,33 +246,19 @@
     <button class="btn btn-primary" onclick="salvarEquipo()"><i data-lucide="save"></i> Guardar equipo</button>
   </div>
 
-  <!-- Dialog Preview -->
-  <div id="preview" class="overlay" onclick="if(event.target===this)closePreview()">
-    <div class="dialog">
-      <div class="dialog-head"><span>Vista previa · <span id="pvTipo"></span></span>
-        <button class="icon-btn" onclick="closePreview()"><i data-lucide="x"></i></button></div>
-      <div id="pvBody" class="dialog-body"></div>
-    </div>
-  </div>
-
   <div id="toast"></div>
 
   <script>
     /* ---- Íconos Lucide inline (sin CDN) ---- */
     var ICONS = {
       'briefcase': '<rect width="20" height="14" x="2" y="6" rx="2"/><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
-      'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
       'sparkles': '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
       'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
       'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-      'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
-      'file-plus-2': '<path d="M4 22h14a2 2 0 0 0 2-2V7.5L14.5 2H6a2 2 0 0 0-2 2v4"/><path d="M14 2v6h6"/><path d="M3 15h6"/><path d="M6 12v6"/>',
       'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
       'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
       'trash-2': '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
-      'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
       'rotate-ccw': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
-      'eye': '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
       'chevron-down': '<path d="m6 9 6 6 6-6"/>',
       'check': '<path d="M20 6 9 17l-5-5"/>',
       'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
@@ -326,11 +271,8 @@
       });
     }
 
-    var TIPOS_PREGUNTA = ['texto', 'parrafo', 'opcion', 'casillas', 'lista', 'escala', 'fecha', 'hora'];
-    var CON_OPCIONES = ['opcion', 'casillas', 'lista'];
-    var state = { preguntas: { daily: [], weekly: [] }, equipo: [], promptDefaults: {} };
+    var state = { equipo: [], promptDefaults: {} };
     var times = { h_daily: '', h_weekly: '', h_closeDaily: '', h_closeWeekly: '' };
-    var tipoActivo = 'daily';
 
     function g(id) { return document.getElementById(id); }
     function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
@@ -364,7 +306,6 @@
 
     // --- Carga inicial ---
     run('cargarConfig')().then(function (cfg) {
-      state.preguntas = cfg.preguntas || { daily: [], weekly: [] };
       state.equipo = cfg.equipo || [];
       state.promptDefaults = cfg.promptDefaults || {};
       var p = cfg.prompts || {}, d = state.promptDefaults;
@@ -377,7 +318,7 @@
       setTZ(cfg.timezone);
       var l = cfg.leader || {};
       g('l_name').value = l.name || ''; g('l_email').value = l.email || '';
-      renderPreguntas(); renderEquipo(); icons();
+      renderEquipo(); icons();
     }).catch(function (e) { toast('Error al cargar: ' + e.message, 'triangle-alert'); });
 
     function pv(id, value, placeholder) { var el = g(id); el.value = value || ''; el.placeholder = placeholder || ''; }
@@ -416,85 +357,6 @@
       setTime(base, H + ':' + M); buildTP(base);
     }
     document.addEventListener('click', function (e) { if (!e.target.closest('.tp')) closeAllTP(); });
-
-    // --- Panel Preguntas ---
-    function setTipo(t) {
-      tipoActivo = t;
-      g('tabDaily').classList.toggle('on', t === 'daily');
-      g('tabWeekly').classList.toggle('on', t === 'weekly');
-      g('formUrl').textContent = '';
-      renderPreguntas();
-    }
-    function renderPreguntas() {
-      var cont = g('listaPreguntas'); cont.innerHTML = '';
-      state.preguntas[tipoActivo].forEach(function (q, i) {
-        var div = document.createElement('div'); div.className = 'card';
-        var opts = TIPOS_PREGUNTA.map(function (t) {
-          return '<option value="' + t + '"' + (t === q.tipo ? ' selected' : '') + '>' + t + '</option>';
-        }).join('');
-        div.innerHTML =
-          '<div class="row"><select onchange="upd(' + i + ',\'tipo\',this.value)">' + opts + '</select>' +
-          '<button class="icon-btn" onclick="delPregunta(' + i + ')"><i data-lucide="trash-2"></i></button></div>' +
-          '<input placeholder="Título de la pregunta" value="' + escAttr(q.titulo) + '" oninput="upd(' + i + ',\'titulo\',this.value)">' +
-          (CON_OPCIONES.indexOf(q.tipo) > -1 ? renderOpciones(q, i) : '');
-        cont.appendChild(div);
-      });
-      updatePreviewBtn(); icons();
-    }
-    function renderOpciones(q, i) {
-      var items = (q.opciones || []).map(function (op, j) {
-        return '<div class="row"><input placeholder="Opción ' + (j + 1) + '" value="' + escAttr(op) + '" oninput="updOpcItem(' + i + ',' + j + ',this.value)">' +
-               '<button class="icon-btn" onclick="delOpcion(' + i + ',' + j + ')"><i data-lucide="x"></i></button></div>';
-      }).join('');
-      return '<div class="opciones"><span class="opc-label">Opciones</span>' + items +
-             '<button class="btn btn-ghost" onclick="addOpcion(' + i + ')"><i data-lucide="plus"></i> Opción</button></div>';
-    }
-    function upd(i, campo, valor) {
-      var q = state.preguntas[tipoActivo][i]; q[campo] = valor;
-      if (campo === 'tipo') {
-        if (CON_OPCIONES.indexOf(valor) > -1 && (!q.opciones || !q.opciones.length)) q.opciones = [''];
-        renderPreguntas();
-      } else { updatePreviewBtn(); }
-    }
-    function updOpcItem(i, j, valor) { state.preguntas[tipoActivo][i].opciones[j] = valor; }
-    function addOpcion(i) { state.preguntas[tipoActivo][i].opciones.push(''); renderPreguntas(); }
-    function delOpcion(i, j) { state.preguntas[tipoActivo][i].opciones.splice(j, 1); renderPreguntas(); }
-    function addPregunta() { state.preguntas[tipoActivo].push({ tipo: 'parrafo', titulo: '' }); renderPreguntas(); }
-    function delPregunta(i) { state.preguntas[tipoActivo].splice(i, 1); renderPreguntas(); }
-    function updatePreviewBtn() { g('btnPreview').disabled = state.preguntas[tipoActivo].length === 0; }
-
-    function generarForm() {
-      toast('Generando Form…', 'rotate');
-      run('configurarFormulario')(tipoActivo, state.preguntas[tipoActivo]).then(function (url) {
-        g('formUrl').innerHTML = 'Form listo: <a href="' + url + '" target="_blank">' + url + '</a>';
-        toast('Form ' + tipoActivo + ' actualizado', 'check');
-      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
-    }
-
-    // --- Preview ---
-    function openPreview() {
-      g('pvTipo').textContent = (tipoActivo === 'daily' ? 'Reporte Daily' : 'Reporte Weekly');
-      g('pvBody').innerHTML = state.preguntas[tipoActivo].map(function (q, i) {
-        return '<div class="pv-q"><div class="pv-label">' + (i + 1) + '. ' +
-          (escHtml(q.titulo) || '<em>(sin título)</em>') + '</div>' + pvControl(q) + '</div>';
-      }).join('');
-      g('preview').classList.add('open'); icons();
-    }
-    function closePreview() { g('preview').classList.remove('open'); }
-    function pvControl(q) {
-      var ops = (q.opciones || []).filter(function (o) { return o; });
-      switch (q.tipo) {
-        case 'texto': return '<input disabled placeholder="Respuesta corta">';
-        case 'parrafo': return '<textarea disabled placeholder="Respuesta larga"></textarea>';
-        case 'opcion': return ops.length ? ops.map(function (o) { return '<label class="pv-opt"><input type="radio" disabled> ' + escHtml(o) + '</label>'; }).join('') : '<span class="hint">(sin opciones)</span>';
-        case 'casillas': return ops.length ? ops.map(function (o) { return '<label class="pv-opt"><input type="checkbox" disabled> ' + escHtml(o) + '</label>'; }).join('') : '<span class="hint">(sin opciones)</span>';
-        case 'lista': return '<select disabled>' + ops.map(function (o) { return '<option>' + escHtml(o) + '</option>'; }).join('') + '</select>';
-        case 'escala': return '<div class="pv-scale">' + [1, 2, 3, 4, 5].map(function (n) { return '<span>' + n + '</span>'; }).join('') + '</div>';
-        case 'fecha': return '<input type="date" disabled>';
-        case 'hora': return '<input type="time" disabled>';
-        default: return '<input disabled>';
-      }
-    }
 
     // --- Panel Prompts ---
     function reestablecerPrompts() {

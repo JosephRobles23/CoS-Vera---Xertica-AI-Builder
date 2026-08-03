@@ -9,7 +9,7 @@ CoS-Agent es un MVP hecho de automatizaciones **container-bound** de Apps Script
 pequeñas: un Sheet de settings, archivos de Apps Script, Forms y una carpeta de Drive. El código
 común vive en **una librería compartida** — no se copia en cada Sheet.
 
-La arquitectura favorece **contratos explícitos sobre abstracción**. Si un comportamiento debe
+La arquitectura favorece **conVtratos explícitos sobre abstracción**. Si un comportamiento debe
 reusarse, se define el contrato en `shared/` (dentro de la librería), se documenta en `Docs/` y
 se cubre con un test. Si es específico de un workflow, se queda ahí hasta que un segundo workflow
 necesite el mismo contrato.
@@ -82,30 +82,31 @@ Ver el detalle en [conventions.md](conventions.md#patrón-librería--stub) y
 Este es el mapa canónico de archivo/test. Otros docs enlazan aquí en vez de repetir listas de
 archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superficie de contrato estable.
 
-> **Estado:** `Planned` — aún no existe código. La tabla fija los nombres y responsabilidades
-> acordados; se marcará `Implemented` a medida que se cree cada archivo.
-
-| Superficie | Archivo canónico (planeado) | Estado |
+| Superficie | Archivo canónico | Estado |
 |---|---|---|
 | Config del workflow (estático) | `workflows/CLEVEL-REPORTS/config.js` | Implemented |
 | Bootloader del stub (delegación + puente `cosRun` + triggers) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
 | UI de la librería (menú, sidebar, diálogos, `dispatch`) | `shared/ui-runtime.js` | Implemented |
-| HTML del sidebar (4 paneles) | `shared/Sidebar.html` | Implemented |
-| Auto-actualización de la copia | `shared/update-runtime.js` | Implemented |
+| HTML del sidebar (3 paneles: Prompts · Horarios · Equipo) | `shared/Sidebar.html` | Implemented |
+| HTML del modal de preguntas y formularios | `shared/DialogPreguntas.html` | Implemented |
 | Instalación de triggers | `workflows/CLEVEL-REPORTS/triggers.js` | Implemented |
-| Bridge único con Gemini | `shared/gemini-runtime.js` | Implemented |
+| Bridge único con Gemini (incl. `responseSchema`) | `shared/gemini-runtime.js` | Implemented |
+| Generación de preguntas por IA (schema + saneado/degradado/cap) | `shared/forms-ai-runtime.js` | Implemented |
 | Composición de prompts (soul+user+task) | `shared/prompts-runtime.js` | Implemented |
 | Resumen por fila | `shared/summaries-runtime.js` | Implemented |
 | Consolidados al líder | `shared/consolidation-runtime.js` | Implemented |
+| Plantillas HTML de correo | `shared/email-runtime.js` | Implemented |
 | Invitaciones (envío) | `shared/invites-runtime.js` | Implemented |
 | Dispatcher (timing) + guardas anti-dup | `shared/dispatcher-runtime.js` | Implemented |
-| Generación de Forms (FormApp) | `shared/forms-runtime.js` | Implemented |
+| Generación de Forms (FormApp: título/descr./obligatoriedad/ayuda) | `shared/forms-runtime.js` | Implemented |
 | Acceso a Sheets/columnas/horas | `shared/sheets-runtime.js` | Implemented |
 | Lectura de `Equipo` (roster) | `shared/roster-runtime.js` | Implemented |
-| Ajustes editables + soporte del sidebar | `shared/settings-runtime.js` | Implemented |
+| Ajustes editables + `formMeta` + `guardarFormulario` | `shared/settings-runtime.js` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
-| Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (22 tests) |
-| Tests del workflow | `tests/clevel-reports.test.mjs` | Implemented (11 tests) |
+| Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
+| Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (32 tests) |
+| Tests de generación de preguntas por IA | `tests/forms-ai-runtime.test.mjs` | Implemented (13 tests) |
+| Tests de UI (menú, diálogos, `dispatch`) | `tests/ui-runtime.test.mjs` | Implemented (9 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).
 
@@ -136,3 +137,9 @@ comparten un único namespace global, así que:
    usa *pass-through genérico* sobre pares pregunta→respuesta. Ver
    [CLEVEL-REPORTS.md](workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md#contrato-de-datos) y
    [sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md).
+5. **Puente `cosRun` para funciones de servidor nuevas.** El stub solo expone a `google.script.run`
+   un conjunto fijo de wrappers nombrados + el puente genérico `cosRun(fnName, argsJson)`. Toda
+   función de servidor **nueva** (p. ej. `generarPreguntasIA`, `guardarFormulario`) se registra en
+   `DISPATCH_` (`shared/ui-runtime.js`, convención `fn(sheetId, config, ...args)`) y el cliente la
+   invoca vía `cosRun` — **nunca** como método directo de `google.script.run` (daría *"Cannot read
+   properties of undefined (reading 'apply')"*). Así se agregan funciones sin re-empujar el stub.

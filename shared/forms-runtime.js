@@ -14,28 +14,32 @@
  * Sin import/export: runtime de Apps Script. Privados con sufijo "_".
  */
 
-/** Agrega un ítem al form según el tipo elegido en el sidebar. */
+/** Agrega un ítem al form según el tipo elegido en el editor (sidebar/modal). */
 function addPregunta_(form, p) {
   var titulo = String(p.titulo || '').trim() || 'Pregunta';
-  // Filtra opciones vacías (el editor por-opción del sidebar puede dejar alguna en blanco).
+  // Filtra opciones vacías (el editor por-opción puede dejar alguna en blanco).
   var opciones = (p.opciones || []).filter(function (o) { return o && String(o).trim(); });
   var metodoOpc = { opcion: 'addMultipleChoiceItem', casillas: 'addCheckboxItem', lista: 'addListItem' };
+  var item;
 
   switch (p.tipo) {
-    case 'texto':    form.addTextItem().setTitle(titulo); break;
-    case 'parrafo':  form.addParagraphTextItem().setTitle(titulo); break;
+    case 'texto':    item = form.addTextItem().setTitle(titulo); break;
+    case 'parrafo':  item = form.addParagraphTextItem().setTitle(titulo); break;
     case 'opcion':
     case 'casillas':
-    case 'lista': {
-      var item = form[metodoOpc[p.tipo]]().setTitle(titulo);
+    case 'lista':
+      item = form[metodoOpc[p.tipo]]().setTitle(titulo);
       if (opciones.length) item.setChoiceValues(opciones);  // setChoiceValues([]) lanza error
       break;
-    }
-    case 'escala':   form.addScaleItem().setTitle(titulo).setBounds(p.min || 1, p.max || 5); break;
-    case 'fecha':    form.addDateItem().setTitle(titulo); break;
-    case 'hora':     form.addTimeItem().setTitle(titulo); break;
-    default:         form.addParagraphTextItem().setTitle(titulo);
+    case 'escala':   item = form.addScaleItem().setTitle(titulo).setBounds(p.min || 1, p.max || 5); break;
+    case 'fecha':    item = form.addDateItem().setTitle(titulo); break;
+    case 'hora':     item = form.addTimeItem().setTitle(titulo); break;
+    default:         item = form.addParagraphTextItem().setTitle(titulo);
   }
+
+  // Ayuda y obligatoriedad: soportadas por todos nuestros tipos de ítem.
+  if (p.ayuda && String(p.ayuda).trim()) item.setHelpText(String(p.ayuda).trim());
+  if (p.requerido) item.setRequired(true);
 }
 
 /** Borra todas las preguntas actuales del form (para regenerar sin crear un Form nuevo). */
@@ -48,14 +52,17 @@ function limpiarItems_(form) {
  * Genera (o edita) el Form del líder. Público (lo llama el stub desde el sidebar).
  *
  * @param {string} tipo             'daily' | 'weekly'
- * @param {Array}  preguntas        [{ tipo, titulo, opciones?, min?, max? }]
+ * @param {Array}  preguntas        [{ tipo, titulo, opciones?, min?, max?, requerido?, ayuda? }]
  * @param {string} sheetId          Spreadsheet del líder (destino de respuestas)
  * @param {Object} config           CONFIG (sheets.daily/weekly como nombre de pestaña destino)
  * @param {string} [existingFormId] si se pasa, se EDITA ese Form (conserva URL y pestaña)
+ * @param {Object} [meta]           { titulo?, descripcion? } del Form (título/descr. editables)
  * @return {{formId:string, publishedUrl:string, editUrl:string, tab:string}}
  */
-function generarFormulario(tipo, preguntas, sheetId, config, existingFormId) {
-  var titulo = (tipo === 'daily') ? 'Reporte Daily' : 'Reporte Weekly';
+function generarFormulario(tipo, preguntas, sheetId, config, existingFormId, meta) {
+  meta = meta || {};
+  var tituloDefault = (tipo === 'daily') ? 'Reporte Daily' : 'Reporte Weekly';
+  var titulo = (meta.titulo && String(meta.titulo).trim()) ? String(meta.titulo).trim() : tituloDefault;
   var tabName = (tipo === 'daily') ? config.sheets.daily : config.sheets.weekly;
   preguntas = preguntas || [];
 
@@ -64,6 +71,9 @@ function generarFormulario(tipo, preguntas, sheetId, config, existingFormId) {
   if (existingFormId) {
     // --- Editar: conserva la misma URL y la misma pestaña de respuestas ---
     form = FormApp.openById(existingFormId);
+    // Solo re-aplica el título si el líder puso uno (vacío = conserva el actual del Form).
+    if (meta.titulo && String(meta.titulo).trim()) form.setTitle(String(meta.titulo).trim());
+    if (meta.descripcion != null) form.setDescription(String(meta.descripcion));
     limpiarItems_(form);
     setCorreoVerificado_(form);            // re-aplica: migra forms viejos que pedían el correo
     preguntas.forEach(function (p) { addPregunta_(form, p); });
@@ -71,6 +81,7 @@ function generarFormulario(tipo, preguntas, sheetId, config, existingFormId) {
   } else {
     // --- Crear nuevo + enlazar destino + renombrar la pestaña de respuestas ---
     form = FormApp.create(titulo);
+    if (meta.descripcion != null) form.setDescription(String(meta.descripcion));
     setCorreoVerificado_(form);            // contrato: columna de correo, sin casilla visible
     preguntas.forEach(function (p) { addPregunta_(form, p); });
 

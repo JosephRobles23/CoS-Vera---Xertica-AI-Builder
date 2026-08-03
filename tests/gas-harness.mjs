@@ -29,6 +29,7 @@ const RUNTIME_FILES = [
   'invites-runtime.js',
   'dispatcher-runtime.js',
   'forms-runtime.js',
+  'forms-ai-runtime.js',
   'settings-runtime.js',
   'ui-runtime.js'
 ];
@@ -149,6 +150,7 @@ export function makeHarness(opts = {}) {
     sentEmails: [],
     logs: [],
     fetchCalls: [],
+    uiCalls: [],   // showModalDialog/showSidebar invocados vía SpreadsheetApp.getUi()
     fetch: opts.fetch || (() => { throw new Error('UrlFetchApp.fetch no fue mockeado en este test'); })
   };
 
@@ -190,6 +192,12 @@ export function makeHarness(opts = {}) {
         return byId[id];
       },
       flush: () => {},
+      // getUi(): registra los diálogos/sidebars mostrados para poder afirmar en tests que
+      // MENU_ACTIONS_.cosMenu1 abre el modal de preguntas (showModalDialog desde la librería).
+      getUi: () => ({
+        showModalDialog: (html, titulo) => { state.uiCalls.push({ kind: 'modal', html, titulo }); },
+        showSidebar: (html) => { state.uiCalls.push({ kind: 'sidebar', html }); }
+      }),
       DestinationType: { SPREADSHEET: 'SPREADSHEET' },
       BandingTheme: { LIGHT_GREY: 'LIGHT_GREY' },
       BorderStyle: { SOLID: 'SOLID', SOLID_MEDIUM: 'SOLID_MEDIUM' }
@@ -221,6 +229,7 @@ export function makeHarness(opts = {}) {
     sentEmails: state.sentEmails,
     logs: state.logs,
     fetchCalls: state.fetchCalls,
+    uiCalls: state.uiCalls,
     scriptProps: state.scriptProps,
     setFetch: (fn) => { state.fetch = fn; },
     getSpreadsheet: (id) => byId[id]
@@ -238,4 +247,79 @@ export function httpResponse(code, body) {
 /** Helper: cuerpo JSON de una respuesta exitosa de Gemini con `text`. */
 export function geminiOk(text) {
   return JSON.stringify({ candidates: [{ content: { parts: [{ text }] }, finishReason: 'STOP' }] });
+}
+
+/**
+ * Mock de FormApp para probar generación/edición de Forms y su acceso.
+ *
+ * `titulos` acumula el título de cada ÍTEM agregado (verifica QUÉ preguntas se crean; el título
+ * del Form en sí no entra aquí). Cada form y cada ítem registran lo que se les aplicó
+ * (setTitle/setDescription a nivel form; setRequired/setHelpText/setBounds/setChoiceValues por
+ * ítem), para poder afirmarlo en los tests.
+ *
+ * @param {string[]} titulos               acumulador de títulos de ítem (compartible entre asserts)
+ * @param {Object}   opts
+ *   opts.soportaPublicacion=false → Form antiguo (sin modelo de publicación)
+ *   opts.yaRecolectaCorreo=true   → simula el default "Verificado" heredado del líder
+ */
+export function makeFormAppMock(titulos = [], opts = {}) {
+  const soporta = opts.soportaPublicacion !== false;
+  const yaRecolecta = opts.yaRecolectaCorreo === true;
+  const registro = {};
+  let idc = 0;
+
+  const makeItem = () => {
+    const it = {
+      _titulo: null, _help: null, _required: false, _bounds: null, _choices: null,
+      setTitle(t) { it._titulo = t; titulos.push(t); return it; },
+      setChoiceValues(v) { it._choices = v; return it; },
+      setBounds(a, b) { it._bounds = [a, b]; return it; },
+      setRequired(v) { it._required = v; return it; },
+      setHelpText(t) { it._help = t; return it; }
+    };
+    return it;
+  };
+
+  const makeForm = () => {
+    const id = 'FORM' + (++idc);
+    const items = [];
+    const add = () => { const it = makeItem(); items.push(it); return it; };
+    const f = {
+      _publicado: false, _readers: [], _collectEmail: yaRecolecta, _setCollectEmailCalls: 0,
+      _titulo: null, _descripcion: null, _items: items,
+      addTextItem: add, addParagraphTextItem: add, addMultipleChoiceItem: add,
+      addCheckboxItem: add, addListItem: add, addScaleItem: add,
+      addDateItem: add, addTimeItem: add,
+      getItems: () => items.slice(),
+      deleteItem: (it) => { const i = items.indexOf(it); if (i > -1) items.splice(i, 1); },
+      setTitle: (t) => { f._titulo = t; return f; },
+      setDescription: (t) => { f._descripcion = t; return f; },
+      collectsEmail: () => f._collectEmail,
+      setCollectEmail: () => { f._collectEmail = true; f._setCollectEmailCalls++; },
+      setDestination: () => {}, getId: () => id,
+      getPublishedUrl: () => 'https://form/' + id, getEditUrl: () => 'https://edit/' + id,
+      // --- modelo de publicación / respondientes ---
+      supportsAdvancedResponderPermissions: () => soporta,
+      setPublished: (v) => {
+        if (!soporta) throw new Error('Form antiguo: no soporta publicación');
+        f._publicado = v; return f;
+      },
+      isPublished: () => f._publicado,
+      addPublishedReaders: (correos) => {
+        if (!soporta) throw new Error('Form antiguo: no soporta respondientes');
+        correos.forEach((c) => { if (!f._readers.includes(c)) f._readers.push(c); });
+        return f;
+      },
+      getPublishedReaders: () => f._readers.slice()
+    };
+    registro[id] = f;
+    return f;
+  };
+
+  return {
+    create: (titulo) => { const f = makeForm(); if (titulo != null) f._titulo = titulo; return f; },
+    openById: (id) => registro[id] || makeForm(),
+    _registro: registro,
+    DestinationType: { SPREADSHEET: 'SPREADSHEET' }
+  };
 }

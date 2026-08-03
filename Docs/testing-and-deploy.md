@@ -4,7 +4,9 @@ Cómo se prueba CoS-Agent y cómo se publica/versiona con **clasp** (verificado 
 `@google/clasp` **3.3.0**). Léelo antes de escribir código: define la disciplina de pruebas y el
 ciclo de promoción a los líderes.
 
-> **Estado:** `High-level` (spec). Aún no hay código `.gs` ni proyectos de Apps Script creados.
+> **Estado:** `Implemented`. El runtime vive en la librería `CoSLib` y hay tests en `tests/`
+> (`npm test`). Anclas de archivo/test en
+> [architecture-and-contracts.md](architecture-and-contracts.md#anclas-de-implementación).
 
 ---
 
@@ -24,7 +26,7 @@ Mismo patrón que el proyecto AOS de referencia: `tests/` + un **mock harness** 
   (`node:vm`) con los mocks ya definidos como globales.
 - **Se prueba la lógica pura y determinística** — donde están los bugs caros. Sin red, sin Google.
 
-| Módulo (planeado) | Qué se testea |
+| Módulo | Qué se testea |
 |---|---|
 | `shared/sheets-runtime.js` | mapa de encabezados, `toHHMM_` (normalización de hora), `horaCoincide_` (ventana) |
 | `shared/roster-runtime.js` | parseo de la pestaña `Equipo` a objetos |
@@ -33,15 +35,20 @@ Mismo patrón que el proyecto AOS de referencia: `tests/` + un **mock harness** 
 | `shared/consolidation-runtime.js` | filtro/agrupación de `Summary` por fecha de hoy |
 | `shared/email-runtime.js` | **parseo tolerante** de la salida del LLM a secciones + escapado del HTML |
 | `shared/invites-runtime.js` | formato de la guarda anti-dup y su lógica |
-| `shared/gemini-runtime.js` | con `UrlFetchApp` **mockeado**: forma del payload (modelo por llamada, split system/user), reintento en 429/5xx, respuesta vacía, key ausente → falla rápido |
+| `shared/gemini-runtime.js` | con `UrlFetchApp` **mockeado**: forma del payload (modelo por llamada, split system/user, `responseSchema`), reintento en 429/5xx, respuesta vacía, key ausente → falla rápido |
+| `shared/forms-ai-runtime.js` | `generarPreguntasIA`: payload con schema, degradado de tipos, cap de 25, escala 1–5, opciones vacías, `requerido` a bool, JSON inválido → throw |
+| `shared/settings-runtime.js` | round-trip de `formMeta` (`form.title.*`/`form.desc.*`/`prompt.gen.*`), `cargarConfig` con `formMeta`, `guardarFormulario` persiste y devuelve URL |
+| `shared/ui-runtime.js` | `construirMenu` (Configurar + Formularios), `buildDialog('preguntas')`, `dispatch` enruta `generarPreguntasIA`/`guardarFormulario` |
 
 **Correr:** `npm test` (`node --test tests/`). Rápido, sin cuenta de Google, **antes de cada push**.
 
 ```
 tests/
-├── gas-harness.mjs           # mocks de los globales GAS + loader de runtime
-├── shared.test.mjs           # contratos de shared/*
-└── clevel-reports.test.mjs   # contratos del workflow
+├── gas-harness.mjs             # mocks de los globales GAS + loader de runtime
+├── shared.test.mjs             # contratos de shared/*
+├── clevel-reports.test.mjs     # contratos del workflow (settings/forms/consolidado)
+├── forms-ai-runtime.test.mjs   # generación de preguntas por IA
+└── ui-runtime.test.mjs         # menú, diálogos y dispatch
 ```
 
 ### Capa B — Smoke / integración manual (en el editor de Apps Script)
@@ -111,10 +118,13 @@ clasp create-version "v0.5.1 — pass-through genérico"
 
 # 4) Promover: apuntar los stubs a la nueva versión
 #    editar "version" en workflows/CLEVEL-REPORTS/appsscript.json → clasp push del stub
+#    (plantilla = copias NUEVAS; copias EXISTENTES = el admin hace clasp push a cada scriptId)
 ```
 
 Si solo haces `push` y no creas versión, los líderes en versión fija **no ven** los cambios — que
-es justo lo que quieres para estabilidad: tú controlas cuándo saltan de versión.
+es justo lo que quieres para estabilidad: tú controlas cuándo saltan de versión. Cómo llega la
+versión nueva a las **copias existentes** (push del admin por `scriptId`):
+[distribucion-de-actualizaciones.md](distribucion-de-actualizaciones.md).
 
 ### No confundas dos historiales
 
