@@ -396,6 +396,29 @@ test('generarFormulario aplica título y descripción del Form al crear', () => 
   assert.equal(form._descripcion, 'Una descripción');
 });
 
+test('con brain.enabled, la descripción del Form lleva el aviso de transparencia', () => {
+  const FormAppMock = makeFormAppMock();
+  const h = makeHarness({
+    spreadsheets: { SID: { Daily: [['Marca temporal']], Ajustes: [['key', 'value'], ['brain.enabled', 'true']] } },
+    FormApp: FormAppMock,
+    fetch: () => httpResponse(200, '{}')
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.guardarFormulario('SID', config, 'daily', {
+    preguntas: [{ tipo: 'texto', titulo: 'X' }], titulo: 'R', descripcion: 'Base'
+  });
+  const desc = FormAppMock._registro['FORM1']._descripcion;
+  assert.match(desc, /^Base/);
+  assert.match(desc, /memoria asistida por IA/);
+
+  // idempotente: re-guardar no duplica el aviso
+  h.api.guardarFormulario('SID', config, 'daily', {
+    preguntas: [{ tipo: 'texto', titulo: 'X' }], titulo: 'R', descripcion: 'Base'
+  });
+  const desc2 = FormAppMock._registro['FORM1']._descripcion;
+  assert.equal(desc2.match(/memoria asistida por IA/g).length, 1);
+});
+
 test('guardarFormulario reescribe el MISMO Form (conserva ID/URL) y re-aplica meta', () => {
   const FormAppMock = makeFormAppMock();
   const h = makeHarness({

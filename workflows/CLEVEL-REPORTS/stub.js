@@ -122,3 +122,30 @@ function testConsolidadoSemanal() {
   var today = Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
   Logger.log(JSON.stringify(CoSLib.enviarConsolidado(getSheetId_(), config, 'weekly', today)));
 }
+
+// --- Second brain (Fases 1–4): smoke manual desde el editor ---
+
+/**
+ * Ingesta la última fila Daily en el second brain y lista las páginas de personas resultantes.
+ * Requiere brain.enabled (actívalo en el sidebar → Brain). No envía nada al equipo.
+ */
+function testBrainIngest() {
+  var config = getConfig_();
+  if (!(config.brain && config.brain.enabled)) {
+    Logger.log('brain.enabled = false. Activa la memoria en el sidebar (pestaña Brain) antes de probar la ingesta.');
+    return;
+  }
+  Logger.log('Ingestando la última fila Daily en el brain…');
+  Logger.log('Summary: %s', CoSLib.resumirUltimaFila(getSheetId_(), config, 'daily'));
+  var personas = CoSLib.listarWikiPaginas(getSheetId_(), config, 'people');
+  Logger.log('Páginas de personas (%s): %s', personas.length,
+    JSON.stringify(personas.map(function (p) { return p.name; })));
+}
+
+/**
+ * Genera y envía YA el Deep Prep de la próxima reunión del Calendar (ignora la ventana lead y la
+ * anti-dup). Llega al líder como PDF de marca + TL;DR. Requiere deepPrep.enabled y brain.enabled.
+ */
+function testDeepPrep() {
+  Logger.log(JSON.stringify(CoSLib.probarDeepPrep(getSheetId_(), getConfig_())));
+}
