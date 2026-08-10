@@ -13,6 +13,7 @@ español; el código, identificadores y claves de config quedan en inglés.
 | 4 | [engineering-playbook.md](engineering-playbook.md) | Reglas prácticas para escribir el código: modularización, runtime, capas de prompts y el bridge de Gemini. |
 | 5 | [workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md](workflows/CLEVEL-REPORTS/CLEVEL-REPORTS.md) | El workflow integrado Daily + Weekly: intent, supuestos, mapa, config y flujos. |
 | 6 | [workflows/CLEVEL-REPORTS/sidebar-and-prompts.md](workflows/CLEVEL-REPORTS/sidebar-and-prompts.md) | El sidebar de 3 paneles, el modal de formularios (preguntas + IA) y el contrato de prompts editables. |
+| 6b | [workflows/SECOND-BRAIN/SECOND-BRAIN.md](workflows/SECOND-BRAIN/SECOND-BRAIN.md) | `Planned`. Second brain en Drive (patrón LLM-Wiki de Karpathy) que se autoconstruye desde los reportes + Deep Prep en PDF por correo. |
 | 7 | [testing-and-deploy.md](testing-and-deploy.md) | Estrategia de tests (Node + mocks GAS, smoke manual) y flujo clasp: push, versionamiento y promoción a los líderes. |
 | 8 | [installation.md](installation.md) | Paso a paso de despliegue: crear librería + plantilla con clasp, cablear scriptId, key, versión, configurar el sidebar y checklist de smoke. |
 | 9 | [deploy-terminal.md](deploy-terminal.md) | Runbook de terminal: cada comando `clasp` en orden con **para qué sirve**; marca los pasos de navegador. Copiar/pegar. |

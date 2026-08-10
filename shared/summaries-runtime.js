@@ -118,9 +118,13 @@ function generarSummaryFila(sheetId, config, sheetName, row) {
   var prompts = getPrompts_(sheetId, config.sheets.prompts);
   var taskField = (tipo === 'daily') ? 'taskSummaryDaily' : 'taskSummaryWeekly';
   var system = composeSystem_(prompts, taskField);
-  var user = formatQA_(pairs, meta);
 
-  var summary = callGemini_(config.models.perRow, system, user);
+  // Con brain.enabled, el resumen y la ingesta comparten UN solo call (responseSchema); si no,
+  // ruta clásica de texto plano. En ambos casos se devuelve/escribe el mismo Summary.
+  var summary = (config.brain && config.brain.enabled)
+    ? ingestarFila_(sheetId, config, tipo, meta, pairs, row, system)
+    : callGemini_(config.models.perRow, system, formatQA_(pairs, meta));
+
   sh.getRange(row, summaryCol).setValue(summary);
   return summary;
 }

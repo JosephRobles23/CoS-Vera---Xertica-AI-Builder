@@ -25,12 +25,17 @@ const RUNTIME_FILES = [
   'gemini-runtime.js',
   'summaries-runtime.js',
   'consolidation-runtime.js',
+  'brand-assets-runtime.js',
   'email-runtime.js',
   'invites-runtime.js',
   'dispatcher-runtime.js',
   'forms-runtime.js',
   'forms-ai-runtime.js',
   'settings-runtime.js',
+  'brain-drive-runtime.js',
+  'brain-ingest-runtime.js',
+  'brain-admin-runtime.js',
+  'deepprep-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -137,6 +142,96 @@ function makeSpreadsheet(id, tabs) {
   };
 }
 
+// --- Mock de DriveApp (carpetas/archivos en memoria; respeta el subset que usa el brain) ---
+function makeDriveMock() {
+  let seq = 1;
+  const byId = {};
+
+  const iterator = (arr) => {
+    let i = 0;
+    return { hasNext: () => i < arr.length, next: () => arr[i++] };
+  };
+
+  const makeFile = (name, content, parent) => {
+    const file = {
+      _kind: 'file', _name: name, _parent: parent, _trashed: false,
+      _content: content == null ? '' : String(content), _id: 'file' + seq++,
+      getId: () => file._id,
+      getName: () => file._name,
+      setName: (n) => { file._name = n; return file; },
+      getBlob: () => ({ getDataAsString: () => file._content }),
+      setContent: (c) => { file._content = c == null ? '' : String(c); return file; },
+      setTrashed: (v) => { file._trashed = !!v; return file; }
+    };
+    byId[file._id] = file;
+    return file;
+  };
+
+  const makeFolder = (name, parent) => {
+    const kids = [];
+    const live = (kind) => kids.filter((c) => c._kind === kind && !c._trashed);
+    const folder = {
+      _kind: 'folder', _name: name, _parent: parent, _trashed: false,
+      _children: kids, _id: 'folder' + seq++,
+      getId: () => folder._id,
+      getName: () => folder._name,
+      createFolder: (n) => { const f = makeFolder(n, folder); kids.push(f); return f; },
+      createFile: (n, c) => { const f = makeFile(n, c, folder); kids.push(f); return f; },
+      getFoldersByName: (n) => iterator(live('folder').filter((c) => c._name === n)),
+      getFilesByName: (n) => iterator(live('file').filter((c) => c._name === n)),
+      getFolders: () => iterator(live('folder')),
+      getFiles: () => iterator(live('file'))
+    };
+    byId[folder._id] = folder;
+    return folder;
+  };
+
+  return {
+    createFolder: (name) => makeFolder(name, null),
+    getFolderById: (id) => {
+      const f = byId[id];
+      if (!f || f._trashed || f._kind !== 'folder') throw new Error('Folder no encontrado: ' + id);
+      return f;
+    },
+    _byId: byId
+  };
+}
+
+// --- Mock de CalendarApp (calendario por defecto respaldado por una lista de eventos) ---
+// Cada spec: { id, title, start:Date, end?:Date, description?, location?, guests?:[email] }
+function makeCalendarMock(events = []) {
+  const wrap = (e) => ({
+    getId: () => e.id,
+    getTitle: () => e.title || '',
+    getStartTime: () => e.start || null,
+    getEndTime: () => e.end || null,
+    getDescription: () => e.description || '',
+    getLocation: () => e.location || '',
+    getGuestList: () => (e.guests || []).map((email) => ({ getEmail: () => email }))
+  });
+  const cal = {
+    getEvents: (start, end) => events
+      .filter((e) => e.start && e.start.getTime() >= start.getTime() && e.start.getTime() <= end.getTime())
+      .map(wrap),
+    getEventById: (id) => { const e = events.find((x) => x.id === id); return e ? wrap(e) : null; }
+  };
+  return { getDefaultCalendar: () => cal, _events: events };
+}
+
+// --- Mock de Blob (Utilities.newBlob(...).getAs(mime)) ---
+function makeBlob(content, mime, name) {
+  const blob = {
+    _content: content == null ? '' : String(content), _mime: mime || 'text/plain', _name: name || '',
+    getAs: (m) => makeBlob(blob._content, m, blob._name),   // convierte de mime (p.ej. HTML→PDF)
+    setName: (n) => { blob._name = n; return blob; },
+    getName: () => blob._name,
+    getContentType: () => blob._mime,
+    getDataAsString: () => blob._content,
+    getBytes: () => Array.from(blob._content).map((c) => c.charCodeAt(0))
+  };
+  return blob;
+}
+
 /**
  * Crea un harness aislado.
  * @param {Object} opts
@@ -158,6 +253,9 @@ export function makeHarness(opts = {}) {
   const spec = opts.spreadsheets || {};
   Object.keys(spec).forEach((sid) => { byId[sid] = makeSpreadsheet(sid, spec[sid]); });
 
+  const drive = makeDriveMock();
+  const calendar = makeCalendarMock(opts.calendar || []);
+
   const sandbox = {
     console,
     Date,   // comparte el Date de Node para que `x instanceof Date` funcione entre realms
@@ -171,7 +269,8 @@ export function makeHarness(opts = {}) {
     },
     Utilities: {
       sleep: () => {},
-      formatDate: (d, tz, fmt) => formatDate_(d, tz, fmt)
+      formatDate: (d, tz, fmt) => formatDate_(d, tz, fmt),
+      newBlob: (content, mime, name) => makeBlob(content, mime, name)
     },
     UrlFetchApp: {
       fetch: (url, options) => {
@@ -181,11 +280,17 @@ export function makeHarness(opts = {}) {
     },
     MailApp: {
       sendEmail: (to, subject, body, options) => {
-        state.sentEmails.push({ to, subject, body, html: (options && options.htmlBody) || '' });
+        state.sentEmails.push({
+          to, subject, body,
+          html: (options && options.htmlBody) || '',
+          attachments: (options && options.attachments) || []
+        });
       }
     },
     Logger: { log: (...a) => state.logs.push(a) },
     ScriptApp: { getOAuthToken: () => 'TEST_OAUTH_TOKEN' },
+    DriveApp: drive,
+    CalendarApp: calendar,
     SpreadsheetApp: {
       openById: (id) => {
         if (!byId[id]) throw new Error('Spreadsheet no mockeado: ' + id);
@@ -232,7 +337,9 @@ export function makeHarness(opts = {}) {
     uiCalls: state.uiCalls,
     scriptProps: state.scriptProps,
     setFetch: (fn) => { state.fetch = fn; },
-    getSpreadsheet: (id) => byId[id]
+    getSpreadsheet: (id) => byId[id],
+    getDrive: () => drive,
+    getCalendar: () => calendar
   };
 }
 

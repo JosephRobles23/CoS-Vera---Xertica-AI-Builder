@@ -112,7 +112,16 @@ var DISPATCH_ = {
   guardarLeader:        function (sid, cfg, a) { return guardarLeader(sid, cfg, a[0]); },
   // Modal de preguntas (convención nueva fn(sheetId, config, ...args)):
   generarPreguntasIA:   function (sid, cfg, a) { return generarPreguntasIA(sid, cfg, a[0], a[1]); },
-  guardarFormulario:    function (sid, cfg, a) { return guardarFormulario(sid, cfg, a[0], a[1]); }
+  guardarFormulario:    function (sid, cfg, a) { return guardarFormulario(sid, cfg, a[0], a[1]); },
+  // Deep Prep: listar reuniones próximas del calendario y marcarlas para prep.
+  listarReunionesProximas: function (sid, cfg, a) { return listarReunionesProximas(sid, cfg, a[0]); },
+  toggleReunionPrep:       function (sid, cfg, a) { return toggleReunionPrep(sid, cfg, a[0], a[1]); },
+  // Brain admin/gobernanza: visor de la wiki, merge de proyectos, flags y "olvidar".
+  listarWikiPaginas:       function (sid, cfg, a) { return listarWikiPaginas(sid, cfg, a[0]); },
+  leerWikiPagina:          function (sid, cfg, a) { return leerWikiPagina(sid, cfg, a[0], a[1]); },
+  mergearProyectos:        function (sid, cfg, a) { return mergearProyectos(sid, cfg, a[0], a[1]); },
+  guardarFlags:            function (sid, cfg, a) { return guardarFlags(sid, cfg, a[0]); },
+  olvidarPersona:          function (sid, cfg, a) { return olvidarPersona(sid, cfg, a[0]); }
 };
 
 /**

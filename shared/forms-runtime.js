@@ -59,6 +59,18 @@ function limpiarItems_(form) {
  * @param {Object} [meta]           { titulo?, descripcion? } del Form (título/descr. editables)
  * @return {{formId:string, publishedUrl:string, editUrl:string, tab:string}}
  */
+/** Aviso de transparencia que se añade a la descripción del Form cuando el brain está activo. */
+var BRAIN_FORM_AVISO_ = 'Nota de transparencia: tus respuestas alimentan una memoria asistida por ' +
+  'IA (el "second brain" del equipo) que ayuda a tu líder a preparar resúmenes y reuniones.';
+
+/** Devuelve la descripción con el aviso del brain anexado (idempotente). Sin brain, la deja igual. */
+function descripcionConAviso_(descripcion, config) {
+  var base = descripcion == null ? '' : String(descripcion);
+  if (!(config && config.brain && config.brain.enabled)) return base;
+  if (base.indexOf(BRAIN_FORM_AVISO_) > -1) return base;
+  return (base ? base + '\n\n' : '') + BRAIN_FORM_AVISO_;
+}
+
 function generarFormulario(tipo, preguntas, sheetId, config, existingFormId, meta) {
   meta = meta || {};
   var tituloDefault = (tipo === 'daily') ? 'Reporte Daily' : 'Reporte Weekly';
@@ -73,7 +85,7 @@ function generarFormulario(tipo, preguntas, sheetId, config, existingFormId, met
     form = FormApp.openById(existingFormId);
     // Solo re-aplica el título si el líder puso uno (vacío = conserva el actual del Form).
     if (meta.titulo && String(meta.titulo).trim()) form.setTitle(String(meta.titulo).trim());
-    if (meta.descripcion != null) form.setDescription(String(meta.descripcion));
+    if (meta.descripcion != null) form.setDescription(descripcionConAviso_(meta.descripcion, config));
     limpiarItems_(form);
     setCorreoVerificado_(form);            // re-aplica: migra forms viejos que pedían el correo
     preguntas.forEach(function (p) { addPregunta_(form, p); });
@@ -81,7 +93,8 @@ function generarFormulario(tipo, preguntas, sheetId, config, existingFormId, met
   } else {
     // --- Crear nuevo + enlazar destino + renombrar la pestaña de respuestas ---
     form = FormApp.create(titulo);
-    if (meta.descripcion != null) form.setDescription(String(meta.descripcion));
+    var descNueva = descripcionConAviso_(meta.descripcion, config);
+    if (descNueva) form.setDescription(descNueva);
     setCorreoVerificado_(form);            // contrato: columna de correo, sin casilla visible
     preguntas.forEach(function (p) { addPregunta_(form, p); });
 

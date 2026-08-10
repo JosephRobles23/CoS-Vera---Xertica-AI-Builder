@@ -30,7 +30,15 @@ var AJUSTES_DEFAULTS_ = {
   'form.desc.daily': '',
   'form.desc.weekly': '',
   'prompt.gen.daily': '',
-  'prompt.gen.weekly': ''
+  'prompt.gen.weekly': '',
+  // --- Second brain + Deep Prep (feature flags; ver Docs/workflows/SECOND-BRAIN/) ---
+  'brain.enabled': 'false',          // 'true' → ingesta al brain en onFormSubmit
+  'brain.folderId': '',              // id de la carpeta CoS-Brain/ en Drive (autocreada)
+  'brain.retentionMonths': '12',     // retención del raw/ (gobernanza)
+  'brain.silenceDays': '7',          // días sin actualizar → el scan marca la entidad como estancada
+  'deepPrep.enabled': 'false',       // 'true' → genera Deep Prep (requiere brain.enabled)
+  'deepPrep.leadHours': '3',         // horas antes de la reunión para disparar el prep
+  'deepPrep.selected': '[]'          // JSON: eventIds del calendario marcados para prep
 };
 
 /** Preguntas por defecto (pre-cargan el panel Preguntas en una copia nueva). */
@@ -151,6 +159,19 @@ function setKeyValueTab_(sh, updates) {
 
 function str_(v) { return v == null ? '' : String(v); }
 
+/** Interpreta un valor de Ajustes como booleano. Solo 'true' (case-insensitive) es verdadero. */
+function bool_(v) { return String(v).trim().toLowerCase() === 'true'; }
+
+/** Entero con fallback (para claves numéricas de Ajustes guardadas como texto). */
+function int_(v, def) { var n = parseInt(str_(v), 10); return isNaN(n) ? def : n; }
+
+/** Parsea un JSON array guardado en Ajustes; '' o inválido → []. */
+function parseJsonArray_(v) {
+  var s = str_(v).trim();
+  if (!s) return [];
+  try { var a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+
 /**
  * Normaliza un valor de hora a "HH:mm". Tolera:
  *  - string "22:05" / "6:00:00 p. m." → toHHMM_
@@ -204,6 +225,17 @@ function getAjustes_(sheetId, settingsSheetName) {
         descripcion: str_(flat['form.desc.weekly']),
         prompt:      str_(flat['prompt.gen.weekly'])
       }
+    },
+    brain: {
+      enabled:         bool_(flat['brain.enabled']),
+      folderId:        str_(flat['brain.folderId']),
+      retentionMonths: int_(flat['brain.retentionMonths'], 12),
+      silenceDays:     int_(flat['brain.silenceDays'], 7)
+    },
+    deepPrep: {
+      enabled:   bool_(flat['deepPrep.enabled']),
+      leadHours: int_(flat['deepPrep.leadHours'], 3),
+      selected:  parseJsonArray_(flat['deepPrep.selected'])
     }
   };
 }
@@ -235,7 +267,9 @@ function construirConfig(sheetId, staticConfig) {
     options: staticConfig.options || {},
     leader: aj.leader,
     schedule: aj.schedule,
-    forms: aj.forms
+    forms: aj.forms,
+    brain: aj.brain,          // feature flag + carpeta del second brain
+    deepPrep: aj.deepPrep     // feature flag + selección/timing del Deep Prep
   };
 }
 
@@ -258,7 +292,15 @@ function cargarConfig(sheetId, config) {
       daily: parseQuestions_(aj.questions.daily, 'daily'),
       weekly: parseQuestions_(aj.questions.weekly, 'weekly')
     },
-    formMeta: aj.formMeta   // { daily:{titulo,descripcion,prompt}, weekly:{...} } para el modal
+    formMeta: aj.formMeta,   // { daily:{titulo,descripcion,prompt}, weekly:{...} } para el modal
+    // Feature flags para los paneles Prep/Brain del sidebar (sin exponer folderId).
+    flags: {
+      brainEnabled:    aj.brain.enabled,
+      silenceDays:     aj.brain.silenceDays,
+      retentionMonths: aj.brain.retentionMonths,
+      deepPrepEnabled: aj.deepPrep.enabled,
+      leadHours:       aj.deepPrep.leadHours
+    }
   };
 }
 

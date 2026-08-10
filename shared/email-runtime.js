@@ -37,6 +37,25 @@ var MARCA_ = {
 var FUENTE_ = "'Helvetica Neue', Helvetica, Arial, sans-serif";
 
 /**
+ * Paleta EXTRA para los PDF de impresión (Deep Prep), tomada de la guía de marca
+ * (guia-chif-of-staff.html). Lo que ya existe en MARCA_ se reusa; aquí solo van los tonos
+ * que el PDF necesita y el correo no (crema de papel, teal claro, franja de marca).
+ */
+var PDF_ = {
+  paper:    MARCA_.surface,   // #fffef8 — papel crema de la página
+  ink:      MARCA_.ink,       // #1a1814
+  teal:     MARCA_.celeste,   // #1899af — acento principal de la guía
+  tealSoft: '#dceff1',        // fondo del bloque TL;DR
+  linea:    '#d9d3c7',        // filetes (masthead / footer)
+  muted:    '#6f6b63',        // texto secundario
+  // Franja de marca (la matriz de colores de la guía).
+  lilac:    '#e8e1eb',
+  mint:     '#dcefeb',
+  peach:    '#f1dcd3',
+  lemon:    '#f5f1bd'
+};
+
+/**
  * Color del filete de cada tarjeta según el tema de la sección. Se busca por
  * coincidencia de palabra clave en el título, así el líder puede renombrar sus secciones
  * en el prompt sin que esto deje de funcionar (lo no reconocido cae a `ink`).
@@ -258,6 +277,28 @@ function renderConsolidadoHtml_(tipo, leaderName, today, cuerpoLlm) {
   return emailShell_(titulo, subtitulo, contenido);
 }
 
+/**
+ * Deep Prep de una reunión. Reusa el shell de marca y el parseo tolerante del consolidado.
+ * `tldr` es un párrafo corto (va también en el cuerpo del correo); `briefing` es el texto
+ * seccionado del LLM que se pinta como tarjetas. Todo el contenido va escapado.
+ */
+function renderDeepPrepHtml_(evento, tldr, briefing) {
+  evento = evento || {};
+  var partes = [];
+  if (evento.fecha) partes.push(fechaLegible_(evento.fecha) + (evento.hora ? ' · ' + evento.hora : ''));
+  if (evento.asistentes && evento.asistentes.length) partes.push(evento.asistentes.length + ' asistentes');
+  var subtitulo = partes.join(' · ');
+
+  var contenido = tarjetaHtml_('TL;DR', cuerpoSeccionHtml_([{ texto: tldr || '', esVineta: false }]));
+  parseSecciones_(briefing).forEach(function (s) {
+    var cuerpo = cuerpoSeccionHtml_(s.lineas);
+    contenido += s.titulo ? tarjetaHtml_(s.titulo, cuerpo) : cuerpo;
+  });
+  if (!briefing) contenido += parrafoHtml_('');
+
+  return emailShell_('Deep Prep — ' + (evento.titulo || 'Reunión'), subtitulo, contenido);
+}
+
 /** Invitación a llenar el Form: intro, botón y nota de la cuenta. */
 function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
   var esDaily = (tipo === 'daily');
@@ -274,4 +315,104 @@ function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
     '</td></tr></table>';
 
   return emailShell_(titulo, (esDaily ? 'Reporte diario' : 'Reporte semanal') + ' · equipo de ' + leaderName, contenido);
+}
+
+// --- PDF de impresión (Deep Prep) ------------------------------------------------------
+//
+// El adjunto del Deep Prep NO reusa emailShell_ (pensado para clientes de correo, wordmark
+// como texto): el PDF es un documento de marca al estilo de la guía (guia-chif-of-staff.html).
+// Ojo: el convertidor HTML→PDF de Apps Script (Utilities.newBlob(html).getAs('application/pdf'))
+// NO soporta flexbox/grid — por eso el layout va con <table> + estilos inline, igual que los
+// correos, pero con la paleta y el wordmark (imagen) de la guía. Ver deepprep-runtime.js.
+
+/** Franja de marca (matriz de 4 colores de la guía) como borde superior de la página. */
+function pdfFranjaMarca_() {
+  var celda = function (c) {
+    return '<td width="25%" height="6" bgcolor="' + c + '" ' +
+      'style="width:25%;height:6px;background:' + c + ';font-size:0;line-height:0;">&nbsp;</td>';
+  };
+  return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;"><tr>' +
+    celda(PDF_.lilac) + celda(PDF_.mint) + celda(PDF_.peach) + celda(PDF_.lemon) +
+  '</tr></table>';
+}
+
+/** Bloque TL;DR destacado (teal claro con filete teal), el elemento que más pesa en el prep. */
+function pdfTldrCard_(tldr) {
+  return '' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="' + PDF_.tealSoft + '" ' +
+    'style="width:100%;background:' + PDF_.tealSoft + ';border-top:3px solid ' + PDF_.teal + ';margin:0 0 18px;">' +
+  '<tr><td style="padding:16px 20px;">' +
+    '<div style="font:700 10px/1.2 ' + FUENTE_ + ';color:' + PDF_.teal + ';letter-spacing:2px;text-transform:uppercase;padding-bottom:8px;">TL;DR</div>' +
+    '<div style="font:600 15px/1.55 ' + FUENTE_ + ';color:' + PDF_.ink + ';">' + escapeHtml_(tldr || '') + '</div>' +
+  '</td></tr></table>';
+}
+
+/**
+ * Deep Prep como PDF de marca. Reusa el parseo tolerante y las tarjetas de acento del
+ * consolidado (parseSecciones_/tarjetaHtml_) para el briefing; encima pone el masthead con el
+ * wordmark, el hero (título de la reunión + metadatos) y el TL;DR destacado. Todo escapado.
+ */
+function renderDeepPrepPdfHtml_(evento, tldr, briefing) {
+  evento = evento || {};
+  var titulo = evento.titulo || 'Reunión';
+
+  var meta = [];
+  if (evento.fecha) meta.push(fechaLegible_(evento.fecha) + (evento.hora ? ' · ' + evento.hora : ''));
+  if (evento.ubicacion) meta.push(evento.ubicacion);
+  if (evento.asistentes && evento.asistentes.length) meta.push(evento.asistentes.length + ' asistentes');
+  var metaLinea = meta.join('   ·   ');
+
+  // Briefing → tarjetas con acento de color por tema (mismo criterio que el consolidado).
+  var cuerpo = '';
+  parseSecciones_(briefing).forEach(function (s) {
+    var c = cuerpoSeccionHtml_(s.lineas);
+    cuerpo += s.titulo ? tarjetaHtml_(s.titulo, c) : c;
+  });
+  if (!cuerpo) cuerpo = parrafoHtml_('(Sin briefing disponible.)');
+
+  return '' +
+  '<!DOCTYPE html><html><body style="margin:0;padding:0;background:' + PDF_.paper + ';">' +
+  '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="' + PDF_.paper + '" style="background:' + PDF_.paper + ';">' +
+  '<tr><td align="center" style="padding:0;">' +
+    '<table role="presentation" width="720" cellpadding="0" cellspacing="0" bgcolor="' + PDF_.paper + '" style="width:100%;max-width:720px;background:' + PDF_.paper + ';">' +
+
+    // Franja de marca (borde superior de la página)
+    '<tr><td style="padding:0;">' + pdfFranjaMarca_() + '</td></tr>' +
+
+    '<tr><td style="padding:34px 44px 40px;">' +
+
+      // Masthead: wordmark (imagen) + etiqueta del documento
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-bottom:1px solid ' + PDF_.linea + ';"><tr>' +
+        '<td align="left" valign="middle" style="padding-bottom:14px;">' +
+          '<img src="' + XERTICA_LOGO_PNG_ + '" width="150" alt="Xertica.ai" style="display:block;width:150px;height:auto;border:0;">' +
+        '</td>' +
+        '<td align="right" valign="middle" style="padding-bottom:14px;font:700 10px/1.2 ' + FUENTE_ + ';color:' + PDF_.muted + ';letter-spacing:2.5px;text-transform:uppercase;">Deep Prep</td>' +
+      '</tr></table>' +
+
+      // Hero: eyebrow + título de la reunión + metadatos
+      '<div style="padding-top:30px;">' +
+        '<div style="font:700 9px/1.2 ' + FUENTE_ + ';color:' + PDF_.teal + ';letter-spacing:3px;text-transform:uppercase;">Briefing pre-reunión</div>' +
+        '<div style="font:800 32px/1.06 ' + FUENTE_ + ';color:' + PDF_.ink + ';letter-spacing:-1px;padding:12px 0 0;">' + escapeHtml_(titulo) + '</div>' +
+        (metaLinea
+          ? '<div style="font:400 13px/1.5 ' + FUENTE_ + ';color:' + PDF_.muted + ';padding-top:12px;">' + escapeHtml_(metaLinea) + '</div>'
+          : '') +
+      '</div>' +
+
+      // TL;DR destacado
+      '<div style="padding-top:24px;">' + pdfTldrCard_(tldr) + '</div>' +
+
+      // Secciones del briefing
+      cuerpo +
+
+      // Footer
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-top:1px solid ' + PDF_.linea + ';margin-top:8px;"><tr>' +
+        '<td valign="middle" style="padding-top:14px;font:400 10px/1.4 ' + FUENTE_ + ';color:' + PDF_.muted + ';letter-spacing:0.5px;">Vera · Chief of Staff AI — Xertica.ai</td>' +
+        (evento.fecha
+          ? '<td align="right" valign="middle" style="padding-top:14px;font:700 10px/1.4 ' + FUENTE_ + ';color:' + PDF_.ink + ';">' + escapeHtml_(fechaLegible_(evento.fecha)) + '</td>'
+          : '') +
+      '</tr></table>' +
+
+    '</td></tr>' +
+    '</table>' +
+  '</td></tr></table></body></html>';
 }

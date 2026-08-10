@@ -571,3 +571,43 @@ test('la invitación lleva botón con la URL y el correo de la persona', () => {
   assert.match(mail.html, /ana@x\.com/);
   assert.match(mail.html, /Hola Ana,/);
 });
+
+// --- PDF de impresión del Deep Prep (email-runtime) ---
+
+const EVENTO_PDF = {
+  titulo: 'Revisión Alpha', fecha: '2026-08-20', hora: '10:00',
+  ubicacion: 'Sala 2', asistentes: ['ada@x.com', 'ben@x.com']
+};
+
+test('renderDeepPrepPdfHtml_ arma el PDF de marca: logo, hero, TL;DR y secciones', () => {
+  const { api } = emailH();
+  const html = api.renderDeepPrepPdfHtml_(EVENTO_PDF, 'Aprobar diseño y desbloquear legal.',
+    'CONTEXTO\n- Alpha listo\nRIESGOS\n- Falta legal');
+
+  assert.match(html, /^<!DOCTYPE html>/);
+  assert.match(html, /src="data:image\/png;base64,/);      // wordmark embebido como IMAGEN
+  assert.match(html, /Briefing pre-reunión/);              // eyebrow del hero
+  assert.match(html, /Revisión Alpha/);                    // título de la reunión (hero)
+  assert.match(html, /20 ago 2026 · 10:00/);               // metadatos formateados
+  assert.match(html, /2 asistentes/);
+  assert.match(html, /TL;DR/);
+  assert.match(html, /Aprobar diseño y desbloquear legal\./);
+  assert.match(html, /border-left:4px solid #d9503b/);     // rojo → RIESGOS (acento por tema)
+  assert.match(html, />Deep Prep</);                       // etiqueta del documento en el masthead
+});
+
+test('renderDeepPrepPdfHtml_ escapa el contenido del LLM', () => {
+  const { api } = emailH();
+  const html = api.renderDeepPrepPdfHtml_({ titulo: 'X' },
+    '<b>tl</b>', 'CONTEXTO\n- <img src=x onerror=alert(1)>');
+  assert.equal(html.includes('<img src=x onerror'), false);
+  assert.match(html, /&lt;img src=x/);
+  assert.match(html, /&lt;b&gt;tl&lt;\/b&gt;/);
+});
+
+test('renderDeepPrepPdfHtml_ tolera un briefing vacío', () => {
+  const { api } = emailH();
+  const html = api.renderDeepPrepPdfHtml_({ titulo: 'Sync' }, 'ok', '');
+  assert.match(html, /Sync/);
+  assert.match(html, /Sin briefing disponible/);
+});

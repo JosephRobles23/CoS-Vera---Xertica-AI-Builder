@@ -87,7 +87,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Config del workflow (estático) | `workflows/CLEVEL-REPORTS/config.js` | Implemented |
 | Bootloader del stub (delegación + puente `cosRun` + triggers) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
 | UI de la librería (menú, sidebar, diálogos, `dispatch`) | `shared/ui-runtime.js` | Implemented |
-| HTML del sidebar (3 paneles: Prompts · Horarios · Equipo) | `shared/Sidebar.html` | Implemented |
+| HTML del sidebar (5 paneles: Prompts · Horarios · Equipo · Prep · Brain) | `shared/Sidebar.html` | Implemented |
 | HTML del modal de preguntas y formularios | `shared/DialogPreguntas.html` | Implemented |
 | Instalación de triggers | `workflows/CLEVEL-REPORTS/triggers.js` | Implemented |
 | Bridge único con Gemini (incl. `responseSchema`) | `shared/gemini-runtime.js` | Implemented |
@@ -97,16 +97,25 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Consolidados al líder | `shared/consolidation-runtime.js` | Implemented |
 | Plantillas HTML de correo | `shared/email-runtime.js` | Implemented |
 | Invitaciones (envío) | `shared/invites-runtime.js` | Implemented |
-| Dispatcher (timing) + guardas anti-dup | `shared/dispatcher-runtime.js` | Implemented |
+| Dispatcher (timing) + guardas anti-dup + scan de silencios + purga de raw + pasada de Deep Prep | `shared/dispatcher-runtime.js` | Implemented |
 | Generación de Forms (FormApp: título/descr./obligatoriedad/ayuda) | `shared/forms-runtime.js` | Implemented |
 | Acceso a Sheets/columnas/horas | `shared/sheets-runtime.js` | Implemented |
 | Lectura de `Equipo` (roster) | `shared/roster-runtime.js` | Implemented |
-| Ajustes editables + `formMeta` + `guardarFormulario` | `shared/settings-runtime.js` | Implemented |
+| Ajustes editables + `formMeta` + `guardarFormulario` + flags del brain | `shared/settings-runtime.js` | Implemented |
+| Second brain — carpeta/IO en Drive (markdown + frontmatter, slugs, borrado) | `shared/brain-drive-runtime.js` | Implemented |
+| Second brain — ingesta por fila (regenera páginas persona/proyecto, log) | `shared/brain-ingest-runtime.js` | Implemented |
+| Second brain — admin/gobernanza (visor wiki, merge, flags, olvidar, purga) | `shared/brain-admin-runtime.js` | Implemented |
+| Deep Prep — briefing pre-reunión (Calendar + brain → Gemini → PDF por correo) | `shared/deepprep-runtime.js` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
 | Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
-| Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (32 tests) |
+| Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (33 tests) |
 | Tests de generación de preguntas por IA | `tests/forms-ai-runtime.test.mjs` | Implemented (13 tests) |
 | Tests de UI (menú, diálogos, `dispatch`) | `tests/ui-runtime.test.mjs` | Implemented (9 tests) |
+| Tests del second brain — IO en Drive | `tests/brain-drive-runtime.test.mjs` | Implemented (16 tests) |
+| Tests del second brain — ingesta por fila | `tests/brain-ingest-runtime.test.mjs` | Implemented (11 tests) |
+| Tests del second brain — scan de silencios (dispatcher) | `tests/brain-silences-runtime.test.mjs` | Implemented (6 tests) |
+| Tests del second brain — admin/gobernanza | `tests/brain-admin-runtime.test.mjs` | Implemented (9 tests) |
+| Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).
 
