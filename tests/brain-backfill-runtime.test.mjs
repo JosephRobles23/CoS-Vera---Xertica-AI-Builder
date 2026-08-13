@@ -335,6 +335,19 @@ test('convive con la ingesta viva: sin raw duplicado y el evento aparece una sol
   assert.equal(h.api.getSheet_('SID', 'Daily').getRange(2, 4).getValue(), 'S', 'el Summary vivo no se pisó');
 });
 
+test('sin acceso a Drive la pasada se pospone entera: cero llamadas a Gemini y el job sigue running', () => {
+  const h = bfHarness({ daily: [fila(ts(2026, 8, 10), 'ada@x.com', 'A')] });
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.iniciarBackfill('SID', config);
+  h.getDrive().createFolder = () => { throw new Error('Los permisos especificados no son suficientes'); };
+
+  assert.equal(h.api.runBackfillPass_('SID', config, NOW, FUTURO()), 0);
+  assert.equal(h.fetchCalls.length, 0, 'no quemó llamadas a Gemini sin brain donde escribir');
+  const st = estadoDe(h);
+  assert.equal(st.status, 'running', 'el job queda vivo para reintentar en la próxima pasada');
+  assert.equal(st.cursorDaily, 2, 'el cursor no se movió');
+});
+
 // --- Gating y ruteo ---
 
 test('iniciarBackfill exige brain.enabled', () => {

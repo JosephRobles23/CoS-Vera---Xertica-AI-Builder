@@ -99,6 +99,19 @@ function runBackfillPass_(sheetId, config, now, deadlineMs) {
   var st = getAjustes_(sheetId, config.sheets.settings).brain.backfill;
   if (st.status !== 'running') return 0;
 
+  // Guardia de Drive ANTES de gastar llamadas a Gemini: sin carpeta no hay brain que escribir
+  // (p.ej. scope sin re-consentir). Se pospone la pasada entera; el job queda running y la
+  // siguiente pasada reintenta. Sin esto, ingestarFila_ degradaría a "resumen sin brain" y el
+  // backfill contaría éxitos que no dejaron memoria.
+  try {
+    ensureBrainFolder_(sheetId, config);
+  } catch (e) {
+    if (typeof Logger !== 'undefined') {
+      Logger.log('backfill: sin acceso a Drive, pasada pospuesta (%s).', e);
+    }
+    return 0;
+  }
+
   var tz = config.timezone;
   var corteUTC = corteRetencionUTC_(config, now || new Date());
   var roster = rosterPorCorreo_(sheetId, config);

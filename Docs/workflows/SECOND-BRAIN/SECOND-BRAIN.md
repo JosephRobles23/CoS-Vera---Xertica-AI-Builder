@@ -24,8 +24,12 @@ dispatcher, librería y sidebar.
 ## Execution assumptions
 
 - Corre **como el líder** (mismos permisos y cuota que CLEVEL-REPORTS). Los scopes nuevos
-  (`calendar.readonly`, `drive.file`) son **auto-autorizables** (no gated por admin de Workspace).
-- El brain es **self-contained** en `CoS-Brain/` (scope `drive.file` solo ve lo que la app crea).
+  (`calendar.readonly`, `drive`) son auto-consentibles por el propio líder (sin verificación de
+  app para uso interno).
+- El brain es **self-contained** en `CoS-Brain/` por diseño (la app solo toca esa carpeta), aunque
+  el scope es `drive` completo: **lección aprendida** — `DriveApp` exige `auth/drive` cuando el
+  manifest declara scopes explícitos; `drive.file` solo lo respeta la Drive API avanzada (posible
+  refactor futuro si se quiere volver al scope angosto).
 - Los C-levels **no integran Obsidian**; el diseño Karpathy se mantiene igual (Obsidian sería un
   mirror opcional futuro, fuera de scope).
 - La ingesta piggyback asume que `generarSummaryFila` es el único punto por-fila; el brain no
@@ -101,8 +105,9 @@ esta secuencia (`deepPrep.enabled` requiere `brain.enabled`).
 
 ### Fase 0 — Cimientos (scopes, config, carpeta Drive) ✅ Implemented
 Que existan permisos, claves de config y la carpeta del brain.
-- `appsscript.json` (stub + `shared/`): agregar `calendar.readonly` y `drive.file`. Los scopes de
-  librería **no** se heredan al contenedor → declararlos explícitos en el manifest del stub.
+- `appsscript.json` (stub + `shared/`): agregar `calendar.readonly` y `drive` (ver la nota de la
+  tabla de scopes: `drive.file` no le alcanza a `DriveApp`). Los scopes de librería **no** se
+  heredan al contenedor → declararlos explícitos en el manifest del stub.
 - `settings-runtime.js` → `AJUSTES_DEFAULTS_`: `brain.enabled='false'`, `brain.folderId=''`,
   `brain.retentionMonths='12'`, `deepPrep.enabled='false'`, `deepPrep.leadHours='3'`,
   `deepPrep.selected='[]'`. `construirConfig` las levanta.
@@ -151,7 +156,7 @@ Que existan permisos, claves de config y la carpeta del brain.
   [../../architecture-and-contracts.md](../../architecture-and-contracts.md#anclas-de-implementación).
 - **Pendiente (manual, gated):** `clasp create-version` para congelar la versión nueva de `CoSLib`
   y luego apuntar `workflows/CLEVEL-REPORTS/appsscript.json` a esa versión. El stub ya declara los
-  scopes nuevos (`calendar.readonly`, `drive.file`); re-correr `setupTriggers()` fuerza el
+  scopes nuevos (`calendar.readonly`, `drive`); re-correr `setupTriggers()` fuerza el
   re-consentimiento en cada copia. Ver [testing-and-deploy.md](../../testing-and-deploy.md).
 
 ### Fase 6 — Backfill del histórico ✅ Implemented
@@ -191,7 +196,12 @@ eventos: [ { persona:string(email|nombre), proyecto:string, tipo:enum(avance|blo
 | Scope | Para qué | Gated por admin |
 |---|---|---|
 | `calendar.readonly` | Leer reuniones próximas (checklist + detalles del Deep Prep) | No |
-| `drive.file` | Crear/leer solo la carpeta `CoS-Brain/` (no sensible) | No |
+| `drive` | Crear/leer la carpeta `CoS-Brain/` vía `DriveApp` | No (sensible, pero auto-consentible) |
+
+> Originalmente se eligió `drive.file` (no sensible), pero `DriveApp.createFolder` y compañía
+> **exigen el scope completo** cuando el manifest declara scopes explícitos — el error en runtime
+> es "Los permisos especificados no son suficientes…". `drive.file` solo funciona con la Drive API
+> avanzada (`Drive.Files.*`), que sería el refactor si se quiere recuperar el scope angosto.
 
 ## Diferido (fuera de scope)
 
