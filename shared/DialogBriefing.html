@@ -58,6 +58,27 @@
     .col-cfg { flex: 0 0 300px; }
     .col-prev { flex: 1; min-width: 0; }
 
+    /* Time picker (popover, mismo patrón del sidebar) */
+    .tp { position: relative; }
+    .tp-trigger {
+      width: 100%; display: flex; align-items: center; gap: 6px; padding: 7px 9px;
+      border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background);
+      color: var(--foreground); font: inherit; font-size: 12.5px; cursor: pointer; transition: background .15s;
+    }
+    .tp-trigger:hover { background: var(--accent); }
+    .tp-trigger .tp-val { flex: 1; text-align: left; }
+    .tp-trigger svg { width: 13px; height: 13px; color: var(--muted-foreground); }
+    .tp-pop {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40; display: none; gap: 6px;
+      padding: 6px; background: var(--popover); color: var(--popover-foreground);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+    }
+    .tp-pop.open { display: flex; }
+    .tp-col { flex: 1; max-height: 168px; overflow-y: auto; }
+    .tp-item { padding: 6px 8px; border-radius: 6px; font-size: 12.5px; text-align: center; cursor: pointer; }
+    .tp-item:hover { background: var(--accent); color: var(--accent-foreground); }
+    .tp-item.sel { background: var(--primary); color: var(--primary-foreground); }
+
     .dias { display: flex; gap: 4px; }
     .dia {
       width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border);
@@ -109,10 +130,15 @@
   <div class="cols">
     <!-- Config -->
     <div class="col-cfg">
-      <label class="chk" style="margin-top:0"><input type="checkbox" id="f_on"> Activar Morning Briefing</label>
+      <label class="chk" style="margin-top:0"><input type="checkbox" id="f_on" onchange="setDirty(true)"> Activar Morning Briefing</label>
 
       <label>Hora de envío</label>
-      <input id="f_hora" type="text" placeholder="07:30" maxlength="5">
+      <div class="tp" id="tp_hora">
+        <button type="button" class="tp-trigger" onclick="toggleTP(event)">
+          <i data-lucide="clock"></i><span class="tp-val" id="tpv_hora">07:30</span><i data-lucide="chevron-down"></i>
+        </button>
+        <div class="tp-pop"><div class="tp-col"></div><div class="tp-col"></div></div>
+      </div>
 
       <label>Días</label>
       <div class="dias" id="dias"></div>
@@ -121,7 +147,7 @@
       <div id="secciones"></div>
 
       <label>Instrucción personal (opcional)</label>
-      <input id="f_prompt" type="text" placeholder="p.ej. Sé directo, máximo 10 líneas…">
+      <input id="f_prompt" type="text" placeholder="p.ej. Sé directo, máximo 10 líneas…" oninput="setDirty(true)">
       <p class="hint">Se suma al prompt del briefing — tu tono, tu idioma, tus reglas.</p>
     </div>
 
@@ -136,7 +162,8 @@
       <div class="actions">
         <button class="btn btn-ghost" onclick="prueba()"><i data-lucide="send"></i> Enviarme uno de prueba</button>
         <button class="btn btn-outline" onclick="google.script.host.close()">Cancelar</button>
-        <button class="btn btn-primary" onclick="guardar()"><i data-lucide="save"></i> Guardar</button>
+        <button class="btn btn-primary" id="btnGuardar" onclick="guardar()" disabled
+          title="Cambia algo de la configuración para poder guardar"><i data-lucide="save"></i> Guardar</button>
       </div>
     </div>
   </div>
@@ -145,6 +172,8 @@
 
   <script>
     var ICONS = {
+      'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      'chevron-down': '<path d="m6 9 6 6 6-6"/>',
       'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
       'send': '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
       'check': '<path d="M20 6 9 17l-5-5"/>',
@@ -202,7 +231,56 @@
       urgente:    { icono: '🚨', nombre: 'Urgente',       desc: 'Bloqueadas, blockers viejos y silencios' },
       foco:       { icono: '💡', nombre: 'Foco sugerido', desc: 'El LLM propone 1-3 prioridades (IA)' }
     };
-    var state = { dias: [1, 2, 3, 4, 5], secciones: [], preview: { reuniones: [], tareas: [], urgentes: [] } };
+    var state = { hora: '07:30', dias: [1, 2, 3, 4, 5], secciones: [], preview: { reuniones: [], tareas: [], urgentes: [] } };
+
+    /* ---- Dirty tracking: Guardar se habilita solo cuando algo cambió ---- */
+    var _dirty = false;
+    function setDirty(on) {
+      _dirty = !!on;
+      var b = g('btnGuardar');
+      if (b && !b._loading) b.disabled = !_dirty;
+      if (b) b.title = _dirty ? '' : 'Cambia algo de la configuración para poder guardar';
+    }
+
+    /* ---- Time picker (popover) ---- */
+    function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+    function toggleTP(e) {
+      e.stopPropagation();
+      var pop = document.querySelector('#tp_hora .tp-pop');
+      var abrir = !pop.classList.contains('open');
+      pop.classList.remove('open');
+      if (abrir) { pop.classList.add('open'); buildTP(); }
+    }
+    function buildTP() {
+      var cur = (state.hora || '').split(':'), curH = cur[0] || '', curM = cur[1] || '';
+      var cols = document.querySelectorAll('#tp_hora .tp-col');
+      var hHtml = '', mHtml = '', v;
+      for (var h = 0; h < 24; h++) {
+        v = pad2(h);
+        hHtml += '<div class="tp-item' + (v === curH ? ' sel' : '') + '" onclick="selectTP(\'h\',\'' + v + '\')">' + v + '</div>';
+      }
+      for (var m = 0; m < 60; m += 5) {
+        v = pad2(m);
+        mHtml += '<div class="tp-item' + (v === curM ? ' sel' : '') + '" onclick="selectTP(\'m\',\'' + v + '\')">' + v + '</div>';
+      }
+      cols[0].innerHTML = hHtml; cols[1].innerHTML = mHtml;
+      var sh = cols[0].querySelector('.sel'); if (sh) cols[0].scrollTop = sh.offsetTop - 66;
+      var sm = cols[1].querySelector('.sel'); if (sm) cols[1].scrollTop = sm.offsetTop - 66;
+    }
+    function selectTP(kind, val) {
+      var cur = (state.hora || '07:30').split(':'), H = cur[0] || '07', M = cur[1] || '30';
+      if (kind === 'h') H = val; else M = val;
+      state.hora = H + ':' + M;
+      g('tpv_hora').textContent = state.hora;
+      setDirty(true);
+      buildTP();
+    }
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest || !e.target.closest('.tp')) {
+        var pop = document.querySelector('#tp_hora .tp-pop');
+        if (pop) pop.classList.remove('open');
+      }
+    });
 
     function renderDias() {
       g('dias').innerHTML = DIAS_LBL.map(function (lbl, i) {
@@ -213,6 +291,7 @@
     function toggleDia(d) {
       var i = state.dias.indexOf(d);
       if (i > -1) state.dias.splice(i, 1); else state.dias.push(d);
+      setDirty(true);
       renderDias(); renderPreview();
     }
     function renderSecciones() {
@@ -230,9 +309,10 @@
       var j = i + delta;
       if (j < 0 || j >= state.secciones.length) return;
       var tmp = state.secciones[i]; state.secciones[i] = state.secciones[j]; state.secciones[j] = tmp;
+      setDirty(true);
       renderSecciones(); renderPreview();
     }
-    function toggleSecc(i, on) { state.secciones[i].on = on; renderPreview(); }
+    function toggleSecc(i, on) { state.secciones[i].on = on; setDirty(true); renderPreview(); }
 
     /* ---- Preview en vivo (datos reales, foco como placeholder — la IA corre al enviar) ---- */
     function renderPreview() {
@@ -265,12 +345,14 @@
     function guardar() {
       run('guardarBriefing')({
         enabled: g('f_on').checked,
-        hora: g('f_hora').value.trim(),
+        hora: state.hora,
         dias: state.dias,
         secciones: state.secciones,
         prompt: g('f_prompt').value
-      }).then(function () { toast('Morning Briefing guardado'); })
-        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+      }).then(function () {
+        toast('Morning Briefing guardado');
+        setDirty(false);   // vuelve a inhabilitar Guardar hasta el próximo cambio
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function prueba() {
       run('enviarBriefingPrueba')()
@@ -281,12 +363,14 @@
     /* ---- Carga inicial ---- */
     run('cargarBriefing')().then(function (cfg) {
       g('f_on').checked = !!cfg.enabled;
-      g('f_hora').value = cfg.hora || '07:30';
+      state.hora = cfg.hora || '07:30';
+      g('tpv_hora').textContent = state.hora;
       g('f_prompt').value = cfg.prompt || '';
       state.dias = (cfg.dias && cfg.dias.length) ? cfg.dias.slice() : [1, 2, 3, 4, 5];
       state.secciones = (cfg.secciones || []).map(function (s) { return { id: s.id, on: !!s.on }; });
       state.preview = cfg.preview || state.preview;
       renderDias(); renderSecciones(); renderPreview();
+      setDirty(false);   // recién cargado: nada que guardar todavía
     }).catch(function (e) {
       g('pvBody').innerHTML = '<p class="hint">Error: ' + escHtml(e.message) + '</p>';
     });
