@@ -37,6 +37,7 @@ const RUNTIME_FILES = [
   'brain-admin-runtime.js',
   'brain-backfill-runtime.js',
   'deepprep-runtime.js',
+  'sharing-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -284,6 +285,7 @@ export function makeHarness(opts = {}) {
         state.sentEmails.push({
           to, subject, body,
           html: (options && options.htmlBody) || '',
+          cc: (options && options.cc) || '',
           attachments: (options && options.attachments) || []
         });
       }

@@ -30,6 +30,11 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
 
   // Versión de texto plano: es el fallback para clientes que no renderizan HTML, así que
   // tiene que sostenerse sola (URL completa a la vista, no un "haz clic aquí").
+  // Transparencia activa (compartir reportes): la persona sabe a quién más llega su reporte.
+  var notaCompartir = (persona.compartirCon && persona.compartirCon.length)
+    ? 'Transparencia: tu reporte también llega a ' + persona.compartirCon.join(', ') + '.\n\n'
+    : '';
+
   var cuerpo =
     'Hola ' + (persona.nombre || '') + ',\n\n' +
     intro + '\n\n' +
@@ -38,6 +43,7 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     // contra la pestaña Equipo. Si responden con otra cuenta, la fila queda sin nombre.
     'Solo son las preguntas: responde con esta misma cuenta (' + persona.correo + ') ' +
     'y tu nombre se registra solo.\n\n' +
+    notaCompartir +
     'Gracias,\nVera';
 
   MailApp.sendEmail(persona.correo, asunto, cuerpo, {

@@ -39,6 +39,8 @@ var AJUSTES_DEFAULTS_ = {
   'deepPrep.enabled': 'false',       // 'true' → genera Deep Prep (requiere brain.enabled)
   'deepPrep.leadHours': '3',         // horas antes de la reunión para disparar el prep
   'deepPrep.selected': '[]',         // JSON: eventIds del calendario marcados para prep
+  // --- Compartir reportes (Fase 1: correos; ver Docs/workflows/CLEVEL-REPORTS/) ---
+  'consolidado.cc': '',              // correos extra (coma) que reciben el consolidado COMPLETO
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -253,6 +255,9 @@ function getAjustes_(sheetId, settingsSheetName) {
       enabled:   bool_(flat['deepPrep.enabled']),
       leadHours: int_(flat['deepPrep.leadHours'], 3),
       selected:  parseJsonArray_(flat['deepPrep.selected'])
+    },
+    consolidado: {
+      cc: listaCorreos_(flat['consolidado.cc'])
     }
   };
 }
@@ -286,7 +291,8 @@ function construirConfig(sheetId, staticConfig) {
     schedule: aj.schedule,
     forms: aj.forms,
     brain: aj.brain,          // feature flag + carpeta del second brain
-    deepPrep: aj.deepPrep     // feature flag + selección/timing del Deep Prep
+    deepPrep: aj.deepPrep,    // feature flag + selección/timing del Deep Prep
+    consolidado: aj.consolidado   // cc del consolidado completo (compartir reportes)
   };
 }
 
@@ -414,13 +420,24 @@ function guardarLeader(sheetId, config, leader) {
 function guardarEquipo(sheetId, config, miembros) {
   var ss = getSpreadsheet_(sheetId);
   var sh = ss.getSheetByName(config.sheets.roster) || ss.insertSheet(config.sheets.roster);
+
+  // Preservar `Compartir con` (la escribe el modal Compartir, no este editor): se re-asocia por
+  // correo tras el clearContents. Si el correo de una persona cambia, su compartir se pierde.
+  var compartirPrevio = {};
+  try {
+    getRoster_(sheetId, config.sheets.roster).forEach(function (p) {
+      if (p.compartirCon.length) compartirPrevio[p.correo.toLowerCase()] = p.compartirCon.join(', ');
+    });
+  } catch (e) { /* pestaña nueva o sin contrato: nada que preservar */ }
+
   sh.clearContents();
-  var values = [['Nombre', 'Correo', 'Rol']];
+  var values = [['Nombre', 'Correo', 'Rol', 'Compartir con']];
   (miembros || []).forEach(function (m) {
-    values.push([m.nombre || '', m.correo || '', m.rol || '']);
+    var correo = String(m.correo || '').trim();
+    values.push([m.nombre || '', correo, m.rol || '', compartirPrevio[correo.toLowerCase()] || '']);
   });
-  sh.getRange(1, 1, values.length, 3).setValues(values);
-  estilizarTabla_(sh, 3, [200, 300, 160]);   // formato de tabla (encabezado + zebra)
+  sh.getRange(1, 1, values.length, 4).setValues(values);
+  estilizarTabla_(sh, 4, [200, 300, 160, 300]);   // formato de tabla (encabezado + zebra)
 
   // Best-effort: guardar el equipo no debe fallar porque un Form no se deje sincronizar.
   var acceso = null;

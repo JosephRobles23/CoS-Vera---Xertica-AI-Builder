@@ -302,6 +302,25 @@ lógica viven en la **librería**, así que las mejoras llegan por **versión** 
 4. **Cuotas:** `MailApp` (100/día gratis; 1500 Workspace) y runtime diario de Apps Script — de
    sobra para un equipo chico, pero tenerlo presente al escalar.
 
+## Compartir reportes (Fase 1: correos)
+
+Para el caso "un colaborador reporta a dos jefes" sin llenar dos formularios. Dos granularidades,
+configuradas desde el modal **CoS → Compartir reportes** (`shared/DialogCompartir.html`, matriz
+consolidado + por persona) o a mano en la hoja:
+
+- **Por persona** — columna `Compartir con` en `Equipo` (correos por coma): al cierre
+  (`closeDaily`/`closeWeekly`), cada destinatario recibe SOLO el Summary del día de esa persona;
+  si no reportó, el aviso de silencio ("X no envió su reporte hoy"). Anti-dup por persona+tipo+fecha.
+- **Consolidado completo** — clave `consolidado.cc` en Ajustes: esos correos van en CC del mismo
+  correo de consolidado del líder (todo el equipo).
+- **Dedup**: quien recibe el consolidado completo no recibe además los individuales.
+- **Transparencia activa**: la invitación de una persona compartida le dice a quién más llega su
+  reporte, y el correo compartido dice quién lo comparte (patrón del aviso del brain en el Form).
+- `guardarEquipo` **preserva** la columna `Compartir con` al reescribir el roster (re-asocia por
+  correo; si el correo de una persona cambia, su compartir se pierde).
+- Diseño y maquetas: [`../../html/compartir-reportes-mockups.html`](../../html/compartir-reportes-mockups.html)
+  (la Fase 2 — conexión CoS-a-CoS — quedó bocetada ahí, fuera de scope por ahora).
+
 ## Relación con la v0.5
 
 Este workflow reencarna el pipeline de la v0.5

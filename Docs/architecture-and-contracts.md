@@ -97,7 +97,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Consolidados al líder | `shared/consolidation-runtime.js` | Implemented |
 | Plantillas HTML de correo | `shared/email-runtime.js` | Implemented |
 | Invitaciones (envío) | `shared/invites-runtime.js` | Implemented |
-| Dispatcher (timing) + guardas anti-dup + scan de silencios + purga de raw + pasada de Deep Prep + lote de backfill | `shared/dispatcher-runtime.js` | Implemented |
+| Dispatcher (timing) + guardas anti-dup + scan de silencios + purga de raw + pasada de Deep Prep + lote de backfill + reportes compartidos al cierre | `shared/dispatcher-runtime.js` | Implemented |
 | Generación de Forms (FormApp: título/descr./obligatoriedad/ayuda) | `shared/forms-runtime.js` | Implemented |
 | Acceso a Sheets/columnas/horas | `shared/sheets-runtime.js` | Implemented |
 | Lectura de `Equipo` (roster) | `shared/roster-runtime.js` | Implemented |
@@ -107,6 +107,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Second brain — admin/gobernanza (visor wiki, merge, flags, olvidar, purga) | `shared/brain-admin-runtime.js` | Implemented |
 | Second brain — backfill del histórico (job por cursor en el dispatcher) | `shared/brain-backfill-runtime.js` | Implemented |
 | Deep Prep — briefing pre-reunión (Calendar + brain → Gemini → PDF por correo) | `shared/deepprep-runtime.js` | Implemented |
+| Compartir reportes — individual por persona + cc del consolidado (modal matriz) | `shared/sharing-runtime.js` | Implemented |
+| HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
 | Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
 | Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (33 tests) |
@@ -116,7 +118,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests del second brain — ingesta por fila | `tests/brain-ingest-runtime.test.mjs` | Implemented (11 tests) |
 | Tests del second brain — scan de silencios (dispatcher) | `tests/brain-silences-runtime.test.mjs` | Implemented (6 tests) |
 | Tests del second brain — admin/gobernanza | `tests/brain-admin-runtime.test.mjs` | Implemented (9 tests) |
-| Tests del second brain — backfill del histórico | `tests/brain-backfill-runtime.test.mjs` | Implemented (18 tests) |
+| Tests del second brain — backfill del histórico | `tests/brain-backfill-runtime.test.mjs` | Implemented (19 tests) |
+| Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).

@@ -67,6 +67,17 @@ function runDispatcher(sheetId, config, nowOverride) {
     marcarEnviado_(sheetId, 'cons-weekly', leaderKey, today);
   }
 
+  // --- 2b) Reportes compartidos por persona (a la misma hora de cierre; anti-dup interno) ---
+  // Best-effort: compartir no puede frenar el consolidado del líder.
+  if (isWeekday && horaCoincide_(config.schedule.closeDaily, hhmm, win)) {
+    try { enviarCompartidos_(sheetId, config, 'daily', today); }
+    catch (e) { if (typeof Logger !== 'undefined') Logger.log('compartir: pasada daily falló (%s).', e); }
+  }
+  if (isFriday && horaCoincide_(config.schedule.closeWeekly, hhmm, win)) {
+    try { enviarCompartidos_(sheetId, config, 'weekly', today); }
+    catch (e) { if (typeof Logger !== 'undefined') Logger.log('compartir: pasada weekly falló (%s).', e); }
+  }
+
   // --- 3) Scan de silencios (brain): 1×/día, deja señales estructuradas para notificar() (futuro) ---
   // Suspendido mientras corre el backfill (wiki a medio construir = falsos estancados); como NO se
   // marca la guarda, el scan corre normal en la primera pasada tras terminar el job.

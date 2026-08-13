@@ -35,6 +35,7 @@ function construirMenu(ui) {
   ui.createMenu('CoS')
     .addItem('Configurar', 'abrirSidebar')
     .addItem('Formularios', 'cosMenu1')
+    .addItem('Compartir reportes', 'cosMenu2')
     .addToUi();
 }
 
@@ -50,7 +51,9 @@ function buildSidebar() {
  *  al líder por versión de librería: el stub ya tiene un abridor genérico (abrirDialogo). */
 var DIALOGOS_ = {
   // Editor de preguntas + generación por IA (shared/DialogPreguntas.html).
-  preguntas: { archivo: 'DialogPreguntas', titulo: 'CoS — Preguntas y formularios', ancho: 760, alto: 660 }
+  preguntas: { archivo: 'DialogPreguntas', titulo: 'CoS — Preguntas y formularios', ancho: 760, alto: 660 },
+  // Matriz de compartir reportes: consolidado completo + destinatarios por persona.
+  compartir: { archivo: 'DialogCompartir', titulo: 'CoS — Compartir reportes', ancho: 640, alto: 580 }
 };
 
 /**
@@ -77,6 +80,11 @@ var MENU_ACTIONS_ = {
   // porque la acción se ejecuta en el contexto del contenedor (invocada por el ítem de menú).
   cosMenu1: function (sheetId, config) {
     var d = buildDialog('preguntas');
+    SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  },
+  // 'Compartir reportes' → matriz de destinatarios (consolidado + por persona).
+  cosMenu2: function (sheetId, config) {
+    var d = buildDialog('compartir');
     SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
   }
 };
@@ -125,7 +133,10 @@ var DISPATCH_ = {
   // Backfill del histórico al brain (job reanudable; lo avanza el dispatcher).
   iniciarBackfill:         function (sid, cfg) { return iniciarBackfill(sid, cfg); },
   estadoBackfill:          function (sid, cfg) { return estadoBackfill(sid, cfg); },
-  cancelarBackfill:        function (sid, cfg) { return cancelarBackfill(sid, cfg); }
+  cancelarBackfill:        function (sid, cfg) { return cancelarBackfill(sid, cfg); },
+  // Compartir reportes (modal matriz): consolidado completo + destinatarios por persona.
+  cargarCompartir:         function (sid, cfg) { return cargarCompartir(sid, cfg); },
+  guardarCompartir:        function (sid, cfg, a) { return guardarCompartir(sid, cfg, a[0]); }
 };
 
 /**

@@ -314,7 +314,31 @@ function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
       escapeHtml_(persona.correo) + '</strong> y tu nombre se registra solo.</div>' +
     '</td></tr></table>';
 
+  // Transparencia activa (compartir reportes): la persona sabe a quién más llega su reporte.
+  if (persona.compartirCon && persona.compartirCon.length) {
+    contenido += parrafoHtml_('Transparencia: tu reporte también llega a ' +
+      persona.compartirCon.join(', ') + '.');
+  }
+
   return emailShell_(titulo, (esDaily ? 'Reporte diario' : 'Reporte semanal') + ' · equipo de ' + leaderName, contenido);
+}
+
+/**
+ * Reporte compartido de UNA persona (compartir reportes, Fase 1): el resumen del día o el
+ * aviso de silencio, con pie de quién lo comparte. Mismo shell de marca del consolidado.
+ */
+function renderReporteCompartidoHtml_(tipo, persona, fecha, texto, leaderName, esSilencio) {
+  var etiqueta = (tipo === 'daily') ? 'Daily' : 'Weekly';
+  var quien = persona.nombre || persona.correo || '';
+
+  var contenido = esSilencio
+    ? parrafoHtml_(texto)
+    : tarjetaHtml_((tipo === 'daily') ? 'Resumen del día' : 'Resumen de la semana',
+        cuerpoSeccionHtml_([{ texto: texto, esVineta: false }]));
+  contenido += parrafoHtml_('Compartido por ' + leaderName + ' vía CoS · ' + quien +
+    ' sabe que este reporte se comparte contigo.');
+
+  return emailShell_('Reporte ' + etiqueta + ' de ' + quien, fechaLegible_(fecha), contenido);
 }
 
 // --- PDF de impresión (Deep Prep) ------------------------------------------------------

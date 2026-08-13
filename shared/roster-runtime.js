@@ -1,14 +1,16 @@
 /**
  * roster-runtime.js — Lectura de la pestaña `Equipo` del líder.
  *
- * Contrato de columnas (encabezados fila 1): `Nombre`, `Correo`, `Rol`.
+ * Contrato de columnas (encabezados fila 1): `Nombre`, `Correo`, `Rol` y la opcional
+ * `Compartir con` (correos extra, separados por coma, que reciben los reportes de esa persona).
  * En el modelo per-líder el Sheet es de un solo líder; no hay columna de agrupación.
  *
  * Sin import/export: runtime de Apps Script. Privados con sufijo "_".
  */
 
 /**
- * Devuelve el equipo como [{ nombre, correo, rol }], saltando filas sin correo.
+ * Devuelve el equipo como [{ nombre, correo, rol, compartirCon }], saltando filas sin correo.
+ * `compartirCon` sale normalizado (minúsculas, sin duplicados) de la columna `Compartir con`.
  * @param {string} sheetId          ID del Spreadsheet del líder.
  * @param {string} rosterSheetName  Nombre de la pestaña (CONFIG.sheets.roster, p.ej. 'Equipo').
  */
@@ -26,6 +28,7 @@ function getRoster_(sheetId, rosterSheetName) {
   var colCorreo = idx['Correo'];
   var colNombre = idx['Nombre'];
   var colRol    = idx['Rol'];
+  var colComp   = idx['Compartir con'];
 
   if (colCorreo == null) {
     throw new Error('La pestaña "' + rosterSheetName + '" no tiene columna "Correo".');
@@ -37,7 +40,8 @@ function getRoster_(sheetId, rosterSheetName) {
       return {
         nombre: colNombre != null ? String(r[colNombre]).trim() : '',
         correo: String(r[colCorreo]).trim(),
-        rol:    colRol != null ? String(r[colRol]).trim() : ''
+        rol:    colRol != null ? String(r[colRol]).trim() : '',
+        compartirCon: colComp != null ? listaCorreos_(r[colComp]) : []
       };
     });
 }

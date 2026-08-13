@@ -90,8 +90,10 @@ function enviarConsolidado(sheetId, config, tipo, today) {
 
   // El LLM devuelve TEXTO; el HTML lo arma email-runtime a partir de ese texto (nunca se le
   // pide marcado al modelo). El texto plano va como fallback.
-  MailApp.sendEmail(leaderEmail, asunto, cuerpo, {
-    htmlBody: renderConsolidadoHtml_(tipo, leaderName, today, cuerpo)
-  });
-  return { enviado: true, count: resumenes.length };
+  var opciones = { htmlBody: renderConsolidadoHtml_(tipo, leaderName, today, cuerpo) };
+  // Compartir reportes: consolidado.cc recibe el MISMO consolidado (todo el equipo) en CC.
+  var cc = (config.consolidado && config.consolidado.cc) || [];
+  if (cc.length) opciones.cc = cc.join(',');
+  MailApp.sendEmail(leaderEmail, asunto, cuerpo, opciones);
+  return { enviado: true, count: resumenes.length, cc: cc.length };
 }

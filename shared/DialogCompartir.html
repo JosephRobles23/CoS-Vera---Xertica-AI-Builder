@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    /* ---- shadcn / Neutral (mismos tokens del sidebar) ---- */
+    :root {
+      --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+      --card: oklch(1 0 0); --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+      --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0);
+      --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+      --destructive: oklch(0.577 0.245 27.325);
+      --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+      --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+      --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+      --warn: oklch(0.68 0.16 60);
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { background: var(--background); }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+      font-size: 13px; line-height: 1.5; padding: 16px; -webkit-font-smoothing: antialiased;
+    }
+    svg { width: 15px; height: 15px; }
+    [data-lucide] { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
+
+    .hint { font-size: 11.5px; color: var(--muted-foreground); margin: 2px 0 12px; }
+    .hint b { color: var(--foreground); }
+
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 10px 12px; margin: 8px 0; }
+    .card-team { border-left: 3px solid var(--primary); }
+    .team-h { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12.5px; }
+    .team-h svg { width: 14px; height: 14px; }
+
+    .matrix { margin-top: 4px; }
+    .matrix-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px; border-top: 1px solid var(--border); }
+    .matrix-row .who { flex: 0 0 150px; font-size: 12.5px; font-weight: 500; padding-top: 5px; min-width: 0; }
+    .matrix-row .who small { display: block; font-weight: 400; color: var(--muted-foreground); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .matrix-row .dest { flex: 1; min-width: 0; }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500;
+      background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px 6px 3px 9px; margin: 2px 4px 2px 0; max-width: 100%;
+    }
+    .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chip button { border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted-foreground); display: grid; place-items: center; }
+    .chip button:hover { color: var(--destructive); }
+    .chip button svg { width: 11px; height: 11px; }
+    .redun { font-size: 10.5px; color: var(--warn); margin-top: 2px; }
+
+    .adder { display: flex; gap: 6px; margin-top: 4px; }
+    .adder input {
+      flex: 1; min-width: 0; padding: 6px 9px; font: inherit; font-size: 12px; color: var(--foreground);
+      background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm); outline: none;
+    }
+    .adder input::placeholder { color: var(--muted-foreground); opacity: .65; }
+    .adder input:focus { border-color: var(--ring); box-shadow: 0 0 0 3px oklch(0.708 0 0 / 0.25); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0;
+      border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 500;
+      padding: 7px 12px;
+    }
+    .btn svg { width: 13px; height: 13px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+    .btn-primary:hover:not(:disabled) { opacity: .9; }
+    .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+    .btn-outline:hover:not(:disabled) { background: var(--accent); }
+    .btn-mini { padding: 6px 10px; font-size: 11.5px; flex: 0 0 auto; }
+    .loader {
+      display: inline-block; width: 12px; height: 12px; flex: 0 0 auto;
+      border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+      animation: girar .7s linear infinite; vertical-align: -2px;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    .none { font-size: 11.5px; color: var(--muted-foreground); font-style: italic; }
+    .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+    #toast {
+      position: fixed; left: 16px; right: 16px; bottom: 14px; background: var(--popover); color: var(--popover-foreground);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+      padding: 10px 12px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 60;
+    }
+    #toast svg { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted-foreground); }
+  </style>
+</head>
+<body>
+  <p class="hint">
+    Destinatario de una persona = solo <b>su</b> resumen (al cierre del día/semana, o el aviso si no
+    reportó). Destinatario del consolidado = <b>todo el equipo</b>. Cada persona verá en su
+    invitación a quién más llega su reporte.
+  </p>
+
+  <div class="card card-team">
+    <div class="team-h">
+      <i data-lucide="clipboard-list"></i> Consolidado (equipo completo)
+    </div>
+    <div id="ccChips" style="margin-top:6px"></div>
+    <div class="adder">
+      <input id="ccInput" type="text" placeholder="correo@empresa.com" onkeydown="if(event.key==='Enter')addCc()">
+      <button class="btn btn-outline btn-mini" onclick="addCc()"><i data-lucide="plus"></i> Agregar</button>
+    </div>
+  </div>
+
+  <div class="matrix" id="matriz"><p class="none">Cargando equipo…</p></div>
+
+  <div class="actions">
+    <button class="btn btn-outline" onclick="google.script.host.close()">Cancelar</button>
+    <button class="btn btn-primary" onclick="guardar()"><i data-lucide="save"></i> Guardar</button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    /* ---- Íconos Lucide inline (sin CDN) ---- */
+    var ICONS = {
+      'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+      'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+      'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+      'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+      'check': '<path d="M20 6 9 17l-5-5"/>',
+      'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
+    };
+    function icons() {
+      document.querySelectorAll('[data-lucide]').forEach(function (el) {
+        var n = el.getAttribute('data-lucide');
+        if (ICONS[n]) el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[n] + '</svg>';
+      });
+    }
+    function g(id) { return document.getElementById(id); }
+    function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
+    var CORREO_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    /* ---- Loader visual en el botón que disparó la llamada (mismo patrón que el sidebar) ---- */
+    var _btnActivo = null;
+    document.addEventListener('click', function (e) {
+      _btnActivo = (e.target && e.target.closest) ? e.target.closest('button') : null;
+      setTimeout(function () { _btnActivo = null; }, 0);
+    }, true);
+    function tomarBtnActivo_() { var b = _btnActivo; _btnActivo = null; return b; }
+    function setLoading(btn, on) {
+      if (!btn) return;
+      if (on) {
+        if (btn._loading) return;
+        btn._loading = true; btn._html = btn.innerHTML;
+        btn.innerHTML = '<span class="loader"></span>' + (btn.textContent.trim() ? ' ' + escHtml(btn.textContent.trim()) : '');
+        btn.disabled = true;
+      } else {
+        if (!btn._loading) return;
+        btn._loading = false; btn.innerHTML = btn._html; btn.disabled = false;
+      }
+    }
+    function conLoader_(promesa, btn) {
+      setLoading(btn, true);
+      return promesa.then(
+        function (v) { setLoading(btn, false); return v; },
+        function (e) { setLoading(btn, false); throw e; }
+      );
+    }
+
+    /* ---- google.script.run como Promise (todo viaja por cosRun → dispatch) ---- */
+    function run(method) {
+      return function () {
+        var args = Array.prototype.slice.call(arguments);
+        return conLoader_(new Promise(function (resolve, reject) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+            .cosRun(method, JSON.stringify(args));
+        }), tomarBtnActivo_());
+      };
+    }
+    function toast(msg, icon) {
+      var t = g('toast');
+      t.innerHTML = '<i data-lucide="' + (icon || 'check') + '"></i><span></span>';
+      t.querySelector('span').textContent = msg; t.style.display = 'flex'; icons();
+      clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, 2600);
+    }
+
+    /* ---- Estado + render de la matriz ---- */
+    var state = { personas: [], consolidadoCc: [] };
+
+    function chipHtml(correo, onRemove, redundante) {
+      return '<span class="chip"><span>' + escHtml(correo) + '</span>' +
+        '<button title="Quitar" onclick="' + onRemove + '"><i data-lucide="x"></i></button></span>' +
+        (redundante ? '<div class="redun">⚠ ' + escHtml(correo) + ' ya recibe el consolidado completo: el individual es redundante.</div>' : '');
+    }
+
+    function renderCc() {
+      g('ccChips').innerHTML = state.consolidadoCc.length
+        ? state.consolidadoCc.map(function (c, i) { return chipHtml(c, 'delCc(' + i + ')', false); }).join('')
+        : '<span class="none">— nadie —</span>';
+      icons();
+    }
+
+    function renderMatriz() {
+      var cont = g('matriz');
+      if (!state.personas.length) { cont.innerHTML = '<p class="none">No hay personas en Equipo todavía.</p>'; return; }
+      cont.innerHTML = state.personas.map(function (p, i) {
+        var chips = p.compartirCon.length
+          ? p.compartirCon.map(function (c, j) {
+              return chipHtml(c, 'delDest(' + i + ',' + j + ')', state.consolidadoCc.indexOf(c) > -1);
+            }).join('')
+          : '<span class="none">— nadie —</span>';
+        return '<div class="matrix-row">' +
+          '<div class="who">' + escHtml(p.nombre || p.correo) + '<small>' + escHtml(p.correo) + '</small></div>' +
+          '<div class="dest">' + chips +
+            '<div class="adder"><input id="in_' + i + '" type="text" placeholder="correo@empresa.com" ' +
+              'onkeydown="if(event.key===\'Enter\')addDest(' + i + ')">' +
+            '<button class="btn btn-outline btn-mini" onclick="addDest(' + i + ')"><i data-lucide="plus"></i></button></div>' +
+          '</div></div>';
+      }).join('');
+      icons();
+    }
+
+    function leerCorreo(input, propio) {
+      var c = input.value.trim().toLowerCase();
+      if (!c) return null;
+      if (!CORREO_RE.test(c)) { toast('Correo inválido: ' + c, 'triangle-alert'); return null; }
+      if (propio && c === propio) { toast('Es el correo de la propia persona', 'triangle-alert'); return null; }
+      input.value = '';
+      return c;
+    }
+    function addCc() {
+      var c = leerCorreo(g('ccInput'), null);
+      if (!c) return;
+      if (state.consolidadoCc.indexOf(c) > -1) { toast('Ya está en la lista', 'triangle-alert'); return; }
+      state.consolidadoCc.push(c); renderCc(); renderMatriz();   // matriz: re-evalúa redundancias
+    }
+    function delCc(i) { state.consolidadoCc.splice(i, 1); renderCc(); renderMatriz(); }
+    function addDest(i) {
+      var p = state.personas[i];
+      var c = leerCorreo(g('in_' + i), p.correo.toLowerCase());
+      if (!c) return;
+      if (p.compartirCon.indexOf(c) > -1) { toast('Ya está en la lista', 'triangle-alert'); return; }
+      p.compartirCon.push(c); renderMatriz();
+    }
+    function delDest(i, j) { state.personas[i].compartirCon.splice(j, 1); renderMatriz(); }
+
+    function guardar() {
+      run('guardarCompartir')({
+        personas: state.personas.map(function (p) { return { correo: p.correo, compartirCon: p.compartirCon }; }),
+        consolidadoCc: state.consolidadoCc
+      }).then(function (r) {
+        toast('Guardado: ' + r.personas + ' persona(s) compartida(s), ' + r.consolidadoCc + ' en el consolidado');
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+
+    /* ---- Carga inicial ---- */
+    run('cargarCompartir')().then(function (data) {
+      state.personas = (data.personas || []).map(function (p) {
+        return { nombre: p.nombre, correo: p.correo, compartirCon: (p.compartirCon || []).slice() };
+      });
+      state.consolidadoCc = (data.consolidadoCc || []).slice();
+      renderCc(); renderMatriz();
+    }).catch(function (e) {
+      g('matriz').innerHTML = '<p class="none">Error: ' + escHtml(e.message) + '</p>';
+    });
+
+    icons();
+  </script>
+</body>
+</html>

@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compartir reportes — Maquetas Fase 1 y 2</title>
+<style>
+  /* ---- Design tokens del sidebar CoS (shadcn / Neutral, OKLCH) ---- */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0); --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+    --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    --stage: oklch(0.97 0 0);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
+      --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0);
+      --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
+      --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+      --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+      --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
+      --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
+      --destructive: oklch(0.704 0.191 22.216);
+      --border: oklch(1 0 0 / 0.1); --input: oklch(1 0 0 / 0.15); --ring: oklch(0.556 0 0);
+      --stage: oklch(0.18 0 0);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--stage); }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+    font-size: 13px; line-height: 1.5; padding: 28px 20px 60px; -webkit-font-smoothing: antialiased;
+  }
+  svg { width: 16px; height: 16px; }
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  /* ---- Encabezado de la página ---- */
+  .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .page-header .logo {
+    width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--primary);
+    color: var(--primary-foreground); display: grid; place-items: center;
+  }
+  .page-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
+  .page-header p { font-size: 12px; color: var(--muted-foreground); }
+  .intro { max-width: 720px; color: var(--muted-foreground); font-size: 12.5px; margin: 8px 0 28px; }
+
+  .fase { margin: 34px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+  .fase h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .fase span { font-size: 11px; color: var(--muted-foreground); }
+
+  /* ---- Grilla de maquetas: frame + notas ---- */
+  .idea { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; margin: 18px 0 30px; }
+  .frame {
+    width: 300px; flex: 0 0 auto; background: var(--background); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow-md); padding: 14px; position: relative;
+  }
+  .frame.wide { width: 470px; }
+  .frame-tag {
+    position: absolute; top: -9px; left: 14px; font-size: 10px; font-weight: 600; letter-spacing: .02em;
+    background: var(--primary); color: var(--primary-foreground); border-radius: 999px; padding: 2px 9px;
+  }
+  .frame-tag.reco { background: oklch(0.55 0.15 155); color: #fff; }
+  .notes { flex: 1 1 300px; min-width: 260px; padding-top: 4px; }
+  .notes h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .notes ul { margin: 0 0 10px 16px; padding: 0; font-size: 12px; color: var(--muted-foreground); }
+  .notes li { margin: 3px 0; }
+  .notes li b { color: var(--foreground); font-weight: 600; }
+  .kv { font-size: 11.5px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .kv div { display: flex; gap: 8px; padding: 6px 10px; }
+  .kv div + div { border-top: 1px solid var(--border); }
+  .kv b { flex: 0 0 118px; font-weight: 600; }
+  .kv span { color: var(--muted-foreground); }
+
+  /* ---- Componentes clonados del sidebar ---- */
+  .app-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .app-header .logo {
+    width: 28px; height: 28px; border-radius: var(--radius-sm); background: var(--primary);
+    color: var(--primary-foreground); display: grid; place-items: center; flex: 0 0 auto;
+  }
+  .app-header .logo svg { width: 15px; height: 15px; }
+  .app-header h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .app-header p { font-size: 11px; color: var(--muted-foreground); }
+
+  nav { display: flex; gap: 2px; background: var(--muted); padding: 3px; border-radius: var(--radius); margin-bottom: 14px; }
+  nav b {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 7px 2px; border-radius: var(--radius-sm); color: var(--muted-foreground);
+    font-size: 10.5px; font-weight: 500;
+  }
+  nav b.active { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
+  nav b svg { width: 15px; height: 15px; }
+
+  h3 { font-size: 12px; font-weight: 600; margin: 14px 0 8px; letter-spacing: -0.01em; }
+  label { display: block; font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin: 10px 0 4px; }
+  .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 8px; }
+  .divider { height: 1px; background: var(--border); margin: 14px 0; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); }
+
+  input[type="text"] {
+    width: 100%; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--foreground);
+    background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm); outline: none;
+  }
+  input::placeholder { color: var(--muted-foreground); opacity: .65; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0;
+    border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 500;
+    padding: 8px 12px; width: 100%; margin-top: 10px;
+  }
+  .btn svg { width: 14px; height: 14px; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--muted-foreground); width: auto; padding: 6px 8px; }
+  .btn-mini { width: auto; margin: 0; padding: 6px 10px; font-size: 11.5px; }
+  .icon-btn {
+    display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border);
+    background: var(--background); border-radius: var(--radius-sm); cursor: pointer; color: var(--muted-foreground);
+  }
+  .icon-btn svg { width: 14px; height: 14px; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 10px; margin: 8px 0; }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row > * { flex: 1; }
+  .row .icon-btn, .row .btn-mini { flex: 0 0 auto; }
+
+  /* ---- Piezas nuevas de la feature (propuesta) ---- */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 500;
+    background: var(--secondary); color: var(--secondary-foreground); border: 1px solid var(--border);
+    border-radius: 999px; padding: 3px 6px 3px 9px; margin: 2px 3px 2px 0;
+  }
+  .chip svg { width: 11px; height: 11px; cursor: pointer; color: var(--muted-foreground); }
+  .chip svg:hover { color: var(--destructive); }
+  .chips { margin: 6px 0 8px; }
+
+  .card-team { border-left: 3px solid var(--primary); }
+  .card-team .team-h { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 12px; }
+  .card-team .team-h svg { width: 14px; height: 14px; }
+  .warn { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted-foreground); margin-top: 8px; }
+  .warn svg { width: 13px; height: 13px; flex: 0 0 auto; margin-top: 1px; color: oklch(0.68 0.16 60); }
+
+  .member { border: 1px solid var(--border); border-radius: var(--radius); margin: 6px 0; overflow: hidden; }
+  .member-h { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; }
+  .member-h .meta { flex: 1; min-width: 0; }
+  .member-h .meta b { display: block; font-size: 12.5px; }
+  .member-h .meta small { color: var(--muted-foreground); font-size: 11px; }
+  .share-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600;
+    border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; color: var(--muted-foreground);
+  }
+  .share-badge.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .share-badge svg { width: 11px; height: 11px; }
+  .member-body { border-top: 1px solid var(--border); background: var(--muted); padding: 9px 10px 10px; }
+  .member-body .mini-label { font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin-bottom: 4px; }
+
+  /* Modal (idea B+) */
+  .modal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .modal-h b { font-size: 14px; letter-spacing: -0.01em; }
+  .matrix-row { display: flex; align-items: flex-start; gap: 8px; padding: 9px 2px; border-top: 1px solid var(--border); }
+  .matrix-row:first-of-type { border-top: 0; }
+  .matrix-row .who { flex: 0 0 128px; font-size: 12px; font-weight: 500; padding-top: 4px; }
+  .matrix-row .who small { display: block; font-weight: 400; color: var(--muted-foreground); font-size: 10.5px; }
+  .matrix-row .dest { flex: 1; }
+  .none { font-size: 11.5px; color: var(--muted-foreground); font-style: italic; padding-top: 5px; }
+  .redun { font-size: 10.5px; color: oklch(0.68 0.16 60); }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .actions .btn { width: auto; margin: 0; }
+
+  /* Correo del destinatario */
+  .mail { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .mail-head { background: var(--muted); padding: 9px 12px; font-size: 11.5px; }
+  .mail-head b { display: block; font-size: 12.5px; }
+  .mail-head span { color: var(--muted-foreground); }
+  .mail-body { padding: 12px; }
+  .mail-band { height: 4px; background: var(--primary); }
+  .mail-body h5 { font-size: 12px; margin-bottom: 6px; }
+  .mail-body p { font-size: 12px; color: var(--muted-foreground); }
+  .mail-foot { border-top: 1px solid var(--border); padding: 8px 12px; font-size: 10.5px; color: var(--muted-foreground); }
+
+  /* Fase 2: conexión */
+  .card-conn { border: 1px dashed var(--ring); background: var(--card); }
+  .card-conn .team-h svg { color: oklch(0.68 0.16 60); }
+  .conn-ok { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+    background: oklch(0.55 0.15 155 / .12); color: oklch(0.45 0.13 155); border-radius: 999px; padding: 3px 9px; }
+  @media (prefers-color-scheme: dark) { .conn-ok { color: oklch(0.8 0.14 155); } }
+  .conn-ok svg { width: 11px; height: 11px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="6" rx="2"/><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+    <div>
+      <h1>Compartir reportes — maquetas</h1>
+      <p>CLEVEL-REPORTS · Fase 1 (correo) y Fase 2 (conexión CoS-a-CoS) · branding del sidebar</p>
+    </div>
+  </div>
+  <p class="intro">
+    Requerimiento: que el líder comparta con otros correos (a) los reportes de <b>una persona</b>
+    (caso "reporta a dos jefes", un solo formulario) y (b) el <b>consolidado completo</b> del equipo.
+    Tres alternativas de UI para la Fase 1 y el boceto de la Fase 2. Todo usa los tokens reales del
+    sidebar (soporta modo oscuro del sistema).
+  </p>
+
+  <!-- ============================== FASE 1 · IDEA A+ ============================== -->
+  <div class="fase"><h2>Fase 1 · Idea A+ — Panel Equipo con tarjeta fija + chips por persona</h2><span>recomendada</span></div>
+  <div class="idea">
+    <div class="frame">
+      <span class="frame-tag reco">RECOMENDADA</span>
+      <div class="app-header">
+        <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="6" rx="2"/><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+        <div><h1>Chief of Staff</h1><p>Configuración CLEVEL-REPORTS</p></div>
+      </div>
+      <nav>
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/></svg>Prompts</b>
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Horarios</b>
+        <b class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Equipo</b>
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="m9 16 2 2 4-4"/></svg>Prep</b>
+        <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg>Brain</b>
+      </nav>
+
+      <h3>Equipo</h3>
+
+      <!-- Tarjeta fija: consolidado completo -->
+      <div class="card card-team">
+        <div class="team-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+          Consolidado completo
+        </div>
+        <div class="mini-label" style="margin-top:6px; font-size:11px; color:var(--muted-foreground)">El resumen de <b>todo el equipo</b> (daily y weekly) también llega a:</div>
+        <div class="chips">
+          <span class="chip">vp@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+        </div>
+        <div class="row">
+          <input type="text" placeholder="correo@empresa.com">
+          <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Agregar</button>
+        </div>
+        <div class="warn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+          Incluye los reportes de <b>todas</b> las personas del equipo.
+        </div>
+      </div>
+
+      <!-- Persona expandida -->
+      <div class="member">
+        <div class="member-h">
+          <div class="meta"><b>María Pérez</b><small>maria@x.com · Dev</small></div>
+          <span class="share-badge on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> 2</span>
+          <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+        <div class="member-body">
+          <div class="mini-label">Sus reportes también llegan a:</div>
+          <div class="chips">
+            <span class="chip">jefe2@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+            <span class="chip">pm@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+          </div>
+          <div class="row">
+            <input type="text" placeholder="correo@empresa.com">
+            <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg> Agregar</button>
+          </div>
+          <div class="hint">ⓘ María verá en su invitación que su reporte se comparte.</div>
+        </div>
+      </div>
+
+      <!-- Personas colapsadas -->
+      <div class="member">
+        <div class="member-h">
+          <div class="meta"><b>Juan Soto</b><small>juan@x.com · QA</small></div>
+          <span class="share-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg></span>
+          <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></span>
+        </div>
+      </div>
+
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Guardar equipo</button>
+    </div>
+
+    <div class="notes">
+      <h4>Cómo funciona</h4>
+      <ul>
+        <li><b>Una sola superficie</b>: compartir se configura donde ya vive el equipo. La tarjeta fija de arriba = "todos"; el badge <b>↗ n</b> por persona = "solo ella".</li>
+        <li>Tocar la fila de una persona <b>expande/colapsa</b> su área de chips (María expandida, Juan colapsado).</li>
+        <li>Un solo botón <b>Guardar equipo</b> persiste ambas granularidades.</li>
+        <li>El ⚠ en la tarjeta del consolidado hace explícito el peso de privacidad.</li>
+      </ul>
+      <div class="kv">
+        <div><b>Por persona</b><span>columna "Compartir con" en la hoja Equipo (correos por coma) — editable también a mano</span></div>
+        <div><b>Consolidado</b><span>clave "consolidado.cc" en Ajustes (es del CoS, no de una persona)</span></div>
+        <div><b>Envío</b><span>al cierre (closeDaily/closeWeekly), con guarda anti-dup por fecha</span></div>
+        <div><b>Dedup</b><span>si un correo recibe el consolidado, no se le manda además el individual</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================== FASE 1 · IDEA B+ ============================== -->
+  <div class="fase"><h2>Fase 1 · Idea B+ — Modal "Compartir reportes" (vista matriz)</h2><span>alternativa si crece el volumen</span></div>
+  <div class="idea">
+    <div class="frame wide">
+      <span class="frame-tag">DIALOG MODAL</span>
+      <div class="modal-h">
+        <b>Compartir reportes</b>
+        <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+      </div>
+      <p class="hint" style="margin:0 0 10px">Destinatario de una persona = solo <b>su</b> resumen. Destinatario del consolidado = <b>todo</b> el equipo.</p>
+
+      <div class="card card-team" style="margin-bottom:4px">
+        <div class="team-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+          Consolidado (equipo completo)
+        </div>
+        <div class="row" style="margin-top:6px">
+          <div class="chips" style="margin:0">
+            <span class="chip">vp@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+          </div>
+          <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+        </div>
+      </div>
+
+      <div class="matrix-row">
+        <div class="who">María Pérez<small>maria@x.com</small></div>
+        <div class="dest">
+          <span class="chip">jefe2@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+          <span class="chip">pm@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+        </div>
+        <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+      <div class="matrix-row">
+        <div class="who">Juan Soto<small>juan@x.com</small></div>
+        <div class="dest"><span class="none">— nadie —</span></div>
+        <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+      <div class="matrix-row">
+        <div class="who">Ana Ruiz<small>ana@x.com</small></div>
+        <div class="dest">
+          <span class="chip">vp@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+          <div class="redun">⚠ vp@x.com ya recibe el consolidado completo: el individual es redundante.</div>
+        </div>
+        <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-outline btn-mini">Cancelar</button>
+        <button class="btn btn-primary btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Guardar</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h4>Cuándo elegirla</h4>
+      <ul>
+        <li>Su ventaja única es la <b>vista cruzada</b>: "¿quién comparte con quién?" en un pantallazo, y detección de <b>redundancias</b> (fila de Ana).</li>
+        <li>Se abre desde el menú CoS o un botón "Compartir…" en el panel Equipo (patrón DialogPreguntas: HTML en la librería, cero cambios al stub).</li>
+        <li>Para 1-3 personas compartidas es un martillo grande; gana sentido con matrix orgs (&gt;5-6 casos) o como evolución de la Idea A+.</li>
+        <li>Misma persistencia y envío que A+ — solo cambia la superficie.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== FASE 1 · IDEA C ============================== -->
+  <div class="fase"><h2>Fase 1 · Idea C — Split: consolidado en Horarios, personas en Equipo</h2><span>descartada</span></div>
+  <div class="idea">
+    <div class="frame">
+      <span class="frame-tag">PANEL HORARIOS</span>
+      <h3 style="margin-top:0">Horarios</h3>
+      <label>Cierre daily</label>
+      <input type="text" value="18:00">
+      <label>Cierre weekly</label>
+      <input type="text" value="18:30">
+      <div class="divider"></div>
+      <label>Además de ti, el consolidado llega a:</label>
+      <div class="chips">
+        <span class="chip">vp@x.com <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>
+      </div>
+      <div class="row">
+        <input type="text" placeholder="correo@empresa.com">
+        <button class="btn btn-outline btn-mini"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+      </div>
+    </div>
+    <div class="notes">
+      <h4>Por qué la descartaría</h4>
+      <ul>
+        <li>Conceptualmente cohesiva ("el consolidado y sus destinatarios juntos"), pero <b>parte la feature en dos paneles</b>.</li>
+        <li>Cuando el líder piense "quiero compartir reportes" tendrá que recordar dos lugares distintos — la Idea A+ resuelve lo mismo en uno.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== CORREO DEL DESTINATARIO ============================== -->
+  <div class="fase"><h2>La otra mitad de la UX — lo que recibe el destinatario</h2><span>igual para las tres ideas</span></div>
+  <div class="idea">
+    <div class="frame" style="width:360px">
+      <span class="frame-tag">CORREO · REPORTE INDIVIDUAL</span>
+      <div class="mail">
+        <div class="mail-band"></div>
+        <div class="mail-head">
+          <b>Reporte Daily de María Pérez — 2026-08-13</b>
+          <span>Vera · Chief of Staff &lt;lider-a@x.com&gt; → jefe2@x.com</span>
+        </div>
+        <div class="mail-body">
+          <h5>Resumen del día</h5>
+          <p>Cerró el diseño de Alpha y quedó a la espera de la revisión legal. Riesgo: la
+          dependencia con infra sigue sin dueño. Mañana arranca la migración del módulo de pagos.</p>
+        </div>
+        <div class="mail-foot">Compartido por <b>Líder A</b> vía CoS · María sabe que este reporte se comparte contigo.</div>
+      </div>
+      <div class="mail" style="margin-top:10px">
+        <div class="mail-band" style="opacity:.35"></div>
+        <div class="mail-head">
+          <b>Reporte Daily de María Pérez — 2026-08-14</b>
+          <span>Vera · Chief of Staff → jefe2@x.com</span>
+        </div>
+        <div class="mail-body"><p>María no envió reporte hoy.</p></div>
+        <div class="mail-foot">El silencio también es señal — mismo criterio que el scan del brain.</div>
+      </div>
+    </div>
+    <div class="notes">
+      <h4>Reglas de envío</h4>
+      <ul>
+        <li><b>Al cierre</b> (closeDaily/closeWeekly), no por cada envío del Form: cadencia predecible, cero correos en el camino caliente de onFormSubmit.</li>
+        <li>El destinatario del consolidado recibe <b>el mismo correo de consolidado</b> que ya existe (mismo shell de marca).</li>
+        <li>Pie de transparencia en ambos sentidos: el correo dice quién lo comparte, y la <b>invitación</b> de la persona dice a quién más llega su reporte (consistente con el aviso del brain en el Form).</li>
+        <li>Guardas anti-dup por fecha, como todo envío del dispatcher.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== FASE 2 ============================== -->
+  <div class="fase"><h2>Fase 2 — Conexión CoS-a-CoS (boceto)</h2><span>cuando el destinatario también tiene CoS</span></div>
+  <div class="idea">
+    <div class="frame">
+      <span class="frame-tag">DESCUBRIMIENTO</span>
+      <h3 style="margin-top:0">Equipo</h3>
+      <div class="member">
+        <div class="member-h">
+          <div class="meta"><b>María Pérez</b><small>maria@x.com · Dev</small></div>
+          <span class="share-badge on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></svg> 1</span>
+        </div>
+        <div class="member-body">
+          <div class="card card-conn" style="margin:0">
+            <div class="team-h">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+              El CoS de Carlos López también tiene a María
+            </div>
+            <p class="hint" style="margin:6px 0 8px">Si conectan, el resumen de María fluirá al consolidado y al brain de Carlos — sin segundo formulario.</p>
+            <div class="row">
+              <button class="btn btn-primary btn-mini" style="flex:1">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                Conectar CoS
+              </button>
+              <button class="btn btn-outline btn-mini">Ignorar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="member">
+        <div class="member-h">
+          <div class="meta"><b>Ana Ruiz</b><small>ana@x.com · Diseño</small></div>
+          <span class="conn-ok">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Conectado · CoS de Rocío
+          </span>
+        </div>
+      </div>
+      <p class="hint">El estado "Conectado" reemplaza a los chips de correo para esa relación: el upgrade correo → conexión ocurre en el mismo lugar.</p>
+    </div>
+
+    <div class="notes">
+      <h4>Mecánica propuesta (dirección elegida, detalle pendiente de grill)</h4>
+      <ul>
+        <li><b>Descubrimiento</b>: registro en las Script Properties de la librería (compartidas entre todos los líderes, namespaced) — mapa correo→sheetIds. Si dos CoS registran a maria@x.com, ambos ven la tarjeta ⚡.</li>
+        <li><b>Handshake explícito</b>: "Conectar" propone; el otro líder acepta desde su propio sidebar. Nada fluye sin dos consentimientos.</li>
+        <li><b>Transporte: pull por el receptor</b> — el líder A comparte lectura de su Sheet; el dispatcher de B importa incrementalmente las filas de María (reusa el motor del backfill: cursores, merge cronológico, time-box).</li>
+        <li>El summary viaja ya generado: <b>cero doble llamada a Gemini</b>; en el CoS receptor entra a consolidado y brain como fila propia.</li>
+        <li>La pirámide (jefes → subjefes) emerge sola: cada relación es un par conectado; no hace falta modelar el árbol.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:30px">
+    Maqueta estática · Docs/html/compartir-reportes-mockups.html · tokens y componentes clonados de
+    shared/Sidebar.html (soporta modo oscuro del sistema). Decisiones aún abiertas: transparencia
+    activa vs pasiva en la invitación, y el detalle fino de la Fase 2.
+  </p>
+</div>
+</body>
+</html>
