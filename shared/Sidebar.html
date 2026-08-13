@@ -256,6 +256,9 @@
     <label>Nombre</label><input id="l_name">
     <label>Correo</label><input id="l_email" type="email">
     <button class="btn btn-primary" onclick="salvarHorarios()"><i data-lucide="save"></i> Guardar horarios y líder</button>
+    <div class="divider"></div>
+    <button class="btn btn-outline" onclick="abrirBriefing()"><i data-lucide="clock"></i> Morning Briefing…</button>
+    <p class="hint">Tu resumen diario por correo: agenda, pendientes y lo urgente, a la hora que elijas.</p>
   </div>
 
   <!-- EQUIPO -->
@@ -567,6 +570,10 @@
     function abrirCompartir() {
       // abrirDialogo es wrapper nombrado del stub (abridor genérico de modales de la librería).
       run('abrirDialogo')('compartir')
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function abrirBriefing() {
+      run('abrirDialogo')('briefing')
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
 

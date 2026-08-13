@@ -321,6 +321,25 @@ consolidado + por persona) o a mano en la hoja:
 - Diseño y maquetas: [`../../html/compartir-reportes-mockups.html`](../../html/compartir-reportes-mockups.html)
   (la Fase 2 — conexión CoS-a-CoS — quedó bocetada ahí, fuera de scope por ahora).
 
+## Morning Briefing (resumen diario del líder)
+
+Feature flag `briefing.enabled`. A la hora y días configurados (`briefing.hora`/`briefing.dias`),
+el dispatcher envía al líder un correo con las secciones elegidas en el modal **CoS → Morning
+Briefing** (`shared/DialogBriefing.html`: config + vista previa en vivo + "enviarme uno de prueba"):
+
+- **📅 Tu día** — reuniones de hoy (Calendar), con marca de las que tienen Deep Prep.
+- **✅ Pendientes** — la hoja **Tareas** (única fuente): pestaña propia del líder con dropdowns de
+  Estado (`Pendiente / En curso / Bloqueada / Hecha`) y Prioridad. Se autopuebla con las acciones
+  DEL LÍDER extraídas de las notas de Meet (+ filas manuales); dedup por Id. Las `Hecha` se mueven
+  a diario a la pestaña **Archivo**. Paleta de chips en
+  [`../../html/morning-briefing-mockups.html`](../../html/morning-briefing-mockups.html).
+- **🚨 Urgente** — tareas bloqueadas + blockers envejecidos y silencios del brain (si está activo).
+- **💡 Foco sugerido** — 1-3 prioridades del día. Foco y narrativa de urgente salen de **UNA sola
+  llamada Flash** que respeta la instrucción personal del líder (`briefing.prompt`); lo factual lo
+  pinta el código (el LLM no inventa reuniones). Día despejado = correo corto honesto, se envía igual.
+
+Responder al correo para ajustar el de mañana quedó para una fase 2.
+
 ## Relación con la v0.5
 
 Este workflow reencarna el pipeline de la v0.5

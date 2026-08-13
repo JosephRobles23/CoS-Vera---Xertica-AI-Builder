@@ -36,6 +36,7 @@ function construirMenu(ui) {
     .addItem('Configurar', 'abrirSidebar')
     .addItem('Formularios', 'cosMenu1')
     .addItem('Compartir reportes', 'cosMenu2')
+    .addItem('Morning Briefing', 'cosMenu3')
     .addToUi();
 }
 
@@ -53,7 +54,9 @@ var DIALOGOS_ = {
   // Editor de preguntas + generación por IA (shared/DialogPreguntas.html).
   preguntas: { archivo: 'DialogPreguntas', titulo: 'CoS — Preguntas y formularios', ancho: 760, alto: 660 },
   // Matriz de compartir reportes: consolidado completo + destinatarios por persona.
-  compartir: { archivo: 'DialogCompartir', titulo: 'CoS — Compartir reportes', ancho: 640, alto: 580 }
+  compartir: { archivo: 'DialogCompartir', titulo: 'CoS — Compartir reportes', ancho: 640, alto: 580 },
+  // Morning Briefing: config con vista previa en vivo.
+  briefing: { archivo: 'DialogBriefing', titulo: 'CoS — Morning Briefing', ancho: 760, alto: 640 }
 };
 
 /**
@@ -85,6 +88,11 @@ var MENU_ACTIONS_ = {
   // 'Compartir reportes' → matriz de destinatarios (consolidado + por persona).
   cosMenu2: function (sheetId, config) {
     var d = buildDialog('compartir');
+    SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  },
+  // 'Morning Briefing' → config con vista previa.
+  cosMenu3: function (sheetId, config) {
+    var d = buildDialog('briefing');
     SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
   }
 };
@@ -140,7 +148,11 @@ var DISPATCH_ = {
   // Notas de Meet (import inicial + estado).
   iniciarImportNotas:      function (sid, cfg, a) { return iniciarImportNotas(sid, cfg, a[0]); },
   estadoImportNotas:       function (sid, cfg, a) { return estadoImportNotas(sid, cfg, a[0]); },
-  cancelarImportNotas:     function (sid, cfg) { return cancelarImportNotas(sid, cfg); }
+  cancelarImportNotas:     function (sid, cfg) { return cancelarImportNotas(sid, cfg); },
+  // Morning Briefing (modal con vista previa).
+  cargarBriefing:          function (sid, cfg) { return cargarBriefing(sid, cfg); },
+  guardarBriefing:         function (sid, cfg, a) { return guardarBriefing(sid, cfg, a[0]); },
+  enviarBriefingPrueba:    function (sid, cfg) { return enviarBriefingPrueba(sid, cfg); }
 };
 
 /**

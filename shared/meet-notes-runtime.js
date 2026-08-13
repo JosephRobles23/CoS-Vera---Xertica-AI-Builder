@@ -364,7 +364,7 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
 
   var raw = callGemini_(config.models.perRow, meetSystem_(),
-    meetUser_(titulo, fecha, roster, cargarExternosConocidos_(root), texto),
+    meetUser_(titulo, fecha, roster, cargarExternosConocidos_(root), texto, config.leader),
     { responseSchema: MEET_SCHEMA_ });
   var parsed = parseNotaMeet_(raw);
 
@@ -385,7 +385,7 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   });
 
   // 3) personas: roster por correo/nombre; externos con página `external: true` + alias.
-  var porPersona = agruparEventosPorPersona_(root, roster, parsed.eventos);
+  var porPersona = agruparEventosPorPersona_(root, roster, parsed.eventos, config.leader);
   Object.keys(porPersona).forEach(function (key) {
     var g = porPersona[key];
     var proys = [];
@@ -394,6 +394,26 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
     });
     regenerarPaginaPersona_(root, g.meta, g.eventos, source, fecha, proys);
   });
+
+  // 3b) Tareas del líder: sus acciones aterrizan en la hoja Tareas (fuente del Morning Briefing).
+  var liderCorreo = String((config.leader && config.leader.email) || '').toLowerCase();
+  if (liderCorreo) {
+    parsed.eventos.forEach(function (ev) {
+      if (ev.tipo !== 'accion') return;
+      var evCorreo = String(ev.correo || '').trim().toLowerCase();
+      var esDelLider = evCorreo === liderCorreo ||
+        (ev.persona && config.leader.name && normTitulo_(ev.persona) === normTitulo_(config.leader.name));
+      if (!esDelLider) return;
+      try {
+        agregarTarea_(sheetId, config, {
+          texto: ev.texto, proyecto: ev._proyectoName || '',
+          origen: '🎥 ' + titulo + ' · ' + fecha
+        });
+      } catch (e) {
+        if (typeof Logger !== 'undefined') Logger.log('meet: no se pudo crear la tarea (%s).', e);
+      }
+    });
+  }
 
   // 4) acta en wiki/meetings/ (merge con la del Deep Prep si comparten eventId).
   actaNotaMeet_(root, cand, parsed, titulo, fecha, source);
@@ -424,8 +444,13 @@ function meetSystem_() {
   ].join('\n');
 }
 
-function meetUser_(titulo, fecha, roster, externos, texto) {
+function meetUser_(titulo, fecha, roster, externos, texto, leader) {
   var lineasEquipo = roster.map(function (pp) { return '- ' + (pp.nombre || pp.correo) + ' <' + pp.correo + '>'; });
+  // El líder no está en el roster: se lista aparte para que sus acciones mapeen a su correo
+  // (aterrizan en la hoja Tareas, la fuente del Morning Briefing).
+  if (leader && leader.email) {
+    lineasEquipo.unshift('- ' + (leader.name || 'Líder') + ' <' + leader.email + '> (el líder)');
+  }
   return 'REUNIÓN: ' + titulo + ' (' + fecha + ')\n\n' +
     'EQUIPO (roster del líder):\n' + (lineasEquipo.join('\n') || '- (vacío)') + '\n\n' +
     'EXTERNOS CONOCIDOS:\n' + (externos.length ? externos.map(function (n) { return '- ' + n; }).join('\n') : '- (ninguno)') + '\n\n' +
@@ -447,18 +472,26 @@ function parseNotaMeet_(text) {
   }
 }
 
-/** Agrupa eventos por persona resuelta: roster (correo o nombre) → interna; si no → externa. */
-function agruparEventosPorPersona_(root, roster, eventos) {
+/**
+ * Agrupa eventos por persona resuelta: roster (correo o nombre) → interna; si no → externa.
+ * Los eventos del PROPIO líder no crean página (van a su hoja Tareas y al acta).
+ */
+function agruparEventosPorPersona_(root, roster, eventos, leader) {
   var porCorreo = {}, porNombre = {};
   roster.forEach(function (pp) {
     porCorreo[pp.correo.toLowerCase()] = pp;
     if (pp.nombre) porNombre[normTitulo_(pp.nombre)] = pp;
   });
+  var liderCorreo = String((leader && leader.email) || '').toLowerCase();
+  var liderNombre = normTitulo_((leader && leader.name) || '');
 
   var grupos = {};
   eventos.forEach(function (ev) {
     var meta = null;
     var correo = String(ev.correo || '').trim().toLowerCase();
+    if (liderCorreo && (correo === liderCorreo || (ev.persona && normTitulo_(ev.persona) === liderNombre && liderNombre))) {
+      return;   // el líder no lleva página de persona
+    }
     if (correo && porCorreo[correo]) {
       meta = { nombre: porCorreo[correo].nombre || correo, correo: correo };
     } else if (ev.persona && porNombre[normTitulo_(ev.persona)]) {

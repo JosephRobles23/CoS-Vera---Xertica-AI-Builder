@@ -49,6 +49,12 @@ var AJUSTES_DEFAULTS_ = {
   'meet.import.ok': '0',
   'meet.import.sinAcceso': '0',
   'meet.import.errores': '0',
+  // --- Morning Briefing (resumen diario por correo; modal propio) ---
+  'briefing.enabled': 'false',
+  'briefing.hora': '07:30',
+  'briefing.dias': '1,2,3,4,5',      // días ISO (1=lun … 7=dom) en que se envía
+  'briefing.secciones': '',          // JSON [{id,on}] ordenado; '' → BRIEFING_SECCIONES_DEFAULT_
+  'briefing.prompt': '',             // instrucción personal del líder (tono, idioma, reglas)
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -190,6 +196,24 @@ function parseJsonArray_(v) {
   try { var a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch (e) { return []; }
 }
 
+/** Lista de enteros separada por comas ('1,2,3'); vacío/ inválido → def. */
+function listaEnteros_(v, def) {
+  var out = str_(v).split(',').map(function (s) { return parseInt(s.trim(), 10); })
+    .filter(function (n) { return !isNaN(n); });
+  return out.length ? out : def.slice();
+}
+
+/** Secciones del Morning Briefing: orden + on/off por sección. */
+var BRIEFING_SECCIONES_DEFAULT_ = [
+  { id: 'dia', on: true }, { id: 'pendientes', on: true },
+  { id: 'urgente', on: true }, { id: 'foco', on: true }
+];
+
+function seccionesBriefing_(v) {
+  var a = parseJsonArray_(v).filter(function (s) { return s && s.id; });
+  return a.length ? a : BRIEFING_SECCIONES_DEFAULT_.map(function (s) { return { id: s.id, on: s.on }; });
+}
+
 /**
  * Normaliza un valor de hora a "HH:mm". Tolera:
  *  - string "22:05" / "6:00:00 p. m." → toHHMM_
@@ -267,6 +291,13 @@ function getAjustes_(sheetId, settingsSheetName) {
     consolidado: {
       cc: listaCorreos_(flat['consolidado.cc'])
     },
+    briefing: {
+      enabled:   bool_(flat['briefing.enabled']),
+      hora:      normHora_(flat['briefing.hora'], ss) || '07:30',
+      dias:      listaEnteros_(flat['briefing.dias'], [1, 2, 3, 4, 5]),
+      secciones: seccionesBriefing_(flat['briefing.secciones']),
+      prompt:    str_(flat['briefing.prompt'])
+    },
     meet: {
       enabled:      bool_(flat['meet.enabled']),
       lookbackDays: int_(flat['meet.lookbackDays'], 30),
@@ -312,7 +343,8 @@ function construirConfig(sheetId, staticConfig) {
     brain: aj.brain,          // feature flag + carpeta del second brain
     deepPrep: aj.deepPrep,    // feature flag + selección/timing del Deep Prep
     consolidado: aj.consolidado,  // cc del consolidado completo (compartir reportes)
-    meet: aj.meet             // feature flag + import inicial de Notas de Gemini
+    meet: aj.meet,            // feature flag + import inicial de Notas de Gemini
+    briefing: aj.briefing     // Morning Briefing (flag, hora, días, secciones, prompt personal)
   };
 }
 

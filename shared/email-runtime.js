@@ -341,6 +341,42 @@ function renderReporteCompartidoHtml_(tipo, persona, fecha, texto, leaderName, e
   return emailShell_('Reporte ' + etiqueta + ' de ' + quien, fechaLegible_(fecha), contenido);
 }
 
+/**
+ * Morning Briefing: secciones en el orden configurado. Lo factual (agenda/tareas) viene ya
+ * estructurado; `ia` trae el foco y la narrativa de urgente del LLM.
+ */
+function renderBriefingHtml_(fecha, secciones, datos, ia) {
+  var contenido = '';
+  secciones.forEach(function (s) {
+    if (s.id === 'dia') {
+      var lineas = datos.reuniones.map(function (r) {
+        return { texto: r.hora + ' · ' + r.titulo + ' (' + r.asistentes + ')' + (r.prep ? ' — tienes Deep Prep' : ''), esVineta: true };
+      });
+      if (!lineas.length) lineas = [{ texto: 'Sin reuniones: día despejado.', esVineta: false }];
+      contenido += tarjetaHtml_('📅 Tu día · ' + datos.reuniones.length + ' reunión(es)', cuerpoSeccionHtml_(lineas));
+    } else if (s.id === 'pendientes') {
+      var tl = datos.tareas.map(function (t) {
+        var marca = t.atrasada ? ' [ATRASADA]' : (t.hoy ? ' [hoy]' : '');
+        return { texto: t.texto + marca + (t.proyecto ? ' · ' + t.proyecto : ''), esVineta: true };
+      });
+      if (!tl.length) tl = [{ texto: 'Nada pendiente — la hoja Tareas está limpia.', esVineta: false }];
+      contenido += tarjetaHtml_('✅ Pendientes · ' + datos.tareas.length, cuerpoSeccionHtml_(tl));
+    } else if (s.id === 'urgente') {
+      if (ia.urgente) {
+        contenido += tarjetaHtml_('🚨 Urgente', cuerpoSeccionHtml_([{ texto: ia.urgente, esVineta: false }]));
+      } else if (datos.urgentes.length) {
+        contenido += tarjetaHtml_('🚨 Urgente', cuerpoSeccionHtml_(datos.urgentes.map(function (u) {
+          return { texto: u, esVineta: true };
+        })));
+      }
+    } else if (s.id === 'foco' && ia.foco) {
+      contenido += tarjetaHtml_('💡 Foco sugerido', cuerpoSeccionHtml_([{ texto: ia.foco, esVineta: false }]));
+    }
+  });
+  if (!contenido) contenido = parrafoHtml_('Día despejado: sin reuniones ni pendientes. Aprovéchalo.');
+  return emailShell_('☀️ Tu día', fechaLegible_(fecha), contenido);
+}
+
 // --- PDF de impresión (Deep Prep) ------------------------------------------------------
 //
 // El adjunto del Deep Prep NO reusa emailShell_ (pensado para clientes de correo, wordmark

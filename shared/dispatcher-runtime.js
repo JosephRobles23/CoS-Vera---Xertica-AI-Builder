@@ -78,6 +78,15 @@ function runDispatcher(sheetId, config, nowOverride) {
     catch (e) { if (typeof Logger !== 'undefined') Logger.log('compartir: pasada weekly falló (%s).', e); }
   }
 
+  // --- 2c) Morning Briefing: a la hora/días del líder (hora, día y anti-dup viven adentro) ---
+  if (config.briefing && config.briefing.enabled) {
+    try {
+      runBriefingPass_(sheetId, config, now);
+    } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('briefing: pasada falló (%s).', e);
+    }
+  }
+
   // --- 3) Scan de silencios (brain): 1×/día, deja señales estructuradas para notificar() (futuro) ---
   // Suspendido mientras corre el backfill (wiki a medio construir = falsos estancados); como NO se
   // marca la guarda, el scan corre normal en la primera pasada tras terminar el job.

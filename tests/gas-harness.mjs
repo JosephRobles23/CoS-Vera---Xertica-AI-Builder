@@ -39,6 +39,8 @@ const RUNTIME_FILES = [
   'deepprep-runtime.js',
   'sharing-runtime.js',
   'meet-notes-runtime.js',
+  'tasks-runtime.js',
+  'briefing-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -120,7 +122,16 @@ function makeSheet(name, data) {
     getSheetId: () => id,
     getLastRow: () => numRows(),
     getLastColumn: () => numCols(),
-    getRange: (row, col, nr = 1, nc = 1) => makeRange(data, row, col, nr, nc),
+    getRange: (row, col, nr = 1, nc = 1) => {
+      const r = makeRange(data, row, col, nr, nc);
+      // Validación de datos (dropdowns): se registra en la hoja para poder testearla.
+      r.setDataValidation = (rule) => {
+        sheet._validations.push({ row, col, nr, nc, rule });
+        return r;
+      };
+      return r;
+    },
+    _validations: [],
     getDataRange: () => makeRange(data, 1, 1, Math.max(numRows(), 1), Math.max(numCols(), 1)),
     clearContents: () => { data.length = 0; return sheet; },
     clear: () => { data.length = 0; return sheet; },
@@ -316,6 +327,16 @@ export function makeHarness(opts = {}) {
         return byId[id];
       },
       flush: () => {},
+      // Builder de validación de datos (dropdowns de la hoja Tareas).
+      newDataValidation: () => {
+        const rule = { _list: null, _allowInvalid: true };
+        const builder = {
+          requireValueInList: (list) => { rule._list = list.slice(); return builder; },
+          setAllowInvalid: (v) => { rule._allowInvalid = !!v; return builder; },
+          build: () => rule
+        };
+        return builder;
+      },
       // getUi(): registra los diálogos/sidebars mostrados para poder afirmar en tests que
       // MENU_ACTIONS_.cosMenu1 abre el modal de preguntas (showModalDialog desde la librería).
       getUi: () => ({

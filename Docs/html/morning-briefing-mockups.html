@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Morning Briefing — Maquetas</title>
+<style>
+  /* ---- Design tokens del sidebar CoS (shadcn / Neutral, OKLCH) ---- */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0); --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+    --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    --stage: oklch(0.97 0 0); --warn: oklch(0.68 0.16 60); --ok: oklch(0.55 0.15 155);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
+      --card: oklch(0.205 0 0); --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
+      --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
+      --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
+      --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
+      --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
+      --destructive: oklch(0.704 0.191 22.216);
+      --border: oklch(1 0 0 / 0.1); --input: oklch(1 0 0 / 0.15); --ring: oklch(0.556 0 0);
+      --stage: oklch(0.18 0 0);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--stage); }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+    font-size: 13px; line-height: 1.5; padding: 28px 20px 60px; -webkit-font-smoothing: antialiased;
+  }
+  svg { width: 15px; height: 15px; }
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .page-header .logo {
+    width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--primary);
+    color: var(--primary-foreground); display: grid; place-items: center;
+  }
+  .page-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
+  .page-header p { font-size: 12px; color: var(--muted-foreground); }
+  .intro { max-width: 760px; color: var(--muted-foreground); font-size: 12.5px; margin: 8px 0 26px; }
+  .intro b { color: var(--foreground); }
+
+  .fase { margin: 34px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+  .fase h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .fase span { font-size: 11px; color: var(--muted-foreground); }
+
+  .idea { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; margin: 18px 0 30px; }
+  .frame {
+    background: var(--background); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-md); padding: 16px; position: relative; flex: 0 0 auto;
+  }
+  .frame-tag {
+    position: absolute; top: -9px; left: 14px; font-size: 10px; font-weight: 600; letter-spacing: .02em;
+    background: var(--primary); color: var(--primary-foreground); border-radius: 999px; padding: 2px 9px;
+  }
+  .frame-tag.reco { background: var(--ok); color: #fff; }
+  .notes { flex: 1 1 280px; min-width: 250px; padding-top: 4px; }
+  .notes h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .notes ul { margin: 0 0 10px 16px; padding: 0; font-size: 12px; color: var(--muted-foreground); }
+  .notes li { margin: 3px 0; }
+  .notes li b { color: var(--foreground); font-weight: 600; }
+
+  /* ---- Componentes CoS ---- */
+  h3 { font-size: 12px; font-weight: 600; margin: 12px 0 8px; letter-spacing: -0.01em; }
+  label { display: block; font-size: 11px; font-weight: 500; color: var(--muted-foreground); margin: 8px 0 4px; }
+  .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+  input[type="text"] {
+    width: 100%; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--foreground);
+    background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm); outline: none;
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0;
+    border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 500;
+    padding: 7px 12px;
+  }
+  .btn svg { width: 13px; height: 13px; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--muted-foreground); }
+  .chk { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 12.5px; margin: 6px 0; }
+  .chk input { width: auto; margin: 0; }
+  .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 10px 12px; margin: 8px 0; }
+  .modal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .modal-h b { font-size: 14px; letter-spacing: -0.01em; }
+  .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); }
+
+  /* Chips de días + toggles de sección (modal) */
+  .dias { display: flex; gap: 4px; }
+  .dia {
+    width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid var(--border);
+    border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--muted-foreground); cursor: pointer;
+  }
+  .dia.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .secc {
+    display: flex; align-items: center; gap: 8px; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 10px; margin: 6px 0; background: var(--card);
+  }
+  .secc .grip { color: var(--muted-foreground); cursor: grab; font-size: 13px; letter-spacing: -1px; }
+  .secc .txt { flex: 1; min-width: 0; }
+  .secc .txt b { display: block; font-size: 12px; }
+  .secc .txt small { color: var(--muted-foreground); font-size: 10.5px; }
+  .sw { width: 30px; height: 17px; border-radius: 999px; background: var(--muted); position: relative; flex: 0 0 auto; }
+  .sw.on { background: var(--ok); }
+  .sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: var(--shadow); }
+  .sw.on::after { left: 15px; }
+
+  /* Time picker trigger (patrón del sidebar) */
+  .tp-trigger {
+    width: 100%; display: flex; align-items: center; gap: 6px; padding: 7px 9px;
+    border: 1px solid var(--input); border-radius: var(--radius-sm); background: var(--background);
+    color: var(--foreground); font-size: 12.5px;
+  }
+  .tp-trigger .tp-val { flex: 1; text-align: left; }
+  .tp-trigger svg { width: 13px; height: 13px; color: var(--muted-foreground); }
+
+  /* ---- Preview del correo ---- */
+  .mail { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--background); }
+  .mail-band { height: 4px; background: var(--primary); }
+  .mail-head { background: var(--muted); padding: 9px 12px; font-size: 11px; }
+  .mail-head b { display: block; font-size: 12px; }
+  .mail-head span { color: var(--muted-foreground); }
+  .mail-body { padding: 12px; }
+  .mail-body h5 { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-foreground); margin: 10px 0 5px; }
+  .mail-body h5:first-child { margin-top: 0; }
+  .mail-body ul { margin: 0 0 4px 16px; padding: 0; font-size: 11.5px; }
+  .mail-body li { margin: 2px 0; }
+  .mail-urgente { border-left: 3px solid var(--destructive); background: var(--muted); border-radius: 6px; padding: 7px 10px; font-size: 11.5px; margin: 4px 0; }
+  .mail-foot { border-top: 1px solid var(--border); padding: 7px 12px; font-size: 10px; color: var(--muted-foreground); }
+
+  /* ---- Hoja "Tareas" (look Google Sheets con la paleta del CoS) ---- */
+  .sheet { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .sheet table { border-collapse: collapse; width: 100%; font-size: 11.5px; background: #fff; color: #202124; }
+  .sheet th {
+    background: #202124; color: #fff; font-weight: 600; text-align: left; padding: 7px 10px;
+    font-size: 11px; border-right: 1px solid #3c4043; white-space: nowrap;
+  }
+  .sheet td { padding: 6px 10px; border-top: 1px solid #e8eaed; border-right: 1px solid #f1f3f4; vertical-align: middle; }
+  .sheet tr:nth-child(even) td { background: #f4f5f7; }
+  .sheet .tarea { min-width: 220px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600;
+    border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+  }
+  .pill::after { content: '▾'; font-size: 8px; opacity: .6; }
+  .p-pend { background: #FEF3C7; color: #92400E; }
+  .p-curso { background: #DBEAFE; color: #1E40AF; }
+  .p-bloq { background: #FEE2E2; color: #991B1B; }
+  .p-hecho { background: #DCFCE7; color: #166534; }
+  .p-hoy { background: #EDE9FE; color: #5B21B6; }
+  .origen { font-size: 10px; color: #5f6368; }
+  .paleta { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 8px; }
+  .paleta th, .paleta td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+  .paleta th { background: var(--muted); font-size: 11px; }
+  .sw-color { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; border: 1px solid rgba(0,0,0,.15); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg></div>
+    <div>
+      <h1>Morning Briefing — maquetas</h1>
+      <p>Resumen diario por correo (calendario + pendientes + urgente del brain) · modal de configuración · hoja "Tareas"</p>
+    </div>
+  </div>
+  <p class="intro">
+    Feature flag <b>briefing.enabled</b>: cada mañana, a la hora que el líder configure, el dispatcher
+    arma un correo con <b>su calendario de hoy</b> (Calendar), <b>sus tareas pendientes</b> (nueva hoja
+    "Tareas" + sección Pendientes del wiki) y <b>lo urgente del contexto</b> (blockers envejecidos,
+    silencios y riesgos que el brain ya detecta). Tres piezas maquetadas abajo con el branding real.
+  </p>
+
+  <!-- ============================== MODAL · IDEA A ============================== -->
+  <div class="fase"><h2>Modal · Idea A — Configurar con vista previa en vivo</h2><span>recomendada</span></div>
+  <div class="idea">
+    <div class="frame" style="width:680px">
+      <span class="frame-tag reco">RECOMENDADA · DIALOG 760px</span>
+      <div class="modal-h">
+        <b>Morning Briefing</b>
+        <span class="badge">se envía L-V a las 7:30</span>
+      </div>
+      <div style="display:flex; gap:16px; align-items:flex-start">
+        <!-- Columna config -->
+        <div style="flex:0 0 300px">
+          <label class="chk"><input type="checkbox" checked> Activar Morning Briefing</label>
+
+          <label>Hora de envío</label>
+          <div class="tp-trigger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span class="tp-val">07:30</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+
+          <label>Días</label>
+          <div class="dias">
+            <span class="dia on">L</span><span class="dia on">M</span><span class="dia on">X</span>
+            <span class="dia on">J</span><span class="dia on">V</span><span class="dia">S</span><span class="dia">D</span>
+          </div>
+
+          <label>Secciones (arrastra para ordenar)</label>
+          <div class="secc"><span class="grip">⠿</span><div class="txt"><b>📅 Tu día</b><small>Reuniones de hoy con horas y asistentes</small></div><span class="sw on"></span></div>
+          <div class="secc"><span class="grip">⠿</span><div class="txt"><b>✅ Pendientes</b><small>Hoja Tareas + Pendientes del wiki (vencen hoy o atrasadas)</small></div><span class="sw on"></span></div>
+          <div class="secc"><span class="grip">⠿</span><div class="txt"><b>🚨 Urgente</b><small>Blockers &gt; N días, silencios y riesgos del brain</small></div><span class="sw on"></span></div>
+          <div class="secc"><span class="grip">⠿</span><div class="txt"><b>💡 Foco sugerido</b><small>El LLM propone 1-3 prioridades del día</small></div><span class="sw"></span></div>
+
+          <label>Instrucción personal (opcional)</label>
+          <input type="text" placeholder="p.ej. Sé directo, máximo 10 líneas, en inglés…">
+          <p class="hint">Se suma al prompt del briefing — tu tono, tu idioma, tus reglas.</p>
+        </div>
+        <!-- Columna preview -->
+        <div style="flex:1; min-width:0">
+          <label style="margin-top:0">Vista previa (con tus datos de hoy)</label>
+          <div class="mail">
+            <div class="mail-band"></div>
+            <div class="mail-head"><b>☀️ Tu día — jueves 13 de agosto</b><span>Vera · Chief of Staff → tú · 07:30</span></div>
+            <div class="mail-body">
+              <h5>📅 Tu día · 3 reuniones</h5>
+              <ul>
+                <li><b>09:00</b> Transformacion Team – Daily (5)</li>
+                <li><b>11:30</b> Revisión Alpha — legal (3) · <i>tienes Deep Prep</i></li>
+                <li><b>16:00</b> 1:1 con María</li>
+              </ul>
+              <h5>✅ Pendientes · 2 para hoy, 1 atrasada</h5>
+              <ul>
+                <li>Validar Classroom con Carol <span class="badge">hoy</span></li>
+                <li>Aprobar presupuesto Q4 <span class="badge">hoy</span></li>
+                <li>Feedback del piloto AAP <span class="badge" style="background:#FEE2E2;color:#991B1B">-2 días</span></li>
+              </ul>
+              <h5>🚨 Urgente</h5>
+              <div class="mail-urgente">El blocker <b>legal de Alpha</b> cumple 21 días · María lleva 9 días sin reportar.</div>
+            </div>
+            <div class="mail-foot">Generado por tu CoS a las 07:30 · responde a este correo con cambios para mañana</div>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn btn-ghost">✉ Enviarme uno de prueba</button>
+            <button class="btn btn-outline">Cancelar</button>
+            <button class="btn btn-primary">💾 Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h4>Por qué esta</h4>
+      <ul>
+        <li><b>Config y resultado en la misma pantalla</b>: cada toggle/orden se refleja en la vista previa al instante (se arma en el cliente con datos reales vía <code>cosRun</code> — sin gastar Gemini hasta guardar).</li>
+        <li><b>Secciones como bloques ordenables</b> con switch: la personalización que pediste sin formularios largos. "Foco sugerido" apagado por defecto (es el único que cuesta una llamada LLM extra).</li>
+        <li><b>Instrucción personal</b> = una clave más de Ajustes (<code>briefing.prompt</code>) que se inyecta al prompt — mismo patrón de los prompts editables.</li>
+        <li><b>"Enviarme uno de prueba"</b> elimina la ansiedad del "¿cómo se verá?" — patrón <code>testConsolidado*</code> pero desde la UI.</li>
+        <li>Persistencia: claves <code>briefing.*</code> en Ajustes (enabled, hora, días, secciones+orden JSON, prompt). Envío por el dispatcher con guarda anti-dup por fecha, como todo.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== MODAL · IDEA B ============================== -->
+  <div class="fase"><h2>Modal · Idea B — Compacto (sin preview)</h2><span>alternativa minimalista</span></div>
+  <div class="idea">
+    <div class="frame" style="width:340px">
+      <span class="frame-tag">DIALOG 420px</span>
+      <div class="modal-h"><b>Morning Briefing</b></div>
+      <label class="chk"><input type="checkbox" checked> Activar</label>
+      <div style="display:flex; gap:10px">
+        <div style="flex:1"><label>Hora</label>
+          <div class="tp-trigger"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span class="tp-val">07:30</span></div>
+        </div>
+        <div style="flex:1"><label>Días</label>
+          <div class="tp-trigger"><span class="tp-val">Lun – Vie</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+        </div>
+      </div>
+      <label>Incluir</label>
+      <label class="chk"><input type="checkbox" checked> 📅 Calendario de hoy</label>
+      <label class="chk"><input type="checkbox" checked> ✅ Pendientes</label>
+      <label class="chk"><input type="checkbox" checked> 🚨 Urgente (brain)</label>
+      <label class="chk"><input type="checkbox"> 💡 Foco sugerido (IA)</label>
+      <div class="actions">
+        <button class="btn btn-outline">Cancelar</button>
+        <button class="btn btn-primary">💾 Guardar</button>
+      </div>
+    </div>
+    <div class="notes">
+      <h4>Cuándo elegirla</h4>
+      <ul>
+        <li>Mínimo esfuerzo de implementación: checkboxes y dos pickers, cero preview ni drag-order.</li>
+        <li>El costo: el líder configura "a ciegas" y el orden de secciones queda fijo. Para un C-level que va a leer esto <b>todos los días</b>, la Idea A paga su preview con creces.</li>
+        <li>Camino híbrido válido: arrancar con B y evolucionar a A (misma persistencia <code>briefing.*</code>).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== HOJA TAREAS ============================== -->
+  <div class="fase"><h2>Hoja "Tareas" — pendientes con estado por dropdown</h2><span>pestaña nueva del Sheet, estilo de las pestañas del CoS</span></div>
+  <div class="idea">
+    <div class="frame" style="width:720px">
+      <span class="frame-tag">GOOGLE SHEET · pestaña "Tareas"</span>
+      <div class="sheet">
+        <table>
+          <tr>
+            <th class="tarea">Tarea</th><th>Proyecto</th><th>Vence</th><th>Prioridad</th><th>Estado</th><th>Origen</th>
+          </tr>
+          <tr>
+            <td class="tarea">Validar Classroom con Carol</td><td>Classroom</td><td>2026-08-13</td>
+            <td><span class="pill p-hoy">Alta</span></td><td><span class="pill p-curso">En curso</span></td>
+            <td class="origen">🎥 Notas de Meet · 10-ago</td>
+          </tr>
+          <tr>
+            <td class="tarea">Aprobar presupuesto Q4</td><td>Finanzas</td><td>2026-08-13</td>
+            <td><span class="pill p-hoy">Alta</span></td><td><span class="pill p-pend">Pendiente</span></td>
+            <td class="origen">✍️ Manual</td>
+          </tr>
+          <tr>
+            <td class="tarea">Feedback del piloto AAP</td><td>AAP</td><td>2026-08-11</td>
+            <td><span class="pill p-pend">Media</span></td><td><span class="pill p-bloq">Bloqueada</span></td>
+            <td class="origen">🎥 Notas de Meet · 31-jul</td>
+          </tr>
+          <tr>
+            <td class="tarea">Definir responsables de carga por capa</td><td>Classroom</td><td>—</td>
+            <td><span class="pill p-pend">Media</span></td><td><span class="pill p-pend">Pendiente</span></td>
+            <td class="origen">📝 Daily de Julio · 12-ago</td>
+          </tr>
+          <tr>
+            <td class="tarea">Enviar acta del comité</td><td>—</td><td>2026-08-12</td>
+            <td><span class="pill p-pend">Baja</span></td><td><span class="pill p-hecho">Hecha</span></td>
+            <td class="origen">✍️ Manual</td>
+          </tr>
+        </table>
+      </div>
+      <p class="hint">Encabezado #202124 + zebra #f4f5f7 — el mismo <code>estilizarTabla_</code> de las pestañas actuales. "Estado" y "Prioridad" son
+      <b>dropdowns nativos con chips de color</b> (validación de datos de Sheets, opción "Mostrar como chip"), así el líder cambia el estado con dos clics sin salir del Sheet.</p>
+
+      <table class="paleta">
+        <tr><th>Estado (dropdown)</th><th>Fondo</th><th>Texto</th><th>Semántica</th></tr>
+        <tr><td><span class="pill p-pend">Pendiente</span></td><td><span class="sw-color" style="background:#FEF3C7"></span>#FEF3C7</td><td>#92400E</td><td>Aún sin empezar — aparece en el briefing si vence hoy o está atrasada</td></tr>
+        <tr><td><span class="pill p-curso">En curso</span></td><td><span class="sw-color" style="background:#DBEAFE"></span>#DBEAFE</td><td>#1E40AF</td><td>Trabajándose — aparece en el briefing</td></tr>
+        <tr><td><span class="pill p-bloq">Bloqueada</span></td><td><span class="sw-color" style="background:#FEE2E2"></span>#FEE2E2</td><td>#991B1B</td><td>Sube a la sección 🚨 Urgente del briefing y alimenta open_blockers del wiki</td></tr>
+        <tr><td><span class="pill p-hecho">Hecha</span></td><td><span class="sw-color" style="background:#DCFCE7"></span>#DCFCE7</td><td>#166534</td><td>Sale del briefing; a los N días se archiva (fila al final o pestaña Archivo)</td></tr>
+      </table>
+    </div>
+
+    <div class="notes">
+      <h4>Mecánica de la hoja</h4>
+      <ul>
+        <li><b>Se autopuebla</b>: cada evento <code>accion</code> (notas de Meet y dailies) crea una fila con Origen trazable — y el líder agrega filas a mano cuando quiera. Anti-dup por texto+origen.</li>
+        <li><b>Dos direcciones</b>: la hoja alimenta el briefing, y marcar "Hecha" actualiza la sección Pendientes del wiki en la siguiente pasada (la hoja es la superficie editable; el wiki, la memoria).</li>
+        <li><b>Prioridad</b> también como chip (Alta #EDE9FE/#5B21B6 · Media ámbar · Baja gris) — misma familia de colores del estado, sin arcoíris.</li>
+        <li>Columnas de contrato: <code>Tarea · Proyecto · Vence · Prioridad · Estado · Origen</code> (+ <code>id</code> oculta para el match wiki↔hoja).</li>
+        <li>El dropdown se crea por código (<code>newDataValidation().requireValueInList</code> + formato condicional con la paleta) al generar la pestaña — cero setup manual del líder.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== FLUJO ============================== -->
+  <div class="fase"><h2>Cómo se conecta todo</h2><span>mecánica propuesta (para el grill de alcance)</span></div>
+  <div class="idea">
+    <div class="frame" style="flex:1; min-width:300px">
+      <span class="frame-tag">FLUJO DIARIO</span>
+      <div class="card" style="margin-top:6px">
+        <b style="font-size:12px">07:30 — dispatcher (guarda anti-dup por fecha)</b>
+        <p class="hint" style="margin-top:4px">
+          1. Calendar: eventos de hoy (hora, título, nº asistentes, ¿tiene Deep Prep?).<br>
+          2. Hoja Tareas: estado ≠ Hecha, vence hoy o atrasada (+ Bloqueadas → Urgente).<br>
+          3. Brain: blockers &gt; N días, silencios marcados, riesgos recientes del wiki.<br>
+          4. Un solo call a Gemini (Flash) redacta el briefing con la instrucción personal del líder →
+          correo con el shell de marca. Sin datos, correo corto honesto ("día despejado").
+        </p>
+      </div>
+      <div class="card">
+        <b style="font-size:12px">Acceso a la config</b>
+        <p class="hint" style="margin-top:4px">Menú CoS → "Morning Briefing" (slot cosMenu3) + botón en el sidebar
+        (¿tab Horarios, junto a las demás horas de envío?). Claves <code>briefing.*</code> en Ajustes — editables también a mano.</p>
+      </div>
+    </div>
+    <div class="notes">
+      <h4>Decisiones abiertas (para grillar antes de implementar)</h4>
+      <ul>
+        <li>¿La hoja Tareas es solo del líder o también de su equipo (una columna "Dueño")?</li>
+        <li>¿"Foco sugerido" (segunda llamada LLM) vale su costo por defecto?</li>
+        <li>¿El briefing responde a replies ("responde con cambios para mañana") o eso es fase 2?</li>
+        <li>¿Archivar Hechas: mover a pestaña "Archivo" o solo filtrar?</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:26px">
+    Maqueta estática · Docs/html/morning-briefing-mockups.html · tokens y componentes de shared/Sidebar.html
+    (modo oscuro del sistema soportado; la hoja Sheets se muestra siempre clara, como en Google Sheets).
+  </p>
+</div>
+</body>
+</html>
