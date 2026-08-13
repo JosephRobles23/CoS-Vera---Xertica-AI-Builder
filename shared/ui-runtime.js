@@ -32,14 +32,13 @@
  * @param {Ui} ui  SpreadsheetApp.getUi(), pasado por el stub
  */
 // El menú nativo de Sheets solo admite TEXTO en los ítems (sin HTML/SVG/imágenes): los "íconos"
-// van como emoji y el badge de novedad como 🆕. Quitar el 🆕 en una versión futura, cuando la
-// feature deje de ser nueva (es solo el caption: cambia por versión de librería, sin tocar stubs).
+// van como emoji.
 function construirMenu(ui) {
   ui.createMenu('CoS')
     .addItem('⚙️ Configurar', 'abrirSidebar')
     .addItem('📝 Formularios', 'cosMenu1')
-    .addItem('📤 Compartir reportes 🆕', 'cosMenu2')
-    .addItem('☀️ Morning Briefing 🆕', 'cosMenu3')
+    .addItem('📤 Compartir reportes', 'cosMenu2')
+    .addItem('☀️ Morning Briefing', 'cosMenu3')
     .addToUi();
 }
 

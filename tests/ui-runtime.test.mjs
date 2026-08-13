@@ -30,7 +30,7 @@ test('construirMenu arma el menú CoS con handlers del stub por nombre', () => {
   const items = ui._items.filter((i) => i.kind === 'item');
   assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar', 'cosMenu1', 'cosMenu2', 'cosMenu3']);
   assert.deepEqual(items.map((i) => i.caption),
-    ['⚙️ Configurar', '📝 Formularios', '📤 Compartir reportes 🆕', '☀️ Morning Briefing 🆕']);
+    ['⚙️ Configurar', '📝 Formularios', '📤 Compartir reportes', '☀️ Morning Briefing']);
 });
 
 test('buildSidebar carga el HTML de la librería con título', () => {
