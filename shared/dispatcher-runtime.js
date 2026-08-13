@@ -122,6 +122,16 @@ function runDispatcher(sheetId, config, nowOverride) {
       if (typeof Logger !== 'undefined') Logger.log('backfill: pasada falló (%s).', e);
     }
   }
+
+  // --- 6) Notas de Meet (brain): 1×/hora en régimen; cada pasada durante el import inicial.
+  // Comparte el MISMO deadline absoluto que el backfill: entre ambos no exceden el presupuesto.
+  if (config.meet && config.meet.enabled && config.brain && config.brain.enabled) {
+    try {
+      runMeetPass_(sheetId, config, now, inicioMs + BACKFILL_PRESUPUESTO_MS_);
+    } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('meet: pasada falló (%s).', e);
+    }
+  }
 }
 
 // --- Change detection: scan determinista de entidades estancadas (Fase 2) ---
@@ -150,6 +160,7 @@ function scanSilencios_(sheetId, config, now) {
     listarArchivosBrain_(carpeta, '.md').forEach(function (archivo) {
       var pagina = parsearPagina_(archivo.content);
       var fm = pagina.frontmatter || {};
+      if (String(fm.external) === 'true') return;        // externos (Meet) no reportan: sin silencio
       var lu = str_(fm.last_updated);
       if (!lu) return;                                   // sin fecha no hay nada que comparar
       var dias = diasEntreISO_(lu, hoy);

@@ -61,7 +61,8 @@ function limpiarItems_(form) {
  */
 /** Aviso de transparencia que se añade a la descripción del Form cuando el brain está activo. */
 var BRAIN_FORM_AVISO_ = 'Nota de transparencia: tus respuestas alimentan una memoria asistida por ' +
-  'IA (el "second brain" del equipo) que ayuda a tu líder a preparar resúmenes y reuniones.';
+  'IA (el "second brain" del equipo) que las cruza con notas de reuniones (Meet) para ayudar a tu ' +
+  'líder a preparar resúmenes y reuniones.';
 
 /** Devuelve la descripción con el aviso del brain anexado (idempotente). Sin brain, la deja igual. */
 function descripcionConAviso_(descripcion, config) {

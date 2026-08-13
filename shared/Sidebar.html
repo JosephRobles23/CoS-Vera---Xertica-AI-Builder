@@ -179,7 +179,7 @@
     <button data-tab="prompts" class="active"><i data-lucide="sparkles"></i>Prompts</button>
     <button data-tab="horarios"><i data-lucide="clock"></i>Horarios</button>
     <button data-tab="equipo"><i data-lucide="users"></i>Equipo</button>
-    <button data-tab="prep"><i data-lucide="calendar-check"></i>Prep</button>
+    <button data-tab="prep"><i data-lucide="calendar-check"></i>Reuniones</button>
     <button data-tab="brain"><i data-lucide="brain"></i>Brain</button>
   </nav>
 
@@ -280,6 +280,22 @@
     <p class="hint">Marca las reuniones para las que quieres recibir un briefing.</p>
     <button class="btn btn-ghost" onclick="cargarReuniones()"><i data-lucide="rotate"></i> Actualizar reuniones</button>
     <div id="listaReuniones"><p class="hint">Pulsa «Actualizar» para leer tu calendario.</p></div>
+
+    <div class="divider"></div>
+    <h3>Notas de Meet (Gemini)</h3>
+    <label class="chk"><input type="checkbox" id="f_meet"> Indexar mis Notas de Gemini al brain</label>
+    <p class="hint">Cada hora busca notas nuevas — tuyas y las que te compartan — y las cruza con tu memoria. Requiere el second brain activo.</p>
+    <button class="btn btn-primary" onclick="salvarFlagsMeet()"><i data-lucide="save"></i> Guardar notas de Meet</button>
+
+    <div class="card" id="meetImportCard">
+      <b style="font-size:12px">Importar notas anteriores</b>
+      <p class="hint" style="margin-top:4px">La primera vez, trae al brain las notas ya existentes. Corre en segundo plano; el progreso se actualiza solo.</p>
+      <label>¿Desde hace cuántos días?</label>
+      <input id="m_dias" type="number" min="1" max="365" value="30">
+      <div id="meetEstado" class="hint"></div>
+      <button class="btn btn-outline" onclick="iniciarImportNotasUI()"><i data-lucide="history"></i> Importar notas</button>
+      <button class="btn btn-ghost" id="btnCancelMeet" style="display:none" onclick="cancelarImportNotasUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
+    </div>
   </div>
 
   <!-- BRAIN (second brain + gobernanza) -->
@@ -453,6 +469,8 @@
       g('f_ret').value = fl.retentionMonths || 12;
       g('f_deep').checked = !!fl.deepPrepEnabled;
       g('f_lead').value = fl.leadHours || 3;
+      g('f_meet').checked = !!fl.meetEnabled;
+      g('m_dias').value = fl.meetLookbackDays || 30;
       renderEquipo(); icons();
     }).catch(function (e) { toast('Error al cargar: ' + e.message, 'triangle-alert'); });
 
@@ -556,6 +574,55 @@
     function salvarFlagsPrep() {
       runB('guardarFlags')({ 'deepPrep.enabled': g('f_deep').checked, 'deepPrep.leadHours': g('f_lead').value })
         .then(function () { toast('Deep Prep guardado'); })
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+
+    // --- Notas de Meet (Gemini): flag + import inicial con progreso ---
+    var _meetPoll = null;
+    function salvarFlagsMeet() {
+      runB('guardarFlags')({ 'meet.enabled': g('f_meet').checked, 'meet.lookbackDays': g('m_dias').value })
+        .then(function () { toast('Notas de Meet guardadas'); })
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function pintarMeet(st) {
+      var el = g('meetEstado'), btnC = g('btnCancelMeet');
+      if (st.status === 'running') {
+        el.textContent = 'Importando… ' + st.ok + '/' + st.total + ' notas · ' + st.sinAcceso +
+          ' sin acceso · ' + st.errores + ' errores.';
+        btnC.style.display = '';
+      } else if (st.status === 'done') {
+        el.textContent = 'Importación completa: ' + st.ok + ' indexadas · ' + st.sinAcceso +
+          ' sin acceso · ' + st.errores + ' errores. La pasada horaria sigue sola.';
+        btnC.style.display = 'none';
+      } else {
+        el.textContent = st.enabled ? 'Sin importación en curso.' : 'Activa y guarda el flag para poder importar.';
+        btnC.style.display = 'none';
+      }
+      if (st.status === 'running') {
+        if (!_meetPoll) _meetPoll = setInterval(refrescarMeet, 45000);
+      } else if (_meetPoll) {
+        clearInterval(_meetPoll); _meetPoll = null;
+      }
+      icons();
+    }
+    function refrescarMeet() {
+      runB('estadoImportNotas')().then(pintarMeet)
+        .catch(function () { /* refresco de fondo, silencioso */ });
+    }
+    function iniciarImportNotasUI() {
+      var dias = parseInt(g('m_dias').value, 10) || 30;
+      runB('estadoImportNotas')(dias).then(function (st) {
+        if (st.status === 'running') { toast('La importación ya está corriendo'); pintarMeet(st); return; }
+        var n = (st.plan && st.plan.pendientes) || 0;
+        if (!n) { toast('No hay notas nuevas en los últimos ' + dias + ' días', 'triangle-alert'); pintarMeet(st); return; }
+        if (!confirm('Se indexarán ~' + n + ' nota(s) de los últimos ' + dias + ' días. Corre en segundo plano. ¿Continuar?')) return;
+        runB('iniciarImportNotas')(dias).then(function (r) { toast('Importación iniciada'); pintarMeet(r); })
+          .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function cancelarImportNotasUI() {
+      if (!confirm('¿Pausar la importación de notas? Podrás retomarla sin duplicar nada.')) return;
+      runB('cancelarImportNotas')().then(function (r) { toast('Importación pausada'); pintarMeet(r); })
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function cargarReuniones() {
@@ -699,6 +766,7 @@
 
     icons();
     refrescarBackfill();   // estado del importador al abrir; si está running, arma el polling
+    refrescarMeet();       // ídem para el import de notas de Meet
   </script>
 </body>
 </html>

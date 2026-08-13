@@ -38,6 +38,7 @@ const RUNTIME_FILES = [
   'brain-backfill-runtime.js',
   'deepprep-runtime.js',
   'sharing-runtime.js',
+  'meet-notes-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -158,12 +159,14 @@ function makeDriveMock() {
     const file = {
       _kind: 'file', _name: name, _parent: parent, _trashed: false,
       _content: content == null ? '' : String(content), _id: 'file' + seq++,
+      _created: new Date(),
       getId: () => file._id,
       getName: () => file._name,
       setName: (n) => { file._name = n; return file; },
       getBlob: () => ({ getDataAsString: () => file._content }),
       setContent: (c) => { file._content = c == null ? '' : String(c); return file; },
-      setTrashed: (v) => { file._trashed = !!v; return file; }
+      setTrashed: (v) => { file._trashed = !!v; return file; },
+      getDateCreated: () => file._created
     };
     byId[file._id] = file;
     return file;
@@ -188,15 +191,28 @@ function makeDriveMock() {
     return folder;
   };
 
-  return {
-    createFolder: (name) => makeFolder(name, null),
+  const roots = [];
+  const drive = {
+    createFolder: (name) => { const f = makeFolder(name, null); roots.push(f); return f; },
     getFolderById: (id) => {
       const f = byId[id];
       if (!f || f._trashed || f._kind !== 'folder') throw new Error('Folder no encontrado: ' + id);
       return f;
     },
+    // Carpetas de nivel raíz por nombre (suficiente para las carpetas de Meet en tests).
+    getFoldersByName: (name) => iterator(roots.filter((f) => f._name === name && !f._trashed)),
+    // Búsqueda simulada (sharedWithMe): los tests siembran resultados en drive._searchResults.
+    searchFiles: () => iterator((drive._searchResults || []).filter((f) => !f._trashed)),
+    _searchResults: [],
+    // Crea un archivo "suelto" (compartido) fuera de toda carpeta, para sembrar búsquedas.
+    _makeLooseFile: (name, content, created) => {
+      const f = makeFile(name, content, null);
+      if (created) f._created = created;
+      return f;
+    },
     _byId: byId
   };
+  return drive;
 }
 
 // --- Mock de CalendarApp (calendario por defecto respaldado por una lista de eventos) ---

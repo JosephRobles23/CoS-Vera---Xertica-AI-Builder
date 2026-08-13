@@ -87,7 +87,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Config del workflow (estático) | `workflows/CLEVEL-REPORTS/config.js` | Implemented |
 | Bootloader del stub (delegación + puente `cosRun` + triggers) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
 | UI de la librería (menú, sidebar, diálogos, `dispatch`) | `shared/ui-runtime.js` | Implemented |
-| HTML del sidebar (5 paneles: Prompts · Horarios · Equipo · Prep · Brain) | `shared/Sidebar.html` | Implemented |
+| HTML del sidebar (5 paneles: Prompts · Horarios · Equipo · Reuniones · Brain) | `shared/Sidebar.html` | Implemented |
 | HTML del modal de preguntas y formularios | `shared/DialogPreguntas.html` | Implemented |
 | Instalación de triggers | `workflows/CLEVEL-REPORTS/triggers.js` | Implemented |
 | Bridge único con Gemini (incl. `responseSchema`) | `shared/gemini-runtime.js` | Implemented |
@@ -108,6 +108,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Second brain — backfill del histórico (job por cursor en el dispatcher) | `shared/brain-backfill-runtime.js` | Implemented |
 | Deep Prep — briefing pre-reunión (Calendar + brain → Gemini → PDF por correo) | `shared/deepprep-runtime.js` | Implemented |
 | Compartir reportes — individual por persona + cc del consolidado (modal matriz) | `shared/sharing-runtime.js` | Implemented |
+| Notas de Gemini (Meet) → brain (descubrimiento 3 fuentes, match por evento, externos) | `shared/meet-notes-runtime.js` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
 | Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
@@ -120,6 +121,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests del second brain — admin/gobernanza | `tests/brain-admin-runtime.test.mjs` | Implemented (9 tests) |
 | Tests del second brain — backfill del histórico | `tests/brain-backfill-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
+| Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).

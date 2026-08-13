@@ -132,7 +132,8 @@ function mergearProyectos(sheetId, config, origenFile, destinoFile) {
 
 var FLAGS_PERMITIDOS_ = {
   'brain.enabled': 'bool', 'deepPrep.enabled': 'bool',
-  'deepPrep.leadHours': 'int', 'brain.silenceDays': 'int', 'brain.retentionMonths': 'int'
+  'deepPrep.leadHours': 'int', 'brain.silenceDays': 'int', 'brain.retentionMonths': 'int',
+  'meet.enabled': 'bool', 'meet.lookbackDays': 'int'
 };
 
 /**
@@ -204,12 +205,15 @@ function purgarRaw_(sheetId, config, now) {
   var corteISO = Utilities.formatDate(corte, tz, 'yyyy-MM-dd');
   var corteUTC = isoAUTC_(corteISO);
 
-  var carpeta = carpetaBrain_(root, ['raw', 'reports']);
   var purgados = 0;
-  listarArchivosBrain_(carpeta, '.md').forEach(function (a) {
-    var fecha = str_(parsearPagina_(a.content).frontmatter.date);
-    var u = isoAUTC_(fecha);
-    if (u != null && u < corteUTC) purgados += borrarArchivoBrain_(carpeta, a.name);
+  // Ambas capas de raw caen bajo la misma retención: reportes (daily/weekly) y notas de Meet.
+  ['reports', 'meetings'].forEach(function (sub) {
+    var carpeta = carpetaBrain_(root, ['raw', sub]);
+    listarArchivosBrain_(carpeta, '.md').forEach(function (a) {
+      var fecha = str_(parsearPagina_(a.content).frontmatter.date);
+      var u = isoAUTC_(fecha);
+      if (u != null && u < corteUTC) purgados += borrarArchivoBrain_(carpeta, a.name);
+    });
   });
 
   if (purgados) {

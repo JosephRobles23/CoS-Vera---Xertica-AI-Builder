@@ -179,6 +179,34 @@ arrancar con contexto sin esperar reportes nuevos. Diseño acordado en grill (ag
   `cancelarBackfill` (via `dispatch`; iniciar exige `brain.enabled`).
 - Tests: `tests/brain-backfill-runtime.test.mjs` (18 tests: la matriz completa del grill).
 
+### Fase 7 — Notas de Gemini (Meet) → brain ✅ Implemented
+Indexa al wiki los Docs de notas de Meet — propios y compartidos — para que el LLM correlacione
+reportes con lo hablado en reuniones. Diseño del grill (ago 2026), hechos verificados contra docs
+oficiales de Google:
+- **Nuevo** `shared/meet-notes-runtime.js`. Descubrimiento por **3 fuentes** (anti-dup por
+  `docId`): attachments de eventos del Calendar vía **REST v3** (CalendarApp no los expone; el
+  combo `calendar.readonly` + `getOAuthToken` alcanza — la fuente más confiable), carpetas propias
+  de Meet ("Google Meet" + legacy localizadas, con subcarpetas jul-2026) y `sharedWithMe` por
+  sufijo de título.
+- **Match en cascada** Doc↔evento: attachment directo → parseo del título
+  (`"<Título>: yyyy/MM/dd HH:mm GMT±off - Notas de Gemini"`, el offset lo vuelve absoluto) +
+  título igual y hora ±60 min → sin match = acta standalone (`matched: false`). El título nunca es
+  clave primaria.
+- Export del Doc con `files.export` (`text/plain`; el scope `drive` alcanza). **Sin acceso (403)**:
+  se cuenta y loguea 1×/día por doc y se reintenta al día siguiente (quizá ya lo compartieron).
+- Extracción con **Flash** (el Doc ya es un resumen): resumen + asistentes + eventos con el tipo
+  nuevo **`accion`** → sección `## Pendientes` (semilla del follow-up futuro en el Daily).
+- **Externos** (fuera del roster): página propia con `external: true` — excluidos del scan de
+  silencios y de todo correo; identidad estabilizada con `_people.json` (alias + subconjunto de
+  tokens: "carol" ⊂ "carol-diaz"). "Olvidar" borra su página; las actas (registro grupal) quedan.
+- Acta en `wiki/meetings/` que **mergea con la del Deep Prep** si comparten `eventId`; raw
+  inmutable en `raw/meetings/` (cae bajo la purga por retención, igual que los reportes).
+- Cadencia: pasada **1×/hora** (ventana 7 días); **import inicial** con lookback elegido por el
+  líder (default 30 días), job time-boxed avanzado por el dispatcher con progreso en el sidebar.
+- UI: tab "Prep" → **"Reuniones"** (Deep Prep + Notas de Meet: flag, tarjeta de primera vez,
+  estado con auto-refresco). Flags `meet.enabled` / `meet.lookbackDays` (requiere `brain.enabled`).
+- Tests: `tests/meet-notes-runtime.test.mjs` (15: matriz completa del grill).
+
 ## Contrato de datos (ingesta)
 
 El `responseSchema` del call por-fila devuelve, además del resumen:
@@ -205,8 +233,10 @@ eventos: [ { persona:string(email|nombre), proyecto:string, tipo:enum(avance|blo
 
 ## Diferido (fuera de scope)
 
-- Ingesta de Gemini Notes/Meet (`drive.meet.readonly`, gated por admin + consentimiento).
+- ~~Ingesta de Gemini Notes/Meet~~ → **implementada en la Fase 7** (sin scopes nuevos: attachment
+  del Calendar por REST + `files.export` con el scope `drive` existente).
 - Canal Chat/Telegram (`notificar()`); las señales de change-detection ya quedan listas para engancharlo.
+- Follow-up de Pendientes en el Daily ("¿avanzaste X?") — la sección `## Pendientes` ya deja la base.
 - Grounding web para externos, mirror "lindo" en Doc, búsqueda estilo QMD, mirror Obsidian.
 
 ## Anclas de implementación

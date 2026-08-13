@@ -41,6 +41,14 @@ var AJUSTES_DEFAULTS_ = {
   'deepPrep.selected': '[]',         // JSON: eventIds del calendario marcados para prep
   // --- Compartir reportes (Fase 1: correos; ver Docs/workflows/CLEVEL-REPORTS/) ---
   'consolidado.cc': '',              // correos extra (coma) que reciben el consolidado COMPLETO
+  // --- Notas de Gemini (Meet) → brain (requiere brain.enabled) ---
+  'meet.enabled': 'false',           // 'true' → pasada horaria que indexa notas de Meet al wiki
+  'meet.lookbackDays': '30',         // días hacia atrás del IMPORT INICIAL (el régimen usa 7 fijo)
+  'meet.import.status': 'idle',      // idle | running | done — job de importación inicial
+  'meet.import.total': '0',          // docs descubiertos al iniciar (progreso)
+  'meet.import.ok': '0',
+  'meet.import.sinAcceso': '0',
+  'meet.import.errores': '0',
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -258,6 +266,17 @@ function getAjustes_(sheetId, settingsSheetName) {
     },
     consolidado: {
       cc: listaCorreos_(flat['consolidado.cc'])
+    },
+    meet: {
+      enabled:      bool_(flat['meet.enabled']),
+      lookbackDays: int_(flat['meet.lookbackDays'], 30),
+      import: {
+        status:    str_(flat['meet.import.status']) || 'idle',
+        total:     int_(flat['meet.import.total'], 0),
+        ok:        int_(flat['meet.import.ok'], 0),
+        sinAcceso: int_(flat['meet.import.sinAcceso'], 0),
+        errores:   int_(flat['meet.import.errores'], 0)
+      }
     }
   };
 }
@@ -292,7 +311,8 @@ function construirConfig(sheetId, staticConfig) {
     forms: aj.forms,
     brain: aj.brain,          // feature flag + carpeta del second brain
     deepPrep: aj.deepPrep,    // feature flag + selección/timing del Deep Prep
-    consolidado: aj.consolidado   // cc del consolidado completo (compartir reportes)
+    consolidado: aj.consolidado,  // cc del consolidado completo (compartir reportes)
+    meet: aj.meet             // feature flag + import inicial de Notas de Gemini
   };
 }
 
@@ -322,7 +342,9 @@ function cargarConfig(sheetId, config) {
       silenceDays:     aj.brain.silenceDays,
       retentionMonths: aj.brain.retentionMonths,
       deepPrepEnabled: aj.deepPrep.enabled,
-      leadHours:       aj.deepPrep.leadHours
+      leadHours:       aj.deepPrep.leadHours,
+      meetEnabled:     aj.meet.enabled,
+      meetLookbackDays: aj.meet.lookbackDays
     }
   };
 }

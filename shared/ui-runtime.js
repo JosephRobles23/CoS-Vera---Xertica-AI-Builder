@@ -136,7 +136,11 @@ var DISPATCH_ = {
   cancelarBackfill:        function (sid, cfg) { return cancelarBackfill(sid, cfg); },
   // Compartir reportes (modal matriz): consolidado completo + destinatarios por persona.
   cargarCompartir:         function (sid, cfg) { return cargarCompartir(sid, cfg); },
-  guardarCompartir:        function (sid, cfg, a) { return guardarCompartir(sid, cfg, a[0]); }
+  guardarCompartir:        function (sid, cfg, a) { return guardarCompartir(sid, cfg, a[0]); },
+  // Notas de Meet (import inicial + estado).
+  iniciarImportNotas:      function (sid, cfg, a) { return iniciarImportNotas(sid, cfg, a[0]); },
+  estadoImportNotas:       function (sid, cfg, a) { return estadoImportNotas(sid, cfg, a[0]); },
+  cancelarImportNotas:     function (sid, cfg) { return cancelarImportNotas(sid, cfg); }
 };
 
 /**

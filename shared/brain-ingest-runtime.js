@@ -29,7 +29,7 @@ var INGEST_SCHEMA_ = {
         properties: {
           persona:    { type: 'string' },
           proyecto:   { type: 'string' },
-          tipo:       { type: 'string', enum: ['avance', 'blocker', 'riesgo', 'decision', 'contradiccion'] },
+          tipo:       { type: 'string', enum: ['avance', 'blocker', 'riesgo', 'decision', 'contradiccion', 'accion'] },
           texto:      { type: 'string' },
           confidence: { type: 'number' }
         },
@@ -46,7 +46,8 @@ var SECCIONES_EVENTO_ = {
   blocker:       'Blockers',
   riesgo:        'Riesgos',
   decision:      'Decisiones',
-  contradiccion: 'Contradicciones'
+  contradiccion: 'Contradicciones',
+  accion:        'Pendientes'        // action items (notas de Meet): semilla del follow-up futuro
 };
 
 // --- Entrada pública: la llama summaries-runtime cuando brain.enabled ---
@@ -189,7 +190,7 @@ function regenerarPaginaPersona_(root, meta, eventos, source, fecha, proyectoNam
   var page = prev ? parsearPagina_(prev) : { frontmatter: {}, body: '' };
 
   var blockers = eventos.filter(function (e) { return e.tipo === 'blocker'; }).map(function (e) { return e.texto; });
-  var fm = mergeFrontmatter_(page.frontmatter, {
+  var updates = {
     page_type: 'person',
     name: meta.nombre || meta.correo || '',
     email: meta.correo || '',
@@ -197,7 +198,11 @@ function regenerarPaginaPersona_(root, meta, eventos, source, fecha, proyectoNam
     projects: proyectoNames || [],
     sources: [source],
     open_blockers: blockers
-  });
+  };
+  // Externos (notas de Meet): página propia pero marcada — el scan de silencios los ignora
+  // (no reportan) y jamás reciben correos. Ver meet-notes-runtime.js.
+  if (meta.external) updates.external = true;
+  var fm = mergeFrontmatter_(page.frontmatter, updates);
 
   var body = mergearEventosEnBody_(page.body, eventos, fecha, true);
   escribirArchivoBrain_(carpeta, name, componerPagina_(fm, body));
