@@ -329,10 +329,16 @@ Briefing** (`shared/DialogBriefing.html`: config + vista previa en vivo + "envia
 
 - **📅 Tu día** — reuniones de hoy (Calendar), con marca de las que tienen Deep Prep.
 - **✅ Pendientes** — la hoja **Tareas** (única fuente): pestaña propia del líder con dropdowns de
-  Estado (`Pendiente / En curso / Bloqueada / Hecha`) y Prioridad. Se autopuebla con las acciones
-  DEL LÍDER extraídas de las notas de Meet (+ filas manuales); dedup por Id. Las `Hecha` se mueven
-  a diario a la pestaña **Archivo**. Paleta de chips en
-  [`../../html/morning-briefing-mockups.html`](../../html/morning-briefing-mockups.html).
+  Estado (`Pendiente / En curso / Bloqueada / Hecha`) y Prioridad, **chips de color por formato
+  condicional** (paleta del mockup) y **Vence como fecha** (validación de fecha → date-picker de
+  Sheets al editar). Se autopuebla con las acciones DEL LÍDER extraídas de las notas de Meet
+  (+ filas manuales); dedup por Id. Las `Hecha` se mueven a diario a la pestaña **Archivo**.
+  Paleta en [`../../html/morning-briefing-mockups.html`](../../html/morning-briefing-mockups.html).
+- **Espejo en el brain** (`wiki/tasks/`, requiere `brain.enabled`): una página por tarea con el
+  estado en frontmatter y una sección `## Historial` append-only que registra cada cambio de
+  estado/vencimiento/prioridad y el archivado — trazabilidad completa de las tareas del líder,
+  cruzable por el LLM. La hoja sigue siendo la superficie editable; el wiki, la memoria. La
+  sincronización corre en la pasada diaria del briefing, antes del archivado.
 - **🚨 Urgente** — tareas bloqueadas + blockers envejecidos y silencios del brain (si está activo).
 - **💡 Foco sugerido** — 1-3 prioridades del día. Foco y narrativa de urgente salen de **UNA sola
   llamada Flash** que respeta la instrucción personal del líder (`briefing.prompt`); lo factual lo

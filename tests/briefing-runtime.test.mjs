@@ -104,6 +104,93 @@ test('archivarHechas_ mueve las Hecha a la pestaña Archivo con fecha y limpia T
   assert.equal(fila[7], HOY, 'lleva la fecha de archivado');
 });
 
+test('la hoja lleva chips de color (formato condicional) y Vence con fecha + picker', () => {
+  const h = brHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const sh = h.api.ensureTareasSheet_('SID', config);
+
+  const reglas = sh.getConditionalFormatRules();
+  const porTexto = {};
+  reglas.forEach((r) => { porTexto[r._texto] = r; });
+  assert.equal(reglas.length, 7, '4 estados + 3 prioridades');
+  assert.equal(porTexto['Pendiente']._bg, '#FEF3C7');
+  assert.equal(porTexto['Bloqueada']._fg, '#991B1B');
+  assert.equal(porTexto['Hecha']._bg, '#DCFCE7');
+  assert.equal(porTexto['Alta']._bg, '#EDE9FE');
+
+  assert.ok(sh._validations.some((v) => v.col === 3 && v.rule._date), 'Vence exige fecha (activa el date-picker)');
+});
+
+test('Vence acepta la fecha como Date del picker y el briefing la interpreta bien', () => {
+  const h = brHarness({ tareas: [['Con picker', '', new Date(2026, 7, 13, 0, 0), 'Alta', 'Pendiente', '', 'idD']] });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const ts = plain(h.api.tareasPendientesHoy_('SID', config, HOY));
+  assert.equal(ts[0].vence, HOY);
+  assert.equal(ts[0].hoy, true);
+});
+
+// --- Espejo en el brain: wiki/tasks/ ---
+
+test('sincronizarTareasWiki_ crea la página con frontmatter y anota el historial al cambiar', () => {
+  const h = brHarness({
+    ajustes: [['brain.enabled', 'true']],
+    tareas: [['Validar Classroom', 'Classroom', HOY, 'Alta', 'Pendiente', '🎥 Comité', 'idW']]
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  const tasksDir = h.api.carpetaBrain_(root, ['wiki', 'tasks']);
+
+  assert.equal(h.api.sincronizarTareasWiki_('SID', config, HOY), 1);
+  let pg = h.api.parsearPagina_(h.api.leerArchivoBrain_(tasksDir, 'idW.md'));
+  assert.equal(pg.frontmatter.page_type, 'task');
+  assert.equal(pg.frontmatter.status, 'Pendiente');
+  assert.equal(pg.frontmatter.due, HOY);
+  assert.match(pg.body, /## Historial/);
+
+  // Sin cambios → no re-escribe; con cambio de estado → línea de historial.
+  assert.equal(h.api.sincronizarTareasWiki_('SID', config, HOY), 0);
+  h.getSpreadsheet('SID').getSheetByName('Tareas').getRange(2, 5).setValue('En curso');
+  assert.equal(h.api.sincronizarTareasWiki_('SID', config, '2026-08-14'), 1);
+  pg = h.api.parsearPagina_(h.api.leerArchivoBrain_(tasksDir, 'idW.md'));
+  assert.equal(pg.frontmatter.status, 'En curso');
+  assert.match(pg.body, /- \[2026-08-14\] estado: Pendiente → En curso/);
+});
+
+test('archivar una Hecha deja su página wiki marcada archived con historial', () => {
+  const h = brHarness({
+    ajustes: [['brain.enabled', 'true']],
+    tareas: [['Terminada', '', '', 'Baja', 'Hecha', '', 'idA']]
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.sincronizarTareasWiki_('SID', config, HOY);   // página existe (status Hecha)
+  h.api.archivarHechas_('SID', config, HOY);
+
+  const pg = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), 'idA.md'));
+  assert.equal(String(pg.frontmatter.archived), 'true');
+  assert.match(pg.body, new RegExp('- \\[' + HOY + '\\] archivada'));
+});
+
+test('sin brain.enabled la sincronización es un no-op silencioso', () => {
+  const h = brHarness({ tareas: [['X', '', '', 'Media', 'Pendiente', '', 'idN']] });
+  const config = h.api.construirConfig('SID', CONFIG);
+  assert.equal(h.api.sincronizarTareasWiki_('SID', config, HOY), 0);
+});
+
+test('la pasada del briefing sincroniza el wiki antes de enviar', () => {
+  const h = brHarness({
+    ajustes: [['brain.enabled', 'true']],
+    tareas: [['Sincronízame', '', '', 'Media', 'Pendiente', '', 'idP']]
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.runDispatcher('SID', config, NOW);
+
+  assert.equal(briefings(h).length, 1);
+  assert.ok(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), 'idP.md'),
+    'la tarea quedó espejada en wiki/tasks');
+});
+
 // --- Hook desde notas de Meet: la acción del líder aterriza en Tareas ---
 
 test('una acción del líder en notas de Meet crea fila en Tareas y NO le crea página de persona', () => {

@@ -119,7 +119,11 @@ function enviarBriefing_(sheetId, config, now, today) {
   var leader = (config.leader && config.leader.email) || '';
   if (!leader) throw new Error('Falta config.leader.email para enviar el briefing.');
 
-  // Higiene diaria de la hoja: las Hecha se van al Archivo antes de leer pendientes.
+  // Higiene diaria de la hoja: primero el espejo al wiki (captura los cambios de estado con
+  // historial, incluido el paso a Hecha) y después el archivado a la pestaña Archivo.
+  try { sincronizarTareasWiki_(sheetId, config, today); } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('briefing: sync de tareas al wiki falló (%s).', e);
+  }
   try { archivarHechas_(sheetId, config, today); } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('briefing: archivado falló (%s).', e);
   }

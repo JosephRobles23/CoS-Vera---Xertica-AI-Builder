@@ -132,6 +132,9 @@ function makeSheet(name, data) {
       return r;
     },
     _validations: [],
+    _condRules: [],
+    setConditionalFormatRules: (rules) => { sheet._condRules = rules.slice(); return sheet; },
+    getConditionalFormatRules: () => sheet._condRules.slice(),
     getDataRange: () => makeRange(data, 1, 1, Math.max(numRows(), 1), Math.max(numCols(), 1)),
     clearContents: () => { data.length = 0; return sheet; },
     clear: () => { data.length = 0; return sheet; },
@@ -327,12 +330,25 @@ export function makeHarness(opts = {}) {
         return byId[id];
       },
       flush: () => {},
-      // Builder de validación de datos (dropdowns de la hoja Tareas).
+      // Builder de validación de datos (dropdowns y fechas de la hoja Tareas).
       newDataValidation: () => {
-        const rule = { _list: null, _allowInvalid: true };
+        const rule = { _list: null, _date: false, _allowInvalid: true };
         const builder = {
           requireValueInList: (list) => { rule._list = list.slice(); return builder; },
+          requireDate: () => { rule._date = true; return builder; },
           setAllowInvalid: (v) => { rule._allowInvalid = !!v; return builder; },
+          build: () => rule
+        };
+        return builder;
+      },
+      // Builder de formato condicional (chips de color de Estado/Prioridad).
+      newConditionalFormatRule: () => {
+        const rule = { _texto: null, _bg: null, _fg: null, _ranges: [] };
+        const builder = {
+          whenTextEqualTo: (t) => { rule._texto = t; return builder; },
+          setBackground: (c) => { rule._bg = c; return builder; },
+          setFontColor: (c) => { rule._fg = c; return builder; },
+          setRanges: (rs) => { rule._ranges = rs; return builder; },
           build: () => rule
         };
         return builder;

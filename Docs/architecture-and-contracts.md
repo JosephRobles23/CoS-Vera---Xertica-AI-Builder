@@ -109,7 +109,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Deep Prep — briefing pre-reunión (Calendar + brain → Gemini → PDF por correo) | `shared/deepprep-runtime.js` | Implemented |
 | Compartir reportes — individual por persona + cc del consolidado (modal matriz) | `shared/sharing-runtime.js` | Implemented |
 | Notas de Gemini (Meet) → brain (descubrimiento 3 fuentes, match por evento, externos) | `shared/meet-notes-runtime.js` | Implemented |
-| Hoja Tareas del líder (dropdowns de estado, archivado a pestaña Archivo) | `shared/tasks-runtime.js` | Implemented |
+| Hoja Tareas del líder (dropdowns con chips de color, Vence con date-picker, archivado a Archivo, espejo en wiki/tasks) | `shared/tasks-runtime.js` | Implemented |
 | Morning Briefing (agenda + pendientes + urgente + foco; hora/días/secciones configurables) | `shared/briefing-runtime.js` | Implemented |
 | HTML del modal Morning Briefing (config + vista previa en vivo) | `shared/DialogBriefing.html` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
@@ -125,7 +125,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests del second brain — backfill del histórico | `tests/brain-backfill-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (15 tests) |
-| Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (13 tests) |
+| Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).

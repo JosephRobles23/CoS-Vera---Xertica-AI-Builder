@@ -17,6 +17,19 @@ var TAREAS_HEADERS_ = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Ori
 var ESTADOS_TAREA_ = ['Pendiente', 'En curso', 'Bloqueada', 'Hecha'];
 var PRIORIDADES_TAREA_ = ['Alta', 'Media', 'Baja'];
 
+// Paleta de chips [fondo, texto] — la misma del mockup (morning-briefing-mockups.html).
+var COLORES_ESTADO_ = {
+  'Pendiente': ['#FEF3C7', '#92400E'],
+  'En curso':  ['#DBEAFE', '#1E40AF'],
+  'Bloqueada': ['#FEE2E2', '#991B1B'],
+  'Hecha':     ['#DCFCE7', '#166534']
+};
+var COLORES_PRIORIDAD_ = {
+  'Alta':  ['#EDE9FE', '#5B21B6'],
+  'Media': ['#FEF3C7', '#92400E'],
+  'Baja':  ['#F1F3F4', '#5F6368']
+};
+
 /** Nombres con fallback: los stubs viejos no traen estas claves en CONFIG_STATIC.sheets. */
 function nombreHojaTareas_(config) { return (config.sheets && config.sheets.tareas) || 'Tareas'; }
 function nombreHojaArchivo_(config) { return (config.sheets && config.sheets.archivo) || 'Archivo'; }
@@ -35,16 +48,40 @@ function ensureTareasSheet_(sheetId, config) {
   return sh;
 }
 
-/** Dropdowns de Estado y Prioridad (validación de datos). Best-effort: cosmético, nunca rompe. */
+/**
+ * Dropdowns (Estado/Prioridad), fecha en Vence (con picker de calendario al editar) y los chips
+ * de color por formato condicional. Best-effort: cosmético, nunca rompe.
+ */
 function aplicarDropdownsTareas_(sh) {
+  var filas = 500;
   try {
-    var filas = 500;
     sh.getRange(2, 5, filas, 1).setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(ESTADOS_TAREA_, true).setAllowInvalid(false).build());
     sh.getRange(2, 4, filas, 1).setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(PRIORIDADES_TAREA_, true).setAllowInvalid(false).build());
+    // Vence: fecha editable — la validación de fecha activa el date-picker de Sheets al editar.
+    sh.getRange(2, 3, filas, 1)
+      .setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build())
+      .setNumberFormat('yyyy-mm-dd');
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo aplicar la validación (%s).', e);
+  }
+  try {
+    var reglas = [];
+    var agregar = function (col, mapa) {
+      Object.keys(mapa).forEach(function (valor) {
+        reglas.push(SpreadsheetApp.newConditionalFormatRule()
+          .whenTextEqualTo(valor)
+          .setBackground(mapa[valor][0]).setFontColor(mapa[valor][1])
+          .setRanges([sh.getRange(2, col, filas, 1)])
+          .build());
+      });
+    };
+    agregar(5, COLORES_ESTADO_);
+    agregar(4, COLORES_PRIORIDAD_);
+    sh.setConditionalFormatRules(reglas);
+  } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo aplicar el color (%s).', e);
   }
 }
 
@@ -123,6 +160,79 @@ function tareasPendientesHoy_(sheetId, config, todayISO) {
   return tareas;
 }
 
+// --- Espejo en el brain: wiki/tasks/ (trazabilidad de las tareas del líder) ---
+
+/**
+ * Sincroniza la hoja Tareas hacia wiki/tasks/ (una página por tarea, frontmatter con el estado
+ * actual y una sección "## Historial" append-only con cada cambio de estado/vencimiento). El
+ * briefing sigue leyendo la HOJA (fuente editable); el wiki es la memoria trazable que el brain
+ * puede cruzar. Requiere brain.enabled; sin brain es un no-op silencioso.
+ * @return {number} páginas creadas o actualizadas
+ */
+function sincronizarTareasWiki_(sheetId, config, todayISO) {
+  if (!(config.brain && config.brain.enabled)) return 0;
+  var root;
+  try { root = ensureBrainFolder_(sheetId, config); } catch (e) { return 0; }
+  var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
+
+  var cambios = 0;
+  listarTareas_(sheetId, config).forEach(function (t) {
+    if (upsertTareaWiki_(carpeta, t, todayISO)) cambios++;
+  });
+  return cambios;
+}
+
+/** Crea/actualiza la página de UNA tarea; anota el historial solo cuando algo cambió. */
+function upsertTareaWiki_(carpeta, t, todayISO) {
+  var name = t.id + '.md';
+  var prev = leerArchivoBrain_(carpeta, name);
+
+  if (!prev) {
+    var fm = {
+      page_type: 'task', name: t.texto, project: t.proyecto, due: t.vence,
+      priority: t.prioridad, status: t.estado, origin: t.origen,
+      created: todayISO, last_updated: todayISO
+    };
+    var body = '# ' + t.texto + '\n\n## Historial\n- [' + todayISO + '] creada (' + t.estado +
+      (t.vence ? ', vence ' + t.vence : '') + ')\n';
+    escribirArchivoBrain_(carpeta, name, componerPagina_(fm, body));
+    return true;
+  }
+
+  var page = parsearPagina_(prev);
+  var f = page.frontmatter || {};
+  var lineas = [];
+  if (str_(f.status) !== t.estado) lineas.push('estado: ' + (str_(f.status) || '?') + ' → ' + t.estado);
+  if (str_(f.due) !== t.vence) lineas.push('vence: ' + (str_(f.due) || '—') + ' → ' + (t.vence || '—'));
+  if (str_(f.priority) !== t.prioridad) lineas.push('prioridad: ' + (str_(f.priority) || '?') + ' → ' + t.prioridad);
+  if (!lineas.length) return false;
+
+  var fm2 = mergeFrontmatter_(f, {
+    status: t.estado, due: t.vence, priority: t.prioridad, project: t.proyecto, last_updated: todayISO
+  });
+  var body2 = page.body + lineas.map(function (l) { return '- [' + todayISO + '] ' + l + '\n'; }).join('');
+  escribirArchivoBrain_(carpeta, name, componerPagina_(fm2, body2));
+  return true;
+}
+
+/** Marca en el wiki que la tarea se archivó (status Hecha + archived). Best-effort. */
+function marcarTareaArchivadaWiki_(sheetId, config, fila, todayISO) {
+  if (!(config.brain && config.brain.enabled)) return;
+  try {
+    var root = ensureBrainFolder_(sheetId, config);
+    var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
+    var name = String(fila[6] || '') + '.md';
+    var prev = leerArchivoBrain_(carpeta, name);
+    if (!prev) return;
+    var page = parsearPagina_(prev);
+    var fm = mergeFrontmatter_(page.frontmatter, { status: 'Hecha', archived: true, last_updated: todayISO });
+    escribirArchivoBrain_(carpeta, name,
+      componerPagina_(fm, page.body + '- [' + todayISO + '] archivada\n'));
+  } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo marcar el archivo en el wiki (%s).', e);
+  }
+}
+
 /**
  * Mueve las filas "Hecha" a la pestaña Archivo (misma estructura + fecha de archivado).
  * Corre 1×/día dentro de la pasada del briefing. @return {number} filas archivadas
@@ -149,6 +259,7 @@ function archivarHechas_(sheetId, config, todayISO) {
   }
   var destino = hechas.map(function (r) { return r.concat([todayISO]); });
   arch.getRange(arch.getLastRow() + 1, 1, 1 * destino.length, TAREAS_HEADERS_.length + 1).setValues(destino);
+  hechas.forEach(function (r) { marcarTareaArchivadaWiki_(sheetId, config, r, todayISO); });
 
   // Reescribe Tareas solo con las vivas (patrón guardarEquipo: clear + headers + filas).
   sh.clearContents();
