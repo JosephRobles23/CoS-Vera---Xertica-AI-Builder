@@ -94,6 +94,12 @@
     }
     .btn svg { width: 14px; height: 14px; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .loader {
+      display: inline-block; width: 12px; height: 12px; flex: 0 0 auto;
+      border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+      animation: girar .7s linear infinite; vertical-align: -2px;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
     .btn-primary { background: var(--primary); color: var(--primary-foreground); }
     .btn-primary:hover:not(:disabled) { opacity: .9; }
     .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
@@ -285,12 +291,9 @@
 
     <div class="divider"></div>
     <h3>Importar histórico</h3>
-    <p class="hint">Ingesta al brain las respuestas ya guardadas en Daily/Weekly (dentro de la retención). Corre en segundo plano; puedes cerrar el sidebar.</p>
+    <p class="hint">Ingesta al brain las respuestas ya guardadas en Daily/Weekly (dentro de la retención). Corre en segundo plano; puedes cerrar el sidebar y el progreso se actualiza solo.</p>
     <div id="backfillEstado" class="hint"></div>
-    <div class="row2">
-      <button class="btn btn-outline" onclick="iniciarBackfillUI()"><i data-lucide="history"></i> Importar</button>
-      <button class="btn btn-ghost" onclick="refrescarBackfill()"><i data-lucide="rotate"></i> Actualizar</button>
-    </div>
+    <button class="btn btn-outline" onclick="iniciarBackfillUI()"><i data-lucide="history"></i> Importar</button>
     <button class="btn btn-ghost" id="btnCancelBackfill" style="display:none" onclick="cancelarBackfillUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
 
     <div class="divider"></div>
@@ -363,13 +366,47 @@
       };
     });
 
+    // --- Loader visual en el botón que disparó la llamada ---
+    // Un listener en fase de captura recuerda el <button> clicado SOLO durante su handler
+    // (se limpia en el siguiente tick): las llamadas de fondo (polling, carga inicial) no
+    // enganchan loader. run()/runB() lo toman y pintan spinner + disabled hasta resolver.
+    var _btnActivo = null;
+    document.addEventListener('click', function (e) {
+      _btnActivo = (e.target && e.target.closest) ? e.target.closest('button') : null;
+      setTimeout(function () { _btnActivo = null; }, 0);
+    }, true);
+    function tomarBtnActivo_() { var b = _btnActivo; _btnActivo = null; return b; }
+
+    function setLoading(btn, on) {
+      if (!btn) return;
+      if (on) {
+        if (btn._loading) return;
+        btn._loading = true;
+        btn._html = btn.innerHTML;
+        btn.innerHTML = '<span class="loader"></span>' + (btn.textContent.trim() ? ' ' + escHtml(btn.textContent.trim()) : '');
+        btn.disabled = true;
+      } else {
+        if (!btn._loading) return;
+        btn._loading = false;
+        btn.innerHTML = btn._html;
+        btn.disabled = false;
+      }
+    }
+    function conLoader_(promesa, btn) {
+      setLoading(btn, true);
+      return promesa.then(
+        function (v) { setLoading(btn, false); return v; },
+        function (e) { setLoading(btn, false); throw e; }
+      );
+    }
+
     // --- google.script.run como Promise ---
     function run(method) {
       return function () {
         var args = Array.prototype.slice.call(arguments);
-        return new Promise(function (resolve, reject) {
+        return conLoader_(new Promise(function (resolve, reject) {
           google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method].apply(null, args);
-        });
+        }), tomarBtnActivo_());
       };
     }
     function toast(msg, icon) {
@@ -385,10 +422,10 @@
     function runB(method) {
       return function () {
         var args = Array.prototype.slice.call(arguments);
-        return new Promise(function (resolve, reject) {
+        return conLoader_(new Promise(function (resolve, reject) {
           google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
             .cosRun(method, JSON.stringify(args));
-        });
+        }), tomarBtnActivo_());
       };
     }
 
@@ -546,6 +583,9 @@
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     // --- Backfill del histórico (importar Daily/Weekly existentes al brain) ---
+    // Mientras el job esté running, el panel se auto-refresca cada 45 s (el trabajo real lo hace
+    // el dispatcher en el servidor; esto es solo el visor). El timer se apaga solo al terminar.
+    var _bfPoll = null;
     function pintarBackfill(st) {
       var el = g('backfillEstado'), btnC = g('btnCancelBackfill');
       if (st.status === 'running') {
@@ -562,11 +602,16 @@
           : 'No hay histórico pendiente de importar.';
         btnC.style.display = 'none';
       }
+      if (st.status === 'running') {
+        if (!_bfPoll) _bfPoll = setInterval(refrescarBackfill, 45000);
+      } else if (_bfPoll) {
+        clearInterval(_bfPoll); _bfPoll = null;
+      }
       icons();
     }
     function refrescarBackfill() {
       runB('estadoBackfill')().then(pintarBackfill)
-        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+        .catch(function () { /* silencioso: es un refresco de fondo, no una acción del líder */ });
     }
     function iniciarBackfillUI() {
       runB('estadoBackfill')().then(function (st) {
@@ -644,6 +689,7 @@
     }
 
     icons();
+    refrescarBackfill();   // estado del importador al abrir; si está running, arma el polling
   </script>
 </body>
 </html>

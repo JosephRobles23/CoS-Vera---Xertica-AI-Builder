@@ -81,6 +81,12 @@
     }
     .btn svg { width: 14px; height: 14px; }
     .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .loader {
+      display: inline-block; width: 12px; height: 12px; flex: 0 0 auto;
+      border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+      animation: girar .7s linear infinite; vertical-align: -2px;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
     .btn-primary { background: var(--primary); color: var(--primary-foreground); }
     .btn-primary:hover:not(:disabled) { opacity: .9; }
     .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
@@ -147,12 +153,6 @@
     .notas-h svg { width: 14px; height: 14px; color: var(--muted-foreground); }
     .nota { font-size: 11.5px; color: var(--muted-foreground); margin: 3px 0; }
 
-    /* Spinner (generación IA). */
-    .spin {
-      width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;
-      border-radius: 50%; display: inline-block; animation: spin .6s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     #toast {
       position: fixed; left: 14px; right: 14px; bottom: 14px; background: var(--popover); color: var(--popover-foreground);
@@ -282,6 +282,37 @@
     function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;'); }
     function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
+    // --- Loader visual en el botón que disparó la llamada (mismo patrón que el sidebar) ---
+    var _btnActivo = null;
+    document.addEventListener('click', function (e) {
+      _btnActivo = (e.target && e.target.closest) ? e.target.closest('button') : null;
+      setTimeout(function () { _btnActivo = null; }, 0);
+    }, true);
+    function tomarBtnActivo_() { var b = _btnActivo; _btnActivo = null; return b; }
+
+    function setLoading(btn, on) {
+      if (!btn) return;
+      if (on) {
+        if (btn._loading) return;
+        btn._loading = true;
+        btn._html = btn.innerHTML;
+        btn.innerHTML = '<span class="loader"></span>' + (btn.textContent.trim() ? ' ' + escHtml(btn.textContent.trim()) : '');
+        btn.disabled = true;
+      } else {
+        if (!btn._loading) return;
+        btn._loading = false;
+        btn.innerHTML = btn._html;
+        btn.disabled = false;
+      }
+    }
+    function conLoader_(promesa, btn) {
+      setLoading(btn, true);
+      return promesa.then(
+        function (v) { setLoading(btn, false); return v; },
+        function (e) { setLoading(btn, false); throw e; }
+      );
+    }
+
     // --- google.script.run como Promise ---
     // El stub solo expone el puente genérico `cosRun(fnName, argsJson)`; las funciones nuevas
     // (generarPreguntasIA/guardarFormulario) viven en CoSLib.dispatch, no como métodos nombrados.
@@ -289,10 +320,10 @@
     function run(method) {
       return function () {
         var args = Array.prototype.slice.call(arguments);
-        return new Promise(function (resolve, reject) {
+        return conLoader_(new Promise(function (resolve, reject) {
           google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
             .cosRun(method, JSON.stringify(args));
-        });
+        }), tomarBtnActivo_());
       };
     }
     function toast(msg, icon) {
@@ -408,8 +439,7 @@
       var n = state.preguntas[tipoActivo].length;
       if (n && !confirm('Esto reemplazará las ' + n + ' pregunta(s) actuales de ' + tipoActivo + '. ¿Continuar?')) return;
 
-      var btn = g('btnGen'), orig = btn.innerHTML;
-      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Generando…';
+      // El loader visual lo pone el wrapper genérico de run() sobre el botón clicado.
       run('generarPreguntasIA')(tipoActivo, prompt).then(function (res) {
         state.preguntas[tipoActivo] = res.preguntas || [];
         if (res.titulo) state.formMeta[tipoActivo].titulo = res.titulo;
@@ -421,8 +451,6 @@
         setSubTab('preguntas');
       }).catch(function (e) {
         toast('Error: ' + e.message, 'triangle-alert');
-      }).then(function () {
-        btn.disabled = false; btn.innerHTML = orig; icons();
       });
     }
     function renderNotas(notas) {
