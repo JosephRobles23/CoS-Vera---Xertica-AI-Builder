@@ -35,6 +35,7 @@ const RUNTIME_FILES = [
   'brain-drive-runtime.js',
   'brain-ingest-runtime.js',
   'brain-admin-runtime.js',
+  'brain-backfill-runtime.js',
   'deepprep-runtime.js',
   'ui-runtime.js'
 ];

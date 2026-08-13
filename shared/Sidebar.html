@@ -284,6 +284,16 @@
     <button class="btn btn-primary" onclick="salvarFlagsBrain()"><i data-lucide="save"></i> Guardar memoria</button>
 
     <div class="divider"></div>
+    <h3>Importar histórico</h3>
+    <p class="hint">Ingesta al brain las respuestas ya guardadas en Daily/Weekly (dentro de la retención). Corre en segundo plano; puedes cerrar el sidebar.</p>
+    <div id="backfillEstado" class="hint"></div>
+    <div class="row2">
+      <button class="btn btn-outline" onclick="iniciarBackfillUI()"><i data-lucide="history"></i> Importar</button>
+      <button class="btn btn-ghost" onclick="refrescarBackfill()"><i data-lucide="rotate"></i> Actualizar</button>
+    </div>
+    <button class="btn btn-ghost" id="btnCancelBackfill" style="display:none" onclick="cancelarBackfillUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
+
+    <div class="divider"></div>
     <h3>Wiki</h3>
     <div class="row2">
       <select id="w_tipo" onchange="cargarWiki()">
@@ -314,6 +324,7 @@
       'briefcase': '<rect width="20" height="14" x="2" y="6" rx="2"/><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
       'sparkles': '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
       'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+      'history': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
       'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
       'save': '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
       'user-plus': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
@@ -534,6 +545,49 @@
       }).then(function () { toast('Memoria guardada'); })
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
+    // --- Backfill del histórico (importar Daily/Weekly existentes al brain) ---
+    function pintarBackfill(st) {
+      var el = g('backfillEstado'), btnC = g('btnCancelBackfill');
+      if (st.status === 'running') {
+        el.textContent = 'Importando en segundo plano… ' + st.ok + '/' + st.total + ' filas · ' +
+          st.saltadas + ' saltadas · ' + st.errores + ' errores.';
+        btnC.style.display = '';
+      } else if (st.status === 'done') {
+        el.textContent = 'Importación completa: ' + st.ok + ' ingestadas · ' + st.saltadas +
+          ' saltadas · ' + st.errores + ' errores.';
+        btnC.style.display = 'none';
+      } else {
+        el.textContent = (st.plan && st.plan.elegibles)
+          ? 'Histórico disponible: ' + st.plan.elegibles + ' filas dentro de la retención.'
+          : 'No hay histórico pendiente de importar.';
+        btnC.style.display = 'none';
+      }
+      icons();
+    }
+    function refrescarBackfill() {
+      runB('estadoBackfill')().then(pintarBackfill)
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function iniciarBackfillUI() {
+      runB('estadoBackfill')().then(function (st) {
+        if (st.status === 'running') { toast('La importación ya está corriendo'); pintarBackfill(st); return; }
+        var p = st.plan || {};
+        if (!p.elegibles) { toast('No hay filas para importar', 'triangle-alert'); pintarBackfill(st); return; }
+        var saltadas = (p.fueraRetencion || 0) + (p.fueraRoster || 0) + (p.vacias || 0);
+        var msg = 'Se ingestarán ~' + p.elegibles + ' filas' +
+          (saltadas ? ' (' + saltadas + ' se saltarán: fuera de retención, fuera del equipo o vacías)' : '') +
+          '.\nCorre en segundo plano (~' + (Math.ceil(p.elegibles / 25) * 5) + ' min). ¿Continuar?';
+        if (!confirm(msg)) return;
+        runB('iniciarBackfill')().then(function (r) { toast('Importación iniciada'); pintarBackfill(r); })
+          .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function cancelarBackfillUI() {
+      if (!confirm('¿Pausar la importación? Podrás retomarla después donde quedó.')) return;
+      runB('cancelarBackfill')().then(function (r) { toast('Importación pausada'); pintarBackfill(r); })
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+
     function cargarWiki() {
       var tipo = g('w_tipo').value, cont = g('listaWiki');
       g('wikiViewer').style.display = 'none';

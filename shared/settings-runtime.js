@@ -38,7 +38,15 @@ var AJUSTES_DEFAULTS_ = {
   'brain.silenceDays': '7',          // días sin actualizar → el scan marca la entidad como estancada
   'deepPrep.enabled': 'false',       // 'true' → genera Deep Prep (requiere brain.enabled)
   'deepPrep.leadHours': '3',         // horas antes de la reunión para disparar el prep
-  'deepPrep.selected': '[]'          // JSON: eventIds del calendario marcados para prep
+  'deepPrep.selected': '[]',         // JSON: eventIds del calendario marcados para prep
+  // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
+  'brain.backfill.status': 'idle',   // idle | running | done
+  'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
+  'brain.backfill.cursorWeekly': '2',
+  'brain.backfill.total': '0',       // filas elegibles al iniciar (para pintar el progreso)
+  'brain.backfill.ok': '0',
+  'brain.backfill.saltadas': '0',
+  'brain.backfill.errores': '0'
 };
 
 /** Preguntas por defecto (pre-cargan el panel Preguntas en una copia nueva). */
@@ -230,7 +238,16 @@ function getAjustes_(sheetId, settingsSheetName) {
       enabled:         bool_(flat['brain.enabled']),
       folderId:        str_(flat['brain.folderId']),
       retentionMonths: int_(flat['brain.retentionMonths'], 12),
-      silenceDays:     int_(flat['brain.silenceDays'], 7)
+      silenceDays:     int_(flat['brain.silenceDays'], 7),
+      backfill: {
+        status:       str_(flat['brain.backfill.status']) || 'idle',
+        cursorDaily:  int_(flat['brain.backfill.cursorDaily'], 2),
+        cursorWeekly: int_(flat['brain.backfill.cursorWeekly'], 2),
+        total:        int_(flat['brain.backfill.total'], 0),
+        ok:           int_(flat['brain.backfill.ok'], 0),
+        saltadas:     int_(flat['brain.backfill.saltadas'], 0),
+        errores:      int_(flat['brain.backfill.errores'], 0)
+      }
     },
     deepPrep: {
       enabled:   bool_(flat['deepPrep.enabled']),

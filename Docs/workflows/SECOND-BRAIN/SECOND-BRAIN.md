@@ -154,6 +154,26 @@ Que existan permisos, claves de config y la carpeta del brain.
   scopes nuevos (`calendar.readonly`, `drive.file`); re-correr `setupTriggers()` fuerza el
   re-consentimiento en cada copia. Ver [testing-and-deploy.md](../../testing-and-deploy.md).
 
+### Fase 6 — Backfill del histórico ✅ Implemented
+Importa al brain las respuestas YA guardadas en Daily/Weekly (previas a activar la memoria), para
+arrancar con contexto sin esperar reportes nuevos. Diseño acordado en grill (ago 2026):
+- **Nuevo** `shared/brain-backfill-runtime.js`: job **reanudable por cursor** (uno por hoja,
+  persistidos en Ajustes `brain.backfill.*`); lo avanza `runDispatcher` **al final** de cada pasada,
+  time-boxed (~3.5 min, tope 30 filas), para no retrasar invitaciones/consolidados.
+- **Merge cronológico** Daily+Weekly por Marca temporal: el estado previo de cada página (y las
+  contradicciones) evoluciona en el orden real. Cada fila se ingesta con **la fecha de la fila**
+  (no la de hoy): wiki, purga y scan de silencios reflejan cuándo pasó.
+- Selección: dentro de `brain.retentionMonths`, correo en el roster actual, con contenido; lo demás
+  se salta y se cuenta. Fila que falla en Gemini: avanza, cuenta el error, queda en `log.md`.
+- Summary de la fila: se rellena **solo si estaba vacío**. Idempotente: el raw `_r<fila>` existente
+  no se re-escribe y los eventos dedup-ean por línea.
+- Scan de silencios **suspendido** mientras `running` (falsos estancados con la wiki a medio
+  construir); al terminar corre normal — el burst inicial de silencios reales es señal, no ruido.
+- Sidebar (panel Brain → "Importar histórico"): confirm con conteo real (elegibles + saltadas con
+  desglose), progreso `ok/total`, Pausar/reanudar. Server: `iniciarBackfill`, `estadoBackfill`,
+  `cancelarBackfill` (via `dispatch`; iniciar exige `brain.enabled`).
+- Tests: `tests/brain-backfill-runtime.test.mjs` (18 tests: la matriz completa del grill).
+
 ## Contrato de datos (ingesta)
 
 El `responseSchema` del call por-fila devuelve, además del resumen:

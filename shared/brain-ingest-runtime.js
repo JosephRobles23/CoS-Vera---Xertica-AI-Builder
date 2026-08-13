@@ -63,9 +63,11 @@ var SECCIONES_EVENTO_ = {
  * @param {Array}  pairs     [{q,a}] del reporte
  * @param {number} row       fila 1-based (para nombre único del raw)
  * @param {string} system    system-prompt del resumen ya compuesto
+ * @param {string} [fecha]   YYYY-MM-DD del reporte; se omite en vivo (= hoy). El backfill pasa
+ *                           la Marca temporal de la fila para fechar eventos/raw con fidelidad.
  * @return {string} summary
  */
-function ingestarFila_(sheetId, config, tipo, meta, pairs, row, system) {
+function ingestarFila_(sheetId, config, tipo, meta, pairs, row, system, fecha) {
   var root;
   try {
     root = ensureBrainFolder_(sheetId, config);
@@ -81,7 +83,7 @@ function ingestarFila_(sheetId, config, tipo, meta, pairs, row, system) {
   var parsed = parseIngest_(raw);
 
   try {
-    escribirBrain_(root, config, tipo, meta, pairs, row, parsed);
+    escribirBrain_(root, config, tipo, meta, pairs, row, parsed, fecha);
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('brain: ingesta falló pero el summary sí se generó (%s).', e);
   }
@@ -138,8 +140,8 @@ function parseIngest_(text) {
 
 // --- Escritura de las tres capas ---
 
-function escribirBrain_(root, config, tipo, meta, pairs, row, parsed) {
-  var fecha = hoyISO_(config);
+function escribirBrain_(root, config, tipo, meta, pairs, row, parsed, fechaOverride) {
+  var fecha = fechaOverride || hoyISO_(config);
   var eventos = parsed.eventos || [];
 
   // 1) raw/ inmutable.

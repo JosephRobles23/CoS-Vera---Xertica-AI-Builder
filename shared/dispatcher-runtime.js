@@ -20,6 +20,7 @@
  * @param {Date}   [nowOverride] reloj inyectable para tests; en producción se omite.
  */
 function runDispatcher(sheetId, config, nowOverride) {
+  var inicioMs = Date.now();   // presupuesto de la pasada (el backfill corre con lo que sobre)
   var tz    = config.timezone;
   var now   = nowOverride || new Date();
   var dow   = parseInt(Utilities.formatDate(now, tz, 'u'), 10);  // 1=lun … 7=dom
@@ -67,7 +68,10 @@ function runDispatcher(sheetId, config, nowOverride) {
   }
 
   // --- 3) Scan de silencios (brain): 1×/día, deja señales estructuradas para notificar() (futuro) ---
+  // Suspendido mientras corre el backfill (wiki a medio construir = falsos estancados); como NO se
+  // marca la guarda, el scan corre normal en la primera pasada tras terminar el job.
   if (config.brain && config.brain.enabled &&
+      !backfillActivo_(sheetId, config) &&
       !yaEnviado_(sheetId, 'brain-scan', 'silencios', today)) {
     try {
       scanSilencios_(sheetId, config, now);
@@ -95,6 +99,16 @@ function runDispatcher(sheetId, config, nowOverride) {
       runDeepPrepPass_(sheetId, config, now);
     } catch (e) {
       if (typeof Logger !== 'undefined') Logger.log('deepprep: pasada falló (%s).', e);
+    }
+  }
+
+  // --- 5) Backfill del histórico (brain): SIEMPRE al final — los envíos por hora tienen prioridad
+  // y el lote se time-boxea con el presupuesto que quede de la pasada. No-op si no está running.
+  if (config.brain && config.brain.enabled) {
+    try {
+      runBackfillPass_(sheetId, config, now, inicioMs + BACKFILL_PRESUPUESTO_MS_);
+    } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('backfill: pasada falló (%s).', e);
     }
   }
 }
