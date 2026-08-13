@@ -129,6 +129,18 @@ test('Vence acepta la fecha como Date del picker y el briefing la interpreta bie
   assert.equal(ts[0].hoy, true);
 });
 
+test('una hoja Tareas heredada (sin formato) gana los colores al correr el briefing', () => {
+  // La pestaña existe con datos pero fue creada por una versión vieja: cero reglas de color.
+  const h = brHarness({ tareas: [['Vieja', '', '', 'Media', 'Pendiente', '', 'idV']] });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const sh = h.getSpreadsheet('SID').getSheetByName('Tareas');
+  assert.equal(sh.getConditionalFormatRules().length, 0, 'precondición: sin formato');
+
+  h.api.enviarBriefingPrueba('SID', config);
+  assert.equal(sh.getConditionalFormatRules().length, 7, 'la pasada re-aseguró colores');
+  assert.ok(sh._validations.some((v) => v.col === 3 && v.rule._date), 'y el date-picker de Vence');
+});
+
 // --- Espejo en el brain: wiki/tasks/ ---
 
 test('sincronizarTareasWiki_ crea la página con frontmatter y anota el historial al cambiar', () => {

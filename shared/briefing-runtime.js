@@ -119,8 +119,12 @@ function enviarBriefing_(sheetId, config, now, today) {
   var leader = (config.leader && config.leader.email) || '';
   if (!leader) throw new Error('Falta config.leader.email para enviar el briefing.');
 
-  // Higiene diaria de la hoja: primero el espejo al wiki (captura los cambios de estado con
-  // historial, incluido el paso a Hecha) y después el archivado a la pestaña Archivo.
+  // Higiene diaria de la hoja: re-asegurar formato (dropdowns, colores, fecha — idempotente;
+  // cubre pestañas creadas por versiones viejas), luego el espejo al wiki (captura los cambios
+  // de estado con historial, incluido el paso a Hecha) y después el archivado a Archivo.
+  try { ensureTareasSheet_(sheetId, config); } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('briefing: ensure de Tareas falló (%s).', e);
+  }
   try { sincronizarTareasWiki_(sheetId, config, today); } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('briefing: sync de tareas al wiki falló (%s).', e);
   }
