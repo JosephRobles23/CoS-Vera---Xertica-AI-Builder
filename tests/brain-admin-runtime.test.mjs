@@ -201,3 +201,21 @@ test('dispatch enruta las funciones de admin del brain', () => {
   const fl = plain(h.api.dispatch('guardarFlags', [{ 'brain.enabled': false }], 'SID', config));
   assert.deepEqual(fl.aplicados, ['brain.enabled']);
 });
+
+test('olvidarPersona y mergearProyectos dejan el índice al día', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerWiki(h, root, 'people', 'ada-x-com.md', { page_type: 'person', name: 'Ada', email: 'ada@x.com' }, 'N.');
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha', last_updated: '2026-08-10' }, 'A');
+  ponerWiki(h, root, 'projects', 'proyecto-alpha.md', { page_type: 'project', name: 'Proyecto Alpha', last_updated: '2026-08-05' }, 'B');
+
+  h.api.mergearProyectos('SID', config, 'proyecto-alpha.md', 'alpha.md');
+  let idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.match(idx, /## Proyectos \(1\)/);
+  assert.ok(!/proyecto-alpha\.md/.test(idx), 'el origen del merge salió del índice');
+
+  h.api.olvidarPersona('SID', config, 'ada-x-com.md');
+  idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.match(idx, /## Personas \(0\)/);
+});

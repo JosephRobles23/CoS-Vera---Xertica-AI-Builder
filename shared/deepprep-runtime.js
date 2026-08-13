@@ -275,5 +275,6 @@ function archivarReunion_(root, evento, prep) {
     tldr: prep.tldr
   };
   escribirArchivoBrain_(carpeta, name, componerPagina_(fm, prep.briefing || ''));
+  regenerarIndexBrain_(root, evento.fecha || '');
   return 'wiki/meetings/' + name;
 }

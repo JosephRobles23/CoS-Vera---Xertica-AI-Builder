@@ -227,3 +227,19 @@ test('generarSummaryFila sin brain usa texto plano y NO crea brain', () => {
   assert.equal(out, 'Resumen simple.');
   assert.equal(h.api.getAjustes_('SID', 'Ajustes').brain.folderId, '', 'no se creó brain');
 });
+
+test('la ingesta regenera wiki/index.md con personas y proyectos al día', () => {
+  const h = brainHarness(EVENTOS);
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.ingestarFila_('SID', config, 'daily', { nombre: 'Ada Lovelace', correo: 'ada@x.com' },
+    [{ q: '¿Qué lograste?', a: 'Cerré el diseño' }], 2, 'system');
+
+  const root = h.api.ensureBrainFolder_('SID', config);
+  const idx = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md'));
+  assert.equal(idx.frontmatter.page_type, 'index');
+  assert.ok(idx.frontmatter.last_updated, 'lleva fecha');
+  assert.match(idx.body, /## Personas \(1\)/);
+  assert.match(idx.body, /\[Ada Lovelace\]\(people\/ada-x-com\.md\)/);
+  assert.match(idx.body, /## Proyectos \(1\)/);
+  assert.match(idx.body, /\[Proyecto Alpha\]\(projects\/proyecto-alpha\.md\)/);
+});

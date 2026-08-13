@@ -125,6 +125,7 @@ function mergearProyectos(sheetId, config, origenFile, destinoFile) {
 
   var wiki = carpetaBrain_(root, ['wiki']);
   appendArchivoBrain_(wiki, 'log.md', '- ' + hoyISO_(config) + ' · merge de proyecto · ' + oSlug + ' → ' + dSlug + '\n');
+  regenerarIndexBrain_(root, hoyISO_(config));
   return { ok: true, destino: dName, origen: oName };
 }
 
@@ -186,6 +187,7 @@ function olvidarPersona(sheetId, config, file) {
   appendArchivoBrain_(wiki, 'log.md',
     '- ' + hoyISO_(config) + ' · 🗑️ olvidar persona · ' + (str_(fm.name) || name) +
     ' · ' + borrados + ' raw borrado(s)\n');
+  regenerarIndexBrain_(root, hoyISO_(config));
   return { ok: true, email: email, raw_borrados: borrados };
 }
 

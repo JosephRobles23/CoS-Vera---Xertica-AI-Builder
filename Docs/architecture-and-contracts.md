@@ -102,7 +102,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Acceso a Sheets/columnas/horas | `shared/sheets-runtime.js` | Implemented |
 | Lectura de `Equipo` (roster) | `shared/roster-runtime.js` | Implemented |
 | Ajustes editables + `formMeta` + `guardarFormulario` + flags del brain | `shared/settings-runtime.js` | Implemented |
-| Second brain — carpeta/IO en Drive (markdown + frontmatter, slugs, borrado) | `shared/brain-drive-runtime.js` | Implemented |
+| Second brain — carpeta/IO en Drive (markdown + frontmatter, slugs, borrado, índice regenerable) | `shared/brain-drive-runtime.js` | Implemented |
 | Second brain — ingesta por fila (regenera páginas persona/proyecto, log) | `shared/brain-ingest-runtime.js` | Implemented |
 | Second brain — admin/gobernanza (visor wiki, merge, flags, olvidar, purga) | `shared/brain-admin-runtime.js` | Implemented |
 | Second brain — backfill del histórico (job por cursor en el dispatcher) | `shared/brain-backfill-runtime.js` | Implemented |

@@ -44,6 +44,9 @@ function meetHarness(opts = {}) {
         ['key', 'value'],
         ['brain.enabled', String(opts.brain !== false)],
         ['meet.enabled', String(opts.meet !== false)],
+        // leader.email SIEMPRE presente: los tests de runDispatcher usan reloj real y, si la
+        // corrida cae en la ventana de cierre, el consolidado lanzaría sin líder (flaky).
+        ['leader.email', 'lider@x.com'], ['leader.name', 'Líder'],
         ...(opts.ajustes || [])
       ],
       Equipo: [['Nombre', 'Correo', 'Rol'], ['Julio Toloza', 'julio@x.com', 'Dev'], ['Ada', 'ada@x.com', 'Dev']],
@@ -383,4 +386,20 @@ test('dispatch enruta iniciar/estado/cancelar del import de notas', () => {
   assert.equal(plain(h.api.dispatch('estadoImportNotas', [30], 'SID', config)).plan.pendientes, 1);
   assert.equal(plain(h.api.dispatch('iniciarImportNotas', [30], 'SID', config)).iniciado, true);
   assert.equal(plain(h.api.dispatch('cancelarImportNotas', [], 'SID', config)).status, 'idle');
+});
+
+test('la ingesta de notas regenera el índice: reunión, externa y persona listadas', () => {
+  const inicio = hace(2);
+  const h = meetHarness({
+    eventos: [evConNotas('ev1', 'Transformacion Team - Daily', inicio, 'doc1')],
+    docs: { doc1: 'notas' }
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.runMeetPass_('SID', config, NOW, FUTURO());
+
+  const idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.match(idx, /## Reuniones \(1\)/);
+  assert.match(idx, /\[Transformacion Team - Daily\]\(meetings\//);
+  assert.match(idx, /\[Carol Diaz\]\(people\/carol-diaz\.md\) · externa/);
 });

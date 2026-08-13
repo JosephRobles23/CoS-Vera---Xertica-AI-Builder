@@ -172,6 +172,58 @@ function listarArchivosBrain_(folder, sufijo) {
 }
 
 /** Manda a la papelera todos los archivos con ese nombre en `folder`. @return {number} borrados. */
+/**
+ * Regenera wiki/index.md desde el estado real de las carpetas (personas, proyectos, reuniones,
+ * tareas). Es el "compilado" del índice del patrón Karpathy: se invoca tras CADA escritura al
+ * wiki (ingesta, notas de Meet, actas del Deep Prep, merge, olvidar, sync de tareas), así el
+ * líder siempre tiene un mapa navegable al día. Best-effort: nunca rompe al llamador.
+ */
+function regenerarIndexBrain_(root, fecha) {
+  try {
+    var listar = function (sub) {
+      return listarArchivosBrain_(carpetaBrain_(root, ['wiki', sub]), '.md')
+        .filter(function (a) { return a.name.charAt(0) !== '_'; })
+        .map(function (a) {
+          var fm = parsearPagina_(a.content).frontmatter || {};
+          return {
+            name: a.name,
+            titulo: str_(fm.name) || a.name.replace(/\.md$/, ''),
+            fecha: str_(fm.last_updated) || str_(fm.date) || '',
+            external: String(fm.external) === 'true',
+            status: str_(fm.status),
+            archived: String(fm.archived) === 'true'
+          };
+        })
+        .sort(function (x, y) { return (y.fecha || '').localeCompare(x.fecha || ''); });
+    };
+    var linea = function (sub, p, extra) {
+      return '- [' + p.titulo + '](' + sub + '/' + p.name + ')' + (extra || '') +
+        (p.fecha ? ' — ' + p.fecha : '');
+    };
+
+    var people = listar('people');
+    var projects = listar('projects');
+    var meetings = listar('meetings');
+    var tasks = listar('tasks').filter(function (p) { return !p.archived; });
+    var topMeetings = meetings.slice(0, 15);
+
+    var cuerpo = '# Índice del brain\n\n' +
+      '## Personas (' + people.length + ')\n' +
+      (people.map(function (p) { return linea('people', p, p.external ? ' · externa' : ''); }).join('\n') || '_aún sin páginas_') + '\n\n' +
+      '## Proyectos (' + projects.length + ')\n' +
+      (projects.map(function (p) { return linea('projects', p); }).join('\n') || '_aún sin páginas_') + '\n\n' +
+      '## Reuniones (' + meetings.length + (meetings.length > 15 ? ' · últimas 15' : '') + ')\n' +
+      (topMeetings.map(function (p) { return linea('meetings', p); }).join('\n') || '_aún sin actas_') + '\n\n' +
+      '## Tareas activas (' + tasks.length + ')\n' +
+      (tasks.map(function (p) { return linea('tasks', p, p.status ? ' · ' + p.status : ''); }).join('\n') || '_sin tareas activas_') + '\n';
+
+    escribirArchivoBrain_(carpetaBrain_(root, ['wiki']), 'index.md',
+      componerPagina_({ page_type: 'index', name: 'Índice', last_updated: fecha || '' }, cuerpo));
+  } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('brain: no se pudo regenerar el índice (%s).', e);
+  }
+}
+
 function borrarArchivoBrain_(folder, name) {
   var it = folder.getFilesByName(name);
   var n = 0;

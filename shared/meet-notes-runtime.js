@@ -418,7 +418,8 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   // 4) acta en wiki/meetings/ (merge con la del Deep Prep si comparten eventId).
   actaNotaMeet_(root, cand, parsed, titulo, fecha, source);
 
-  // 5) bitácora.
+  // 5) bitácora + índice.
+  regenerarIndexBrain_(root, fecha);
   var acciones = parsed.eventos.filter(function (ev) { return ev.tipo === 'accion'; }).length;
   appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
     '- ' + fecha + ' · 🎥 notas de Meet · ' + titulo + ' · ' + parsed.eventos.length +

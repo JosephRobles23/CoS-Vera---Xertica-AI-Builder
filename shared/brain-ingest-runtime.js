@@ -164,8 +164,9 @@ function escribirBrain_(root, config, tipo, meta, pairs, row, parsed, fechaOverr
   // 3) página de la persona (dueña del reporte).
   regenerarPaginaPersona_(root, meta, eventos, source, fecha, Object.keys(proyectos).map(function (s) { return proyectos[s]; }));
 
-  // 4) bitácora.
+  // 4) bitácora + índice navegable al día.
   appendLogIngest_(root, fecha, tipo, meta, eventos);
+  regenerarIndexBrain_(root, fecha);
 }
 
 /** Escribe una copia inmutable del reporte en raw/reports/. No pisa (nombre único por fila). */

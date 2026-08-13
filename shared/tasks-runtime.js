@@ -179,6 +179,7 @@ function sincronizarTareasWiki_(sheetId, config, todayISO) {
   listarTareas_(sheetId, config).forEach(function (t) {
     if (upsertTareaWiki_(carpeta, t, todayISO)) cambios++;
   });
+  if (cambios) regenerarIndexBrain_(root, todayISO);
   return cambios;
 }
 
@@ -228,6 +229,7 @@ function marcarTareaArchivadaWiki_(sheetId, config, fila, todayISO) {
     var fm = mergeFrontmatter_(page.frontmatter, { status: 'Hecha', archived: true, last_updated: todayISO });
     escribirArchivoBrain_(carpeta, name,
       componerPagina_(fm, page.body + '- [' + todayISO + '] archivada\n'));
+    regenerarIndexBrain_(root, todayISO);   // la tarea sale de "activas" en el índice
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo marcar el archivo en el wiki (%s).', e);
   }

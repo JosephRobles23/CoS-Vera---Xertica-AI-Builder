@@ -356,3 +356,21 @@ test('dispatch enruta cargar/guardar/prueba y buildDialog resuelve el modal', ()
 
   assert.equal(h.api.buildDialog('briefing').titulo, 'CoS — Morning Briefing');
 });
+
+test('el sync de tareas y el archivado mantienen la sección "Tareas activas" del índice', () => {
+  const h = brHarness({
+    ajustes: [['brain.enabled', 'true']],
+    tareas: [['Activa', '', '', 'Media', 'Pendiente', '', 'idX'], ['Lista', '', '', 'Baja', 'Hecha', '', 'idY']]
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+
+  h.api.sincronizarTareasWiki_('SID', config, HOY);
+  let idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.match(idx, /## Tareas activas \(2\)/);
+  assert.match(idx, /\[Activa\]\(tasks\/idX\.md\) · Pendiente/);
+
+  h.api.archivarHechas_('SID', config, HOY);
+  idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.match(idx, /## Tareas activas \(1\)/, 'la archivada salió de activas');
+});
