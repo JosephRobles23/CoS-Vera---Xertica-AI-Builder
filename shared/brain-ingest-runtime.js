@@ -40,6 +40,77 @@ var INGEST_SCHEMA_ = {
   required: ['summary', 'eventos']
 };
 
+// --- Compuerta determinista de nombres de entidad ---
+//
+// El responseSchema de Gemini fuerza la ESTRUCTURA (y los enum) por decodificación restringida,
+// pero NO el contenido de un string libre: maxLength es decorativo (la doc oficial manda validar
+// en la app). Esta compuerta es la única garantía real de que un nombre propuesto por el LLM no
+// sea razonamiento fugado (bug 2026-08-13: un monólogo de ~1.900 chars como nombre de proyecto).
+
+var ENTIDAD_MAX_CHARS_ = 60;
+var ENTIDAD_MAX_PALABRAS_ = 6;
+// Marcadores de fuga: pares clave: del propio schema, flechas de "action items" y comillas.
+var ENTIDAD_MARCADORES_FUGA_ = /(confidence|accion|acción|correo|persona|proyecto|tipo|texto)\s*:|->|→|["«»]/i;
+var ENTIDAD_PUNTUACION_FUERTE_ = /[.;!?]/g;
+
+/**
+ * Valida un nombre de entidad (proyecto/persona externa) propuesto por el LLM.
+ * @return {string|null} el nombre limpio, o null si huele a fuga de razonamiento.
+ */
+function sanitizarNombreEntidad_(valor) {
+  var s = String(valor == null ? '' : valor).trim();
+  if (!s) return null;
+  if (s.length > ENTIDAD_MAX_CHARS_) return null;
+  if (s.split(/\s+/).length > ENTIDAD_MAX_PALABRAS_) return null;
+  if (/[\r\n]/.test(s)) return null;
+  if (ENTIDAD_MARCADORES_FUGA_.test(s)) return null;
+  var fuertes = s.match(ENTIDAD_PUNTUACION_FUERTE_);
+  if (fuertes && fuertes.length >= 2) return null;   // más de una oración ("Plataforma 2.0" pasa)
+  return s;
+}
+
+function sanitizarProyecto_(nombre) { return sanitizarNombreEntidad_(nombre); }
+function sanitizarPersona_(nombre) { return sanitizarNombreEntidad_(nombre); }
+
+// Techos defensivos para los campos narrativos (truncar, no rechazar: el hecho importa).
+var EVENTO_TEXTO_MAX_ = 300;
+var RESUMEN_MAX_ = 600;
+
+// --- Catálogo de proyectos como enum (garantía dura del API) ---
+
+/**
+ * Clona un responseSchema base e inyecta en eventos[] el campo `proyecto` como enum de los
+ * nombres canónicos de _projects.json + 'OTRO' + '' (vacío = sin proyecto), más el campo libre
+ * `proyecto_nuevo` (solo se lee cuando proyecto === 'OTRO'; pasa por la compuerta).
+ * Con catálogo vacío el enum es ['OTRO',''] : todo nombre nuevo entra por el camino saneado.
+ */
+function schemaConProyectos_(root, base) {
+  var schema = JSON.parse(JSON.stringify(base));
+  var mapa = cargarProyectos_(root);
+  var nombres = Object.keys(mapa).map(function (s) { return mapa[s].name; });
+  var props = schema.properties.eventos.items.properties;
+  props.proyecto = { type: 'string', enum: nombres.concat(['OTRO', '']) };
+  props.proyecto_nuevo = { type: 'string' };
+  return schema;
+}
+
+/** Nombre de proyecto que el LLM propuso para un evento (enum: canónico | 'OTRO' | ''). */
+function nombreProyectoEvento_(ev) {
+  var v = str_(ev.proyecto);
+  if (v === 'OTRO') return str_(ev.proyecto_nuevo);
+  return v;
+}
+
+/** Una línea ⚠️ por nombre de proyecto rechazado por la compuerta (observabilidad del gate). */
+function appendLogRechazos_(root, fecha, nombres) {
+  if (!nombres || !nombres.length) return;
+  var linea = '';
+  nombres.forEach(function (n) {
+    linea += '- ' + fecha + ' · ⚠️ proyecto rechazado por sanidad · ' + recorteTexto_(n, 40) + '\n';
+  });
+  appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md', linea);
+}
+
 /** Sección de página wiki por tipo de evento. */
 var SECCIONES_EVENTO_ = {
   avance:        'Avances',
@@ -80,7 +151,9 @@ function ingestarFila_(sheetId, config, tipo, meta, pairs, row, system, fecha) {
 
   var estadoPrevio = estadoPersonaPrevio_(root, meta);
   var user = construirUserIngest_(pairs, meta, estadoPrevio);
-  var raw = callGemini_(config.models.perRow, ingestSystem_(system), user, { responseSchema: INGEST_SCHEMA_ });
+  // Schema por llamada (proyectos como enum) + temperatura 0: extracción de hechos, no creatividad.
+  var raw = callGemini_(config.models.perRow, ingestSystem_(system), user,
+    { responseSchema: schemaConProyectos_(root, INGEST_SCHEMA_), temperature: 0 });
   var parsed = parseIngest_(raw);
 
   try {
@@ -102,7 +175,11 @@ function ingestSystem_(baseSystem) {
     '- "eventos": lista de hechos atómicos del reporte. Cada evento:',
     '    { persona, proyecto, tipo, texto, confidence }',
     '  · tipo ∈ avance | blocker | riesgo | decision | contradiccion.',
-    '  · persona: a quién refiere (por defecto, quien reporta). proyecto: el proyecto/iniciativa.',
+    '  · persona: a quién refiere (por defecto, quien reporta).',
+    '  · proyecto: elige EXACTAMENTE uno del catálogo permitido; si la iniciativa no está en el',
+    '    catálogo, pon proyecto "OTRO" y SOLO el nombre propio (máximo 3-4 palabras) en',
+    '    "proyecto_nuevo". Si no es evidente, deja proyecto vacío. NUNCA escribas razonamiento,',
+    '    alternativas ni explicaciones dentro de ningún campo.',
     '  · texto: el hecho en una frase. confidence: 0..1.',
     '  · Usa "contradiccion" SOLO si el reporte contradice el ESTADO PREVIO que se te da abajo.',
     'No inventes eventos: si el reporte no da para alguno, deja la lista corta.'
@@ -131,12 +208,20 @@ function parseIngest_(text) {
   try {
     var o = JSON.parse(t);
     return {
-      summary: str_(o.summary),
-      eventos: Array.isArray(o.eventos) ? o.eventos.filter(function (e) { return e && e.texto && e.tipo; }) : []
+      summary: recorteTexto_(str_(o.summary), RESUMEN_MAX_),
+      eventos: Array.isArray(o.eventos)
+        ? o.eventos.filter(function (e) { return e && e.texto && e.tipo; }).map(truncarEvento_)
+        : []
     };
   } catch (e) {
     return { summary: t, eventos: [] };
   }
+}
+
+/** Techos defensivos por evento: el texto se trunca (el hecho importa aunque venga verboso). */
+function truncarEvento_(ev) {
+  ev.texto = recorteTexto_(str_(ev.texto), EVENTO_TEXTO_MAX_);
+  return ev;
 }
 
 // --- Escritura de las tres capas ---
@@ -148,14 +233,19 @@ function escribirBrain_(root, config, tipo, meta, pairs, row, parsed, fechaOverr
   // 1) raw/ inmutable.
   var source = guardarRaw_(root, config, tipo, meta, pairs, row, fecha);
 
-  // 2) resolver proyectos y regenerar páginas de proyecto.
+  // 2) resolver proyectos y regenerar páginas de proyecto. La compuerta puede rechazar un
+  //    nombre (null): el evento vive igual en la página de la persona, y el rechazo va al log.
   var proyectos = {};   // slug -> name
+  var rechazados = [];
   eventos.forEach(function (ev) {
-    if (!ev.proyecto) return;
-    var p = resolverProyecto_(root, ev.proyecto);
+    var nombre = nombreProyectoEvento_(ev);
+    if (!nombre) return;
+    var p = resolverProyecto_(root, nombre);
+    if (!p) { rechazados.push(nombre); return; }
     proyectos[p.slug] = p.name;
     ev._proyectoName = p.name;   // para renderizar en la página de persona
   });
+  appendLogRechazos_(root, fecha, rechazados);
   Object.keys(proyectos).forEach(function (slug) {
     var evsProy = eventos.filter(function (ev) { return ev._proyectoName === proyectos[slug]; });
     regenerarPaginaProyecto_(root, slug, proyectos[slug], evsProy, source, fecha);
@@ -347,14 +437,30 @@ function similitudSlug_(a, b) {
 
 var PROYECTO_SIMIL_MIN_ = 0.6;   // umbral de match difuso
 
+// Ruido que no distingue proyectos: se filtra ANTES de comparar slugs (no del slug persistido).
+var STOPWORDS_SLUG_ = { de: 1, del: 1, la: 1, el: 1, los: 1, las: 1, en: 1, y: 1, o: 1, un: 1,
+  una: 1, para: 1, con: 1, the: 1, of: 1, in: 1, and: 1, or: 1, for: 1, a: 1, an: 1,
+  proyecto: 1, project: 1, iniciativa: 1 };
+
+/** Slug sin stopwords, solo para COMPARAR. Si todo era stopword, se queda como estaba. */
+function slugComparable_(slug) {
+  var tokens = String(slug).split('-').filter(function (t) { return t && !STOPWORDS_SLUG_[t]; });
+  return tokens.length ? tokens.join('-') : String(slug);
+}
+
 /**
- * Resuelve un nombre de proyecto a una entidad canónica: match exacto por slug/alias, luego match
- * difuso (Jaccard ≥ umbral) registrando el alias; si nada matchea, autocrea. Persiste el mapa.
- * @return {{slug:string, name:string}}
+ * Resuelve un nombre de proyecto a una entidad canónica: compuerta de sanidad (null si el nombre
+ * huele a fuga del LLM), match exacto por slug/alias, luego difuso (contención de tokens o
+ * Jaccard ≥ umbral, ambos sin stopwords) registrando el alias; si nada matchea, autocrea.
+ * Persiste el mapa. ÚNICO punto por el que un string del LLM puede crear una entidad de proyecto.
+ * @return {{slug:string, name:string}|null} null = rechazado por la compuerta.
  */
 function resolverProyecto_(root, nombre) {
+  var limpio = sanitizarProyecto_(nombre);
+  if (!limpio) return null;
+
   var mapa = cargarProyectos_(root);
-  var slug = slugBrain_(nombre);
+  var slug = slugBrain_(limpio);
 
   // exacto: canonical o alias
   var canon = Object.keys(mapa);
@@ -364,10 +470,13 @@ function resolverProyecto_(root, nombre) {
       return { slug: c, name: mapa[c].name };
     }
   }
-  // difuso
+  // difuso, sin stopwords: contención ("ai-academy" ⊂ "ai-academy-web") pesa como match total.
+  var cmp = slugComparable_(slug);
   var mejor = null, mejorSim = 0;
   for (var j = 0; j < canon.length; j++) {
-    var sim = similitudSlug_(canon[j], slug);
+    var cmpCanon = slugComparable_(canon[j]);
+    var sim = similitudSlug_(cmpCanon, cmp);
+    if (slugContenido_(cmpCanon, cmp)) sim = Math.max(sim, 1);
     if (sim > mejorSim) { mejorSim = sim; mejor = canon[j]; }
   }
   if (mejor && mejorSim >= PROYECTO_SIMIL_MIN_) {
@@ -377,8 +486,8 @@ function resolverProyecto_(root, nombre) {
     }
     return { slug: mejor, name: mapa[mejor].name };
   }
-  // autocreate
-  mapa[slug] = { name: String(nombre).trim(), aliases: [] };
+  // autocreate (ya saneado por la compuerta)
+  mapa[slug] = { name: limpio, aliases: [] };
   guardarProyectos_(root, mapa);
   return { slug: slug, name: mapa[slug].name };
 }

@@ -726,6 +726,7 @@
             '<span class="acts">' + nb +
             '<button class="icon-btn" title="Ver" onclick="verWiki(\'' + escAttr(tipo) + '\',\'' + escAttr(p.file) + '\')"><i data-lucide="eye"></i></button>' +
             (tipo === 'people' ? '<button class="icon-btn" title="Olvidar" onclick="olvidar(\'' + escAttr(p.file) + '\',\'' + escAttr(p.name) + '\')"><i data-lucide="trash-2"></i></button>' : '') +
+            (tipo === 'projects' ? '<button class="icon-btn" title="Olvidar proyecto" onclick="olvidarProy(\'' + escAttr(p.file) + '\',\'' + escAttr(p.name) + '\')"><i data-lucide="trash-2"></i></button>' : '') +
             '</span>';
           cont.appendChild(div);
         });
@@ -746,6 +747,12 @@
       if (!confirm('¿Olvidar a «' + name + '»? Borra su página y TODOS sus reportes en bruto. No se puede deshacer.')) return;
       runB('olvidarPersona')(file).then(function (r) {
         toast('Olvidado (' + (r.raw_borrados || 0) + ' reportes)'); cargarWiki();
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function olvidarProy(file, name) {
+      if (!confirm('¿Olvidar el proyecto «' + name + '»? Borra su página del wiki y su entrada del catálogo (las menciones en páginas de personas y actas quedan). No se puede deshacer.')) return;
+      runB('olvidarProyecto')(file).then(function () {
+        toast('Proyecto olvidado'); cargarWiki();
       }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function llenarSelectsMerge(ps) {

@@ -243,3 +243,158 @@ test('la ingesta regenera wiki/index.md con personas y proyectos al día', () =>
   assert.match(idx.body, /## Proyectos \(1\)/);
   assert.match(idx.body, /\[Proyecto Alpha\]\(projects\/proyecto-alpha\.md\)/);
 });
+
+// --- Compuerta determinista de nombres de entidad (bug 2026-08-13: fuga de razonamiento) ---
+
+// Extracto real del bug: la deliberación del modelo entera como nombre de proyecto.
+const MONOLOGO_BUG =
+  "AI Academy or Plataforma Web de IA por Gemini en Meet e Inteligencia Artificial en Xertica. " +
+  "Posibles valores: 'AI Academy', 'Plataforma Web'. Usaremos 'AI Academy'. No, dejemos el campo " +
+  "conciso. Let me clean up and refine actions. proyecto: AI Academy, confidence: 1.0";
+
+test('sanitizarProyecto_: matriz de aceptación/rechazo', () => {
+  const h = brainHarness();
+  // pasan: nombres reales de iniciativas
+  for (const ok of ['AI Academy', 'Plataforma de Adopción', 'Dealflow', 'Plataforma 2.0', 'Google Chat Integration']) {
+    assert.equal(h.api.sanitizarProyecto_(ok), ok, `debería pasar: ${ok}`);
+  }
+  // rechazan: fugas y basura
+  const casos = [
+    ['monólogo del bug real', MONOLOGO_BUG],
+    ['más de 60 chars', 'x'.repeat(61)],
+    ['más de 6 palabras', 'uno dos tres cuatro cinco seis siete'],
+    ['salto de línea', 'AI\nAcademy'],
+    ['marcador confidence:', 'AI Academy, confidence: 1.0'],
+    ['marcador proyecto:', "proyecto: 'AI Academy'"],
+    ['flecha de action item', 'Joseph -> coordinar reunión'],
+    ['comillas dobles', 'usa "AI Academy"'],
+    ['dos oraciones', 'Usaremos AI Academy. No, mejor Plataforma.'],
+    ['vacío', ''],
+    ['solo espacios', '   ']
+  ];
+  for (const [caso, v] of casos) {
+    assert.equal(h.api.sanitizarProyecto_(v), null, `debería rechazar: ${caso}`);
+  }
+  assert.equal(h.api.sanitizarNombreEntidad_(null), null);
+  assert.equal(h.api.sanitizarNombreEntidad_(undefined), null);
+});
+
+test('resolverProyecto_ rechazado por la compuerta: null y SIN entidad creada', () => {
+  const h = brainHarness();
+  const root = h.api.ensureBrainFolder_('SID', CONFIG);
+  assert.equal(h.api.resolverProyecto_(root, MONOLOGO_BUG), null);
+  assert.deepEqual(plain(h.api.cargarProyectos_(root)), {}, '_projects.json sigue vacío');
+});
+
+test('resolverProyecto_ dedup: contención de tokens y stopwords ES/EN', () => {
+  const h = brainHarness();
+  const root = h.api.ensureBrainFolder_('SID', CONFIG);
+  h.api.resolverProyecto_(root, 'AI Academy');
+
+  // contención: "ai-academy" ⊂ "ai-academy-web" (Jaccard 2/3 llegaría, pero 2 tokens de 4 no)
+  const a = h.api.resolverProyecto_(root, 'AI Academy Web Platform');
+  assert.equal(a.slug, 'ai-academy', 'contención matchea aunque el Jaccard no llegue');
+
+  // stopwords: "Proyecto AI Academy" y "el AI Academy" son el mismo proyecto
+  const b = h.api.resolverProyecto_(root, 'Proyecto AI Academy');
+  assert.equal(b.slug, 'ai-academy');
+
+  // pero proyectos distintos con un token común NO se fusionan (Jaccard 1/3, sin contención)
+  const c = h.api.resolverProyecto_(root, 'Plataforma Web');
+  const d = h.api.resolverProyecto_(root, 'Plataforma IA');
+  assert.equal(c.slug, 'plataforma-web');
+  assert.equal(d.slug, 'plataforma-ia', 'Plataforma IA es un proyecto distinto de Plataforma Web');
+});
+
+test('slugComparable_ filtra stopwords y sobrevive a un slug de puras stopwords', () => {
+  const h = brainHarness();
+  assert.equal(h.api.slugComparable_('proyecto-de-la-ai-academy'), 'ai-academy');
+  assert.equal(h.api.slugComparable_('de-la-el'), 'de-la-el', 'todo stopwords → queda igual');
+});
+
+// --- Catálogo como enum (schema por llamada) ---
+
+test('schemaConProyectos_ inyecta enum + proyecto_nuevo sin mutar el schema base', () => {
+  const h = brainHarness();
+  const root = h.api.ensureBrainFolder_('SID', CONFIG);
+
+  // catálogo vacío → enum mínimo ['OTRO','']
+  let schema = plain(h.api.schemaConProyectos_(root, h.api.INGEST_SCHEMA_));
+  assert.deepEqual(schema.properties.eventos.items.properties.proyecto.enum, ['OTRO', '']);
+  assert.equal(schema.properties.eventos.items.properties.proyecto_nuevo.type, 'string');
+
+  // con proyectos → nombres canónicos + OTRO + ''
+  h.api.resolverProyecto_(root, 'AI Academy');
+  h.api.resolverProyecto_(root, 'Dealflow');
+  schema = plain(h.api.schemaConProyectos_(root, h.api.INGEST_SCHEMA_));
+  assert.deepEqual(schema.properties.eventos.items.properties.proyecto.enum,
+    ['AI Academy', 'Dealflow', 'OTRO', '']);
+
+  // el base NO se mutó
+  assert.equal(h.api.INGEST_SCHEMA_.properties.eventos.items.properties.proyecto.enum, undefined);
+  assert.equal(h.api.INGEST_SCHEMA_.properties.eventos.items.properties.proyecto_nuevo, undefined);
+});
+
+test('nombreProyectoEvento_: canónico directo, OTRO lee proyecto_nuevo, vacío queda vacío', () => {
+  const h = brainHarness();
+  assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'AI Academy' }), 'AI Academy');
+  assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'OTRO', proyecto_nuevo: 'Fénix' }), 'Fénix');
+  assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'OTRO' }), '');
+  assert.equal(h.api.nombreProyectoEvento_({ proyecto: '' }), '');
+  assert.equal(h.api.nombreProyectoEvento_({}), '');
+});
+
+test('ingestarFila_ manda el enum del catálogo y temperatura 0 en el request', () => {
+  const h = brainHarness(EVENTOS);
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.resolverProyecto_(root, 'Proyecto Alpha');
+
+  h.api.ingestarFila_('SID', config, 'daily', { nombre: 'Ada Lovelace', correo: 'ada@x.com' },
+    [{ q: 'q', a: 'a' }], 2, 'SYS');
+
+  const call = h.fetchCalls.find((c) => c.url.indexOf('generativelanguage') > -1);
+  const gc = JSON.parse(call.options.payload).generationConfig;
+  assert.equal(gc.temperature, 0);
+  assert.deepEqual(gc.responseSchema.properties.eventos.items.properties.proyecto.enum,
+    ['Proyecto Alpha', 'OTRO', '']);
+});
+
+test('ingesta e2e: OTRO válido crea el proyecto; OTRO basura va al log y no crea nada', () => {
+  const h = brainHarness({
+    summary: 'S',
+    eventos: [
+      { persona: 'Ada', proyecto: 'OTRO', proyecto_nuevo: 'Fénix', tipo: 'avance', texto: 'arrancó Fénix', confidence: 0.9 },
+      { persona: 'Ada', proyecto: 'OTRO', proyecto_nuevo: MONOLOGO_BUG, tipo: 'avance', texto: 'avance sin hogar', confidence: 0.9 }
+    ]
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.ingestarFila_('SID', config, 'daily', { nombre: 'Ada Lovelace', correo: 'ada@x.com' },
+    [{ q: 'q', a: 'a' }], 2, 'SYS');
+
+  const root = rootOf(h);
+  const projects = sub(sub(root, 'wiki'), 'projects');
+  assert.ok(file(projects, 'fenix.md'), 'el nombre válido creó su página');
+  assert.equal(countFiles(projects), 2, 'solo fenix.md + _projects.json — nada más');
+
+  const log = h.api.leerArchivoBrain_(sub(root, 'wiki'), 'log.md');
+  assert.match(log, /⚠️ proyecto rechazado por sanidad · AI Academy or Plataforma Web de IA/);
+
+  // el evento rechazado NO se pierde: vive en la página de la persona, sin proyecto
+  const person = h.api.leerArchivoBrain_(sub(sub(root, 'wiki'), 'people'), 'ada-x-com.md');
+  assert.match(person, /avance sin hogar/);
+  assert.ok(!/avance sin hogar \(/.test(person), 'sin anotación de proyecto');
+});
+
+// --- Techos defensivos de los campos narrativos ---
+
+test('parseIngest_ trunca texto (300) y summary (600)', () => {
+  const h = brainHarness();
+  const r = h.api.parseIngest_(JSON.stringify({
+    summary: 's'.repeat(700),
+    eventos: [{ tipo: 'avance', texto: 't'.repeat(400) }]
+  }));
+  assert.equal(r.summary.length, 601);   // 600 + '…' del recorte
+  assert.equal(r.eventos[0].texto.length, 301);
+  assert.match(r.summary, /…$/);
+});

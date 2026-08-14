@@ -191,6 +191,43 @@ function olvidarPersona(sheetId, config, file) {
   return { ok: true, email: email, raw_borrados: borrados };
 }
 
+// --- "Olvidar" un proyecto (gobernanza: entidades basura o descontinuadas) ---
+
+/**
+ * Borra la página wiki de un proyecto y su entrada en _projects.json (canónico + aliases, y
+ * purga el slug como alias de otros). El raw/ NO se toca: los reportes/notas de origen son
+ * verdad histórica de personas y reuniones, no del proyecto. Deja rastro en el log. Público.
+ * @param {string} file  nombre de archivo en wiki/projects (p.ej. 'ai-academy.md')
+ * @return {{ok:boolean, name:string}}
+ */
+function olvidarProyecto(sheetId, config, file) {
+  var root = ensureBrainFolder_(sheetId, config);
+  var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
+  var name = nombreArchivoSeguro_(file);
+
+  var contenido = leerArchivoBrain_(carpeta, name);
+  if (contenido == null) throw new Error('Proyecto no encontrado: ' + name);
+  var fm = parsearPagina_(contenido).frontmatter || {};
+
+  borrarArchivoBrain_(carpeta, name);
+
+  var slug = name.replace(/\.md$/, '');
+  var mapa = cargarProyectos_(root);
+  delete mapa[slug];
+  // Por si el slug quedó registrado como alias de otro canónico (merge previo): purgarlo.
+  Object.keys(mapa).forEach(function (c) {
+    if (mapa[c].aliases && mapa[c].aliases.indexOf(slug) > -1) {
+      mapa[c].aliases = mapa[c].aliases.filter(function (al) { return al !== slug; });
+    }
+  });
+  guardarProyectos_(root, mapa);
+
+  appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
+    '- ' + hoyISO_(config) + ' · 🗑️ olvidar proyecto · ' + (str_(fm.name) || slug) + '\n');
+  regenerarIndexBrain_(root, hoyISO_(config));
+  return { ok: true, name: str_(fm.name) || slug };
+}
+
 // --- Gobernanza: purga del raw/ por retención (dispatcher) ---
 
 /**

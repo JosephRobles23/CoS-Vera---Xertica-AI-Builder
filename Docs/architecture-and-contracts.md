@@ -103,8 +103,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Lectura de `Equipo` (roster) | `shared/roster-runtime.js` | Implemented |
 | Ajustes editables + `formMeta` + `guardarFormulario` + flags del brain | `shared/settings-runtime.js` | Implemented |
 | Second brain — carpeta/IO en Drive (markdown + frontmatter, slugs, borrado, índice regenerable) | `shared/brain-drive-runtime.js` | Implemented |
-| Second brain — ingesta por fila (regenera páginas persona/proyecto, log) | `shared/brain-ingest-runtime.js` | Implemented |
-| Second brain — admin/gobernanza (visor wiki, merge, flags, olvidar, purga) | `shared/brain-admin-runtime.js` | Implemented |
+| Second brain — ingesta por fila (regenera páginas persona/proyecto, log; compuerta de sanidad de nombres + catálogo de proyectos como enum por llamada) | `shared/brain-ingest-runtime.js` | Implemented |
+| Second brain — admin/gobernanza (visor wiki, merge, flags, olvidar persona/proyecto, purga) | `shared/brain-admin-runtime.js` | Implemented |
 | Second brain — backfill del histórico (job por cursor en el dispatcher) | `shared/brain-backfill-runtime.js` | Implemented |
 | Deep Prep — briefing pre-reunión (Calendar + brain → Gemini → PDF por correo) | `shared/deepprep-runtime.js` | Implemented |
 | Compartir reportes — individual por persona + cc del consolidado (modal matriz) | `shared/sharing-runtime.js` | Implemented |
@@ -122,12 +122,12 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests de generación de preguntas por IA | `tests/forms-ai-runtime.test.mjs` | Implemented (13 tests) |
 | Tests de UI (menú, diálogos, `dispatch`) | `tests/ui-runtime.test.mjs` | Implemented (9 tests) |
 | Tests del second brain — IO en Drive | `tests/brain-drive-runtime.test.mjs` | Implemented (16 tests) |
-| Tests del second brain — ingesta por fila | `tests/brain-ingest-runtime.test.mjs` | Implemented (11 tests) |
+| Tests del second brain — ingesta por fila (incluye compuerta + enum + dedup) | `tests/brain-ingest-runtime.test.mjs` | Implemented (20 tests) |
 | Tests del second brain — scan de silencios (dispatcher) | `tests/brain-silences-runtime.test.mjs` | Implemented (6 tests) |
-| Tests del second brain — admin/gobernanza | `tests/brain-admin-runtime.test.mjs` | Implemented (9 tests) |
+| Tests del second brain — admin/gobernanza | `tests/brain-admin-runtime.test.mjs` | Implemented (12 tests) |
 | Tests del second brain — backfill del histórico | `tests/brain-backfill-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
-| Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (15 tests) |
+| Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (17 tests) |
 | Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
 | Tests del Seguimiento del equipo | `tests/seguimiento-runtime.test.mjs` | Implemented (13 tests) |
 | Tests de la Web App de follow-up | `tests/webapp-runtime.test.mjs` | Implemented (14 tests) |

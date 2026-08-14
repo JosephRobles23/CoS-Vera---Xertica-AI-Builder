@@ -403,3 +403,57 @@ test('la ingesta de notas regenera el índice: reunión, externa y persona lista
   assert.match(idx, /\[Transformacion Team - Daily\]\(meetings\//);
   assert.match(idx, /\[Carol Diaz\]\(people\/carol-diaz\.md\) · externa/);
 });
+
+// --- Compuerta + enum en la pasada de Meet (bug 2026-08-13: fuga de razonamiento) ---
+
+const MONOLOGO_MEET =
+  "AI Academy or Plataforma Web de IA en Xertica. Usaremos 'AI Academy'. No, dejemos el campo " +
+  "conciso. Let me clean up and refine actions. proyecto: AI Academy, confidence: 1.0";
+
+test('resolverExterno_ rechaza nombres con fuga: null y sin entrada en _people.json', () => {
+  const h = meetHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  assert.equal(h.api.resolverExterno_(root, MONOLOGO_MEET), null);
+  assert.deepEqual(plain(h.api.cargarPersonasExt_(root)), {});
+  // un nombre legítimo sigue creando su canónico
+  assert.equal(h.api.resolverExterno_(root, 'Carol Diaz').slug, 'carol-diaz');
+});
+
+test('runMeetPass_ manda enum del catálogo + temperatura 0, y OTRO basura va al log sin crear página', () => {
+  const inicio = hace(2);
+  const h = meetHarness({
+    eventos: [evConNotas('ev1', 'Transformacion Team - Daily', inicio, 'doc1')],
+    docs: { doc1: 'Notas...' },
+    extract: () => ({
+      resumen: 'R',
+      asistentes: ['Julio Toloza'],
+      eventos: [
+        { persona: 'Julio Toloza', correo: 'julio@x.com', proyecto: 'OTRO', proyecto_nuevo: 'Fénix', tipo: 'avance', texto: 'arrancó Fénix', confidence: 0.9 },
+        { persona: 'Julio Toloza', correo: 'julio@x.com', proyecto: 'OTRO', proyecto_nuevo: MONOLOGO_MEET, tipo: 'avance', texto: 'avance huérfano', confidence: 0.9 }
+      ]
+    })
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.resolverProyecto_(root, 'Classroom');   // catálogo previo → debe viajar en el enum
+
+  assert.equal(h.api.runMeetPass_('SID', config, NOW, FUTURO()), 1);
+
+  // request: temperatura 0 y proyecto como enum del catálogo
+  const gc = JSON.parse(geminiCalls(h)[0].options.payload).generationConfig;
+  assert.equal(gc.temperature, 0);
+  assert.deepEqual(gc.responseSchema.properties.eventos.items.properties.proyecto.enum,
+    ['Classroom', 'OTRO', '']);
+  assert.equal(gc.responseSchema.properties.eventos.items.properties.proyecto_nuevo.type, 'string');
+
+  // OTRO válido creó página; OTRO basura no, y quedó en el log
+  assert.ok(leerWiki(h, root, ['wiki', 'projects'], 'fenix.md'), 'Fénix creado');
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.deepEqual(Object.keys(mapa).sort(), ['classroom', 'fenix'], 'nada basura en el catálogo');
+  assert.match(logDe(h, root), /⚠️ proyecto rechazado por sanidad · AI Academy or Plataforma Web/);
+
+  // el evento huérfano no se perdió: está en la página de Julio, sin proyecto
+  const julio = leerWiki(h, root, ['wiki', 'people'], 'julio-x-com.md');
+  assert.match(julio, /avance huérfano/);
+});

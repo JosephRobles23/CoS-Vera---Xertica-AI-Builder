@@ -363,23 +363,28 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   var roster = [];
   try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
 
+  // Schema por llamada (proyectos como enum) + temperatura 0: extracción de hechos, no creatividad.
   var raw = callGemini_(config.models.perRow, meetSystem_(),
     meetUser_(titulo, fecha, roster, cargarExternosConocidos_(root), texto, config.leader,
       pendientesAbiertosEquipo_(root, roster)),
-    { responseSchema: MEET_SCHEMA_ });
+    { responseSchema: schemaConProyectos_(root, MEET_SCHEMA_), temperature: 0 });
   var parsed = parseNotaMeet_(raw);
 
   // 1) raw/ inmutable (verdad de origen del Doc exportado).
   var source = guardarRawMeet_(root, cand, titulo, fecha, texto);
 
-  // 2) proyectos.
+  // 2) proyectos. La compuerta puede rechazar (null): el evento vive igual en persona/acta.
   var proyectos = {};
+  var rechazados = [];
   parsed.eventos.forEach(function (ev) {
-    if (!ev.proyecto) return;
-    var pr = resolverProyecto_(root, ev.proyecto);
+    var nombre = nombreProyectoEvento_(ev);
+    if (!nombre) return;
+    var pr = resolverProyecto_(root, nombre);
+    if (!pr) { rechazados.push(nombre); return; }
     proyectos[pr.slug] = pr.name;
     ev._proyectoName = pr.name;
   });
+  appendLogRechazos_(root, fecha, rechazados);
   Object.keys(proyectos).forEach(function (slug) {
     regenerarPaginaProyecto_(root, slug, proyectos[slug],
       parsed.eventos.filter(function (ev) { return ev._proyectoName === proyectos[slug]; }), source, fecha);
@@ -441,7 +446,10 @@ function meetSystem_() {
     '  · "correo": SOLO si la persona corresponde a alguien del EQUIPO listado abajo (usa ese',
     '    correo exacto). Si es alguien de fuera, deja correo vacío y pon su nombre completo tal',
     '    como aparece; si ya existe en EXTERNOS CONOCIDOS, usa ese nombre canónico.',
-    '  · proyecto: la iniciativa/proyecto al que refiere el hecho, si se distingue.',
+    '  · proyecto: elige EXACTAMENTE uno del catálogo permitido; si la iniciativa no está en el',
+    '    catálogo, pon proyecto "OTRO" y SOLO el nombre propio (máximo 3-4 palabras) en',
+    '    "proyecto_nuevo". Si no es evidente, deja proyecto vacío. NUNCA escribas razonamiento,',
+    '    alternativas ni explicaciones dentro de ningún campo.',
     '  · DEDUP: si una acción ya figura (aunque parafraseada) en los PENDIENTES YA REGISTRADOS',
     '    de esa persona, NO la emitas de nuevo como evento "accion".',
     'No inventes: si un hecho no da para evento, no lo fuerces.'
@@ -492,9 +500,11 @@ function parseNotaMeet_(text) {
   try {
     var o = JSON.parse(t);
     return {
-      resumen: str_(o.resumen),
+      resumen: recorteTexto_(str_(o.resumen), RESUMEN_MAX_),
       asistentes: Array.isArray(o.asistentes) ? o.asistentes.map(function (a) { return str_(a); }).filter(Boolean) : [],
-      eventos: Array.isArray(o.eventos) ? o.eventos.filter(function (e) { return e && e.texto && e.tipo; }) : []
+      eventos: Array.isArray(o.eventos)
+        ? o.eventos.filter(function (e) { return e && e.texto && e.tipo; }).map(truncarEvento_)
+        : []
     };
   } catch (e) {
     return { resumen: t, asistentes: [], eventos: [] };
@@ -527,8 +537,9 @@ function agruparEventosPorPersona_(root, roster, eventos, leader) {
       var pr = porNombre[normTitulo_(ev.persona)];
       meta = { nombre: pr.nombre, correo: pr.correo.toLowerCase() };
     } else if (ev.persona && String(ev.persona).trim()) {
+      // La compuerta puede rechazar el nombre (fuga del LLM): el evento queda anónimo (acta).
       var ext = resolverExterno_(root, ev.persona);
-      meta = { nombre: ext.name, correo: '', external: true };
+      if (ext) meta = { nombre: ext.name, correo: '', external: true };
     }
     if (!meta) return;   // sin persona: el hecho vive en el acta y el proyecto
 
@@ -571,10 +582,17 @@ function slugContenido_(a, b) {
   return corto.every(function (t) { return setLargo[t]; });
 }
 
-/** Resuelve el nombre de un externo a su canónico: exacto/alias → difuso/contenido → autocreate. */
+/**
+ * Resuelve el nombre de un externo a su canónico: compuerta de sanidad (null si huele a fuga del
+ * LLM) → exacto/alias → difuso/contenido → autocreate. ÚNICO punto por el que un string del LLM
+ * puede crear una página de persona externa.
+ * @return {{slug:string, name:string}|null}
+ */
 function resolverExterno_(root, nombre) {
+  var limpio = sanitizarPersona_(nombre);
+  if (!limpio) return null;
   var mapa = cargarPersonasExt_(root);
-  var slug = slugBrain_(nombre);
+  var slug = slugBrain_(limpio);
 
   var canon = Object.keys(mapa);
   for (var i = 0; i < canon.length; i++) {
@@ -595,7 +613,7 @@ function resolverExterno_(root, nombre) {
     }
     return { slug: mejor, name: mapa[mejor].name };
   }
-  mapa[slug] = { name: String(nombre).trim(), aliases: [] };
+  mapa[slug] = { name: limpio, aliases: [] };
   guardarPersonasExt_(root, mapa);
   return { slug: slug, name: mapa[slug].name };
 }

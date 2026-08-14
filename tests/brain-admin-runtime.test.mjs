@@ -219,3 +219,56 @@ test('olvidarPersona y mergearProyectos dejan el índice al día', () => {
   idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
   assert.match(idx, /## Personas \(0\)/);
 });
+
+// --- olvidarProyecto (gobernanza: entidades basura del bug de títulos / descontinuadas) ---
+
+test('olvidarProyecto borra página + entrada del catálogo (con aliases) y deja rastro', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+
+  // dos proyectos; el segundo tiene al primero como alias (simula un merge previo)
+  ponerWiki(h, root, 'projects', 'basura.md', { page_type: 'project', name: 'Basura', last_updated: '2026-08-13' }, '# Basura');
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha', last_updated: '2026-08-13' }, '# Alpha');
+  h.api.guardarProyectos_(root, {
+    basura: { name: 'Basura', aliases: ['basura-vieja'] },
+    alpha: { name: 'Alpha', aliases: ['basura'] }   // 'basura' también quedó como alias ajeno
+  });
+
+  const res = plain(h.api.olvidarProyecto('SID', config, 'basura.md'));
+  assert.deepEqual(res, { ok: true, name: 'Basura' });
+
+  // página fuera, catálogo limpio (entrada propia Y alias ajeno purgados), alpha intacto
+  assert.equal(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), 'basura.md'), null);
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.equal(mapa.basura, undefined);
+  assert.deepEqual(mapa.alpha, { name: 'Alpha', aliases: [] });
+
+  // rastro en el log + índice al día
+  assert.match(logDe(h, root), /🗑️ olvidar proyecto · Basura/);
+  const idx = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki']), 'index.md');
+  assert.ok(!/basura\.md/.test(idx), 'el proyecto salió del índice');
+});
+
+test('olvidarProyecto falla claro si el proyecto no existe y no toca el raw/', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerRaw(h, root, '2026-08-01_ada_daily_r2.md', { page_type: 'report', email: 'ada@x.com' }, 'x');
+  assert.throws(() => h.api.olvidarProyecto('SID', config, 'nada.md'), /Proyecto no encontrado/);
+
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha' }, '# Alpha');
+  h.api.guardarProyectos_(root, { alpha: { name: 'Alpha', aliases: [] } });
+  h.api.olvidarProyecto('SID', config, 'alpha.md');
+  assert.deepEqual(rawNames(h, root), ['2026-08-01_ada_daily_r2.md'], 'el raw es verdad histórica: intacto');
+});
+
+test('dispatch enruta olvidarProyecto', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha' }, '# Alpha');
+  h.api.guardarProyectos_(root, { alpha: { name: 'Alpha', aliases: [] } });
+  const res = plain(h.api.dispatch('olvidarProyecto', ['alpha.md'], 'SID', config));
+  assert.equal(res.ok, true);
+});
