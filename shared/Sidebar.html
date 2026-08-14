@@ -256,7 +256,8 @@
     <button class="btn btn-primary" onclick="salvarEquipo()"><i data-lucide="save"></i> Guardar equipo</button>
     <div class="divider"></div>
     <button class="btn btn-outline" onclick="abrirCompartir()"><i data-lucide="share-2"></i> Compartir reportes…</button>
-    <p class="hint">Envía el resumen de una persona (o el consolidado completo) a otros correos — p.ej. un segundo jefe.</p>
+    <button class="btn btn-outline" onclick="abrirSeguimiento()"><i data-lucide="users"></i> Seguimiento del equipo…</button>
+    <p class="hint">Compartir: envía resúmenes a otros correos. Seguimiento: salud, actividad y dashboards del equipo.</p>
   </div>
 
   <!-- PREP (Deep Prep) -->
@@ -562,6 +563,10 @@
     }
     function abrirBriefing() {
       run('abrirDialogo')('briefing')
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function abrirSeguimiento() {
+      run('abrirDialogo')('seguimiento')
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
 

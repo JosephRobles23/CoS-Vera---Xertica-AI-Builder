@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seguimiento del equipo — Maquetas</title>
+<style>
+  /* ---- Design tokens del CoS (shadcn / Neutral, OKLCH) — tema claro fijo, como el sidebar ---- */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0); --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0); --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0); --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0); --input: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+    --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    --stage: oklch(0.97 0 0); --warn: oklch(0.68 0.16 60); --ok: oklch(0.55 0.15 155);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--stage); }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+    font-size: 13px; line-height: 1.5; padding: 28px 20px 60px; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .page-header .logo {
+    width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--primary);
+    color: var(--primary-foreground); display: grid; place-items: center; font-size: 16px;
+  }
+  .page-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
+  .page-header p { font-size: 12px; color: var(--muted-foreground); }
+  .intro { max-width: 780px; color: var(--muted-foreground); font-size: 12.5px; margin: 8px 0 26px; }
+  .intro b { color: var(--foreground); }
+
+  .fase { margin: 34px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+  .fase h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .fase span { font-size: 11px; color: var(--muted-foreground); }
+
+  .idea { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; margin: 18px 0 30px; }
+  .frame {
+    background: var(--background); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-md); padding: 16px; position: relative; flex: 0 0 auto;
+  }
+  .frame-tag {
+    position: absolute; top: -9px; left: 14px; font-size: 10px; font-weight: 600; letter-spacing: .02em;
+    background: var(--primary); color: var(--primary-foreground); border-radius: 999px; padding: 2px 9px;
+  }
+  .frame-tag.reco { background: var(--ok); color: #fff; }
+  .notes { flex: 1 1 280px; min-width: 250px; padding-top: 4px; }
+  .notes h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .notes ul { margin: 0 0 10px 16px; padding: 0; font-size: 12px; color: var(--muted-foreground); }
+  .notes li { margin: 3px 0; }
+  .notes li b { color: var(--foreground); font-weight: 600; }
+
+  /* ---- Componentes CoS ---- */
+  .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+  .badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-weight: 600; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0;
+    border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 12px; font-weight: 500; padding: 6px 11px;
+  }
+  .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+  .btn-mini { padding: 4px 9px; font-size: 11px; }
+  select {
+    padding: 6px 9px; font: inherit; font-size: 12px; color: var(--foreground);
+    background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
+  }
+
+  .modal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .modal-h b { font-size: 14px; letter-spacing: -0.01em; }
+  .modal-h small { color: var(--muted-foreground); font-size: 10.5px; }
+
+  /* Tabs (mismo patrón del nav del sidebar) */
+  .tabs { display: flex; gap: 2px; background: var(--muted); padding: 3px; border-radius: var(--radius); margin-bottom: 14px; width: fit-content; }
+  .tabs span {
+    padding: 6px 14px; border-radius: var(--radius-sm); color: var(--muted-foreground);
+    font-size: 12px; font-weight: 500; cursor: pointer;
+  }
+  .tabs span.on { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
+
+  /* Tab Personas: tarjetas de salud */
+  .persona { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin: 8px 0; display: flex; gap: 12px; align-items: flex-start; }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--muted); display: grid; place-items: center; font-weight: 600; font-size: 12px; flex: 0 0 auto; }
+  .persona .cuerpo { flex: 1; min-width: 0; }
+  .persona .fila1 { display: flex; align-items: center; gap: 8px; }
+  .persona .fila1 b { font-size: 12.5px; }
+  .salud { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
+  .s-ok { background: #DCFCE7; color: #166534; }
+  .s-warn { background: #FEF3C7; color: #92400E; }
+  .s-bad { background: #FEE2E2; color: #991B1B; }
+  .persona .meta { font-size: 10.5px; color: var(--muted-foreground); margin-top: 1px; }
+  .mini-stats { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .stat { font-size: 10.5px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--muted-foreground); }
+  .stat b { color: var(--foreground); }
+  .stat.rojo { border-color: #FECACA; background: #FEF2F2; color: #991B1B; }
+  .stat.rojo b { color: #991B1B; }
+  .avance { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+  .avance code { background: var(--muted); border-radius: 4px; padding: 0 5px; font-size: 10px; }
+
+  /* Tab Actividad: timeline */
+  .filtros { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .chipf { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; color: var(--muted-foreground); cursor: pointer; }
+  .chipf.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .tl { border-left: 2px solid var(--border); margin-left: 8px; padding-left: 14px; }
+  .tl-item { position: relative; padding: 5px 0; font-size: 11.5px; }
+  .tl-item::before { content: ''; position: absolute; left: -20px; top: 11px; width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+  .tl-item.av::before { background: #16A34A; }
+  .tl-item.bl::before { background: #DC2626; }
+  .tl-item.ri::before { background: #D97706; }
+  .tl-item.de::before { background: #2563EB; }
+  .tl-item small { color: var(--muted-foreground); }
+  .tl-tipo { font-size: 9.5px; font-weight: 700; border-radius: 4px; padding: 1px 5px; margin-right: 4px; }
+  .t-av { background: #DCFCE7; color: #166534; }
+  .t-bl { background: #FEE2E2; color: #991B1B; }
+  .t-ri { background: #FEF3C7; color: #92400E; }
+  .t-de { background: #DBEAFE; color: #1E40AF; }
+
+  /* Tab Dashboards: charts simulados (en producción: Google Charts / gstatic) */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .chart { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+  .chart h6 { font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+  .chart .sub { font-size: 9.5px; color: var(--muted-foreground); font-weight: 400; }
+  .cols { display: flex; align-items: flex-end; gap: 10px; height: 90px; padding-top: 4px; }
+  .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .col .bar { width: 70%; border-radius: 4px 4px 0 0; background: #16A34A; }
+  .col .bar.warn { background: #D97706; }
+  .col .bar.bad { background: #DC2626; }
+  .col small { font-size: 9px; color: var(--muted-foreground); }
+  .hbars .hb { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 10.5px; }
+  .hbars .hb span { flex: 0 0 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hbars .hb .track { flex: 1; background: var(--muted); border-radius: 999px; height: 10px; }
+  .hbars .hb .fill { height: 10px; border-radius: 999px; background: #DC2626; }
+  .hbars .hb small { flex: 0 0 46px; text-align: right; color: var(--muted-foreground); }
+  .dona { display: flex; gap: 14px; align-items: center; }
+  .dona svg { flex: 0 0 auto; }
+  .leyenda { font-size: 10.5px; color: var(--muted-foreground); }
+  .leyenda i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
+
+  /* Fase 2: hoja Tareas equipo */
+  .sheet { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .sheet table { border-collapse: collapse; width: 100%; font-size: 11px; background: #fff; color: #202124; }
+  .sheet th { background: #202124; color: #fff; font-weight: 600; text-align: left; padding: 6px 9px; font-size: 10.5px; border-right: 1px solid #3c4043; white-space: nowrap; }
+  .sheet td { padding: 5px 9px; border-top: 1px solid #e8eaed; border-right: 1px solid #f1f3f4; }
+  .sheet tr:nth-child(even) td { background: #f4f5f7; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+  .pill::after { content: '▾'; font-size: 7px; opacity: .6; }
+  .p-pend { background: #FEF3C7; color: #92400E; }
+  .p-curso { background: #DBEAFE; color: #1E40AF; }
+  .p-bloq { background: #FEE2E2; color: #991B1B; }
+  .p-hecho { background: #DCFCE7; color: #166534; }
+
+  .pend-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin: 6px 0; font-size: 11.5px; }
+  .pend-item .txt { flex: 1; min-width: 0; }
+  .pend-item small { display: block; color: var(--muted-foreground); font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="logo">👥</div>
+    <div>
+      <h1>Seguimiento del equipo — maquetas</h1>
+      <p>Modal de 3 tabs (Personas · Actividad · Dashboards) leyendo el brain · Fase 2: ciclo de vida de los pendientes</p>
+    </div>
+  </div>
+  <p class="intro">
+    <b>No se crea ninguna hoja nueva en la Fase 1</b>: el modal lee lo que el brain ya acumula por
+    persona (secciones fechadas de Avances/Blockers/Riesgos/Decisiones/Pendientes + frontmatter de
+    salud) y las hojas Daily/Weekly para el cumplimiento. Todo se agrega con un
+    <b>cargarSeguimiento determinista</b> (cero LLM) + auto-refresco de 60&nbsp;s.
+  </p>
+
+  <!-- ============================== TAB 1 · PERSONAS ============================== -->
+  <div class="fase"><h2>Tab 1 · Personas — la vista de salud (default)</h2><span>un vistazo = cómo está cada quien</span></div>
+  <div class="idea">
+    <div class="frame" style="width:620px">
+      <span class="frame-tag reco">DIALOG 760px · TAB DEFAULT</span>
+      <div class="modal-h">
+        <b>👥 Seguimiento del equipo</b>
+        <small>actualizado hace 40 s · ⟳ auto</small>
+      </div>
+      <div class="tabs"><span class="on">Personas</span><span>Actividad</span><span>Dashboards</span></div>
+
+      <div class="persona">
+        <div class="avatar">MP</div>
+        <div class="cuerpo">
+          <div class="fila1"><b>María Pérez</b> <span class="salud s-ok">AL DÍA</span></div>
+          <div class="meta">Último reporte: hoy 09:12 · racha de 12 días · Proyectos: Alpha, Pagos</div>
+          <div class="mini-stats">
+            <span class="stat"><b>0</b> blockers</span>
+            <span class="stat"><b>2</b> pendientes</span>
+            <span class="stat"><b>5</b> avances (7d)</span>
+          </div>
+          <div class="avance">↳ <code>hoy</code> Cerró el diseño de Alpha; espera revisión legal.</div>
+        </div>
+      </div>
+
+      <div class="persona">
+        <div class="avatar">JT</div>
+        <div class="cuerpo">
+          <div class="fila1"><b>Julio Toloza</b> <span class="salud s-warn">3 DÍAS SIN REPORTAR</span></div>
+          <div class="meta">Último reporte: 2026-08-10 · Proyectos: Classroom</div>
+          <div class="mini-stats">
+            <span class="stat rojo"><b>1</b> blocker · 6 días</span>
+            <span class="stat"><b>3</b> pendientes</span>
+            <span class="stat"><b>2</b> avances (7d)</span>
+          </div>
+          <div class="avance">↳ <code>08-10</code> Lógica de roles lista; evalúa caché para tableros.</div>
+        </div>
+      </div>
+
+      <div class="persona">
+        <div class="avatar">AR</div>
+        <div class="cuerpo">
+          <div class="fila1"><b>Ana Ruiz</b> <span class="salud s-bad">SILENCIO · 9 DÍAS</span></div>
+          <div class="meta">Último reporte: 2026-08-04 · marcada por el scan del brain</div>
+          <div class="mini-stats">
+            <span class="stat rojo"><b>2</b> blockers · 21 días</span>
+            <span class="stat"><b>1</b> pendiente</span>
+            <span class="stat"><b>0</b> avances (7d)</span>
+          </div>
+          <div class="avance">↳ <code>08-04</code> Migración de pagos detenida por dependencia de infra.</div>
+        </div>
+      </div>
+      <p class="hint">Ordenadas por severidad (rojo → ámbar → verde). Clic en una persona → salta al tab Actividad filtrado por ella.</p>
+    </div>
+
+    <div class="notes">
+      <h4>De dónde sale cada cosa</h4>
+      <ul>
+        <li><b>Chip de salud</b>: días desde <code>last_updated</code> vs el umbral <code>brain.silenceDays</code> ya configurado (verde &lt; mitad, ámbar &lt; umbral, rojo = marcado por el scan).</li>
+        <li><b>Racha y cumplimiento</b>: filas de Daily/Weekly (determinista, sin LLM).</li>
+        <li><b>Blockers con edad</b>: <code>open_blockers</code> + <code>last_updated</code> del frontmatter.</li>
+        <li><b>Último avance</b>: la viñeta más reciente de <code>## Avances</code>.</li>
+        <li>Externos (Meet) <b>fuera por defecto</b> — no reportan, ensuciarían la salud (toggle "ver externos" opcional).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== TAB 2 · ACTIVIDAD ============================== -->
+  <div class="fase"><h2>Tab 2 · Actividad — la línea de tiempo</h2><span>"¿qué pasó con X esta semana?" sin abrir Drive</span></div>
+  <div class="idea">
+    <div class="frame" style="width:620px">
+      <span class="frame-tag">TIMELINE AGREGADA DEL WIKI</span>
+      <div class="tabs"><span>Personas</span><span class="on">Actividad</span><span>Dashboards</span></div>
+      <div class="filtros">
+        <select><option>Todo el equipo</option><option>María Pérez</option><option>Julio Toloza</option><option>Ana Ruiz</option></select>
+        <span class="chipf on">Todos</span><span class="chipf">Avances</span><span class="chipf">Blockers</span>
+        <span class="chipf">Riesgos</span><span class="chipf">Decisiones</span><span class="chipf">Pendientes</span>
+        <select><option>Últimos 7 días</option><option>Últimos 30 días</option></select>
+      </div>
+      <div class="tl">
+        <div class="tl-item av"><span class="tl-tipo t-av">AVANCE</span><b>María</b> cerró el diseño de Alpha; espera revisión legal. <small>· hoy · Alpha</small></div>
+        <div class="tl-item de"><span class="tl-tipo t-de">DECISIÓN</span>Dar de baja los servicios sin IAP (seguridad). <small>· ayer · 🎥 Transformacion Team</small></div>
+        <div class="tl-item bl"><span class="tl-tipo t-bl">BLOCKER</span><b>Julio</b>: carga masiva sin responsables definidos. <small>· 08-11 · Classroom</small></div>
+        <div class="tl-item ri"><span class="tl-tipo t-ri">RIESGO</span>Olympics sigue detenido por falta de capacidad operativa. <small>· 08-10 · 🎥 Notas de Meet</small></div>
+        <div class="tl-item av"><span class="tl-tipo t-av">AVANCE</span><b>Julio</b>: lógica de roles lista; evalúa caché para tableros. <small>· 08-10 · Classroom</small></div>
+      </div>
+      <p class="hint">Cada ítem trae su origen trazable (📝 daily, 🎥 nota de Meet, proyecto). Es la misma información del wiki, agregada y ordenada — cero re-interpretación.</p>
+    </div>
+
+    <div class="notes">
+      <h4>Detalles que importan</h4>
+      <ul>
+        <li>Las viñetas del wiki ya vienen fechadas <code>- [2026-08-11] …</code>: la timeline es <b>parseo puro</b>, no hay LLM que pueda inventar.</li>
+        <li>Filtro persona + tipo + ventana (7/30). El clic desde el tab Personas llega aquí pre-filtrado.</li>
+        <li>Las decisiones/riesgos de reuniones (sin dueño) también aparecen — vienen de las actas.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== TAB 3 · DASHBOARDS ============================== -->
+  <div class="fase"><h2>Tab 3 · Dashboards — Google Charts (gstatic)</h2><span>los 4 gráficos que responden preguntas reales</span></div>
+  <div class="idea">
+    <div class="frame" style="width:620px">
+      <span class="frame-tag">GOOGLE CHARTS · AUTO-REFRESCO 60s</span>
+      <div class="tabs"><span>Personas</span><span>Actividad</span><span class="on">Dashboards</span></div>
+      <div class="grid2">
+        <div class="chart">
+          <h6>Cumplimiento de Daily <span class="sub">· últimos 7 días hábiles</span></h6>
+          <div class="cols">
+            <div class="col"><div class="bar" style="height:78px"></div><small>María 100%</small></div>
+            <div class="col"><div class="bar warn" style="height:47px"></div><small>Julio 60%</small></div>
+            <div class="col"><div class="bar bad" style="height:16px"></div><small>Ana 20%</small></div>
+            <div class="col"><div class="bar" style="height:62px"></div><small>Bob 80%</small></div>
+          </div>
+        </div>
+        <div class="chart">
+          <h6>Blockers por edad <span class="sub">· abiertos hoy</span></h6>
+          <div class="hbars">
+            <div class="hb"><span>Alpha · legal</span><div class="track"><div class="fill" style="width:88%"></div></div><small>21 días</small></div>
+            <div class="hb"><span>Ana · infra</span><div class="track"><div class="fill" style="width:60%"></div></div><small>14 días</small></div>
+            <div class="hb"><span>Julio · carga</span><div class="track"><div class="fill" style="width:26%; background:#D97706"></div></div><small>6 días</small></div>
+          </div>
+        </div>
+        <div class="chart">
+          <h6>Pendientes por persona <span class="sub">· acumulados</span></h6>
+          <div class="cols">
+            <div class="col"><div class="bar" style="height:30px; background:#2563EB"></div><small>María 2</small></div>
+            <div class="col"><div class="bar" style="height:45px; background:#2563EB"></div><small>Julio 3</small></div>
+            <div class="col"><div class="bar" style="height:15px; background:#2563EB"></div><small>Ana 1</small></div>
+            <div class="col"><div class="bar" style="height:60px; background:#7C3AED"></div><small>Líder 4</small></div>
+          </div>
+        </div>
+        <div class="chart">
+          <h6>Actividad del brain <span class="sub">· ingestas por día, 14 días</span></h6>
+          <svg width="100%" height="70" viewBox="0 0 240 70" preserveAspectRatio="none">
+            <polyline fill="none" stroke="#16A34A" stroke-width="2"
+              points="0,52 17,48 34,55 51,30 68,38 85,22 102,35 119,18 136,28 153,12 170,25 187,20 204,15 221,22 238,10"/>
+            <polyline fill="rgba(22,163,74,.08)" stroke="none"
+              points="0,52 17,48 34,55 51,30 68,38 85,22 102,35 119,18 136,28 153,12 170,25 187,20 204,15 221,22 238,10 238,70 0,70"/>
+          </svg>
+        </div>
+      </div>
+      <p class="hint">En producción: <b>Google Charts desde gstatic</b> (ColumnChart, BarChart, AreaChart) con la paleta del CoS
+      vía options — tooltips y ejes gratis. Los datos llegan de <code>cargarSeguimiento</code> ya agregados.</p>
+    </div>
+
+    <div class="notes">
+      <h4>Por qué estos 4</h4>
+      <ul>
+        <li><b>Cumplimiento</b> responde "¿quién reporta y quién no?" — la disciplina del sistema.</li>
+        <li><b>Blockers por edad</b> es el gráfico más accionable: lo que lleva 21 días rojo es tu reunión de mañana.</li>
+        <li><b>Pendientes por persona</b> muestra la carga (incluye las del líder, en otro color).</li>
+        <li><b>Actividad del brain</b> = confianza en el sistema: si la línea cae, algo se desconectó.</li>
+        <li>gstatic es la única dependencia externa — la bendecida para Apps Script; si no carga, el tab degrada a las cifras en texto (fallback).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================== FASE 2 ============================== -->
+  <div class="fase"><h2>Fase 2 — ciclo de vida de los pendientes del equipo</h2><span>hoy nadie los cierra; dos formas de resolverlo (a grillar)</span></div>
+  <div class="idea">
+    <div class="frame" style="width:480px">
+      <span class="frame-tag reco">OPCIÓN A · RESOLVER DESDE EL MODAL</span>
+      <div class="modal-h"><b>Pendientes de Julio Toloza</b><small>tab Personas → expandir</small></div>
+      <div class="pend-item">
+        <div class="txt">Validar Classroom con Carol
+          <small>🎥 Comité AAP · 2026-08-10 · 3 días abierto</small></div>
+        <button class="btn btn-outline btn-mini">✓ Resuelto</button>
+      </div>
+      <div class="pend-item">
+        <div class="txt">Definir responsables de carga por capa
+          <small>📝 Daily · 2026-08-12 · 1 día abierto</small></div>
+        <button class="btn btn-outline btn-mini">✓ Resuelto</button>
+      </div>
+      <div class="pend-item" style="opacity:.55">
+        <div class="txt"><s>Gestionar accesos de BigQuery</s>
+          <small>✓ resuelto por el líder · 2026-08-12</small></div>
+        <span class="badge">resuelto</span>
+      </div>
+      <p class="hint">"✓ Resuelto" escribe en la página wiki de la persona: la viñeta gana sufijo
+      <code>✓ [resuelto 2026-08-13]</code> y sale de los conteos/dashboards. Una línea queda en log.md (auditoría).</p>
+    </div>
+
+    <div class="notes">
+      <h4>Opción A — pros y contras</h4>
+      <ul>
+        <li><b>Pro:</b> cero hojas nuevas; el wiki sigue siendo la única verdad; implementación chica (un dispatch <code>resolverPendiente</code>).</li>
+        <li><b>Pro:</b> auditable — quién resolvió y cuándo queda en el historial.</li>
+        <li><b>Contra:</b> rompe (controladamente) la regla "el líder lee, nunca edita el wiki" — sería la PRIMERA escritura humana, acotada a un sufijo en una viñeta.</li>
+        <li><b>Contra:</b> resuelve el LÍDER, no la persona — el dueño real no participa (eso lo cerraría el follow-up en el Daily: "¿avanzaste X?" → el LLM marca resuelto).</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="idea">
+    <div class="frame" style="width:640px">
+      <span class="frame-tag">OPCIÓN B · HOJA "TAREAS EQUIPO" (con Dueño)</span>
+      <div class="sheet">
+        <table>
+          <tr><th>Tarea</th><th>Dueño</th><th>Vence</th><th>Estado</th><th>Origen</th></tr>
+          <tr><td>Validar Classroom con Carol</td><td>Julio Toloza</td><td>2026-08-15</td>
+            <td><span class="pill p-curso">En curso</span></td><td style="font-size:10px;color:#5f6368">🎥 Comité AAP</td></tr>
+          <tr><td>Definir responsables de carga</td><td>Julio Toloza</td><td>—</td>
+            <td><span class="pill p-pend">Pendiente</span></td><td style="font-size:10px;color:#5f6368">📝 Daily 08-12</td></tr>
+          <tr><td>Feedback del piloto AAP</td><td>Ana Ruiz</td><td>2026-08-11</td>
+            <td><span class="pill p-bloq">Bloqueada</span></td><td style="font-size:10px;color:#5f6368">🎥 Notas de Meet</td></tr>
+          <tr><td>Gestionar accesos BigQuery</td><td>María Pérez</td><td>2026-08-12</td>
+            <td><span class="pill p-hecho">Hecha</span></td><td style="font-size:10px;color:#5f6368">✍️ Manual</td></tr>
+        </table>
+      </div>
+      <p class="hint">Espejo exacto del patrón de la hoja Tareas del líder (chips, date-picker, archivado, espejo wiki),
+      con la columna <b>Dueño</b>. El modal la lee; el líder edita estados en la hoja o desde el modal.</p>
+    </div>
+
+    <div class="notes">
+      <h4>Opción B — pros y contras</h4>
+      <ul>
+        <li><b>Pro:</b> reusa TODO el motor de tasks-runtime (dropdowns, colores, Archivo, espejo wiki/tasks con historial) — solo se agrega Dueño.</li>
+        <li><b>Pro:</b> superficie editable familiar (Sheets) y estados ricos (no solo resuelto/no).</li>
+        <li><b>Contra:</b> nace una <b>segunda verdad</b>: el pendiente vive en la página wiki de la persona Y en la hoja — hay que definir cuál manda y sincronizarlas (el riesgo clásico de duplicar datos).</li>
+        <li><b>Contra:</b> más superficie: autopoblado por persona, dedup, archivado… (~3× el esfuerzo de la Opción A).</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:26px">
+    Maqueta estática · Docs/html/seguimiento-equipo-mockups.html · tokens del CoS, tema claro fijo
+    (como el sidebar). Para el grill: tab default, ventanas 7/30, externos on/off, umbrales del chip
+    de salud, Google Charts vs fallback, y Opción A vs B (o A ahora + B si el uso lo pide).
+  </p>
+</div>
+</body>
+</html>

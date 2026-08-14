@@ -112,6 +112,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Hoja Tareas del líder (dropdowns con chips de color, Vence con date-picker, archivado a Archivo, espejo en wiki/tasks) | `shared/tasks-runtime.js` | Implemented |
 | Morning Briefing (agenda + pendientes + urgente + foco; hora/días/secciones configurables) | `shared/briefing-runtime.js` | Implemented |
 | HTML del modal Morning Briefing (config + vista previa en vivo) | `shared/DialogBriefing.html` | Implemented |
+| Seguimiento del equipo (salud/timeline/dashboards deterministas + cierre de pendientes) | `shared/seguimiento-runtime.js` | Implemented |
+| HTML del modal Seguimiento (3 tabs, Google Charts con fallback CSS) | `shared/DialogSeguimiento.html` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
 | Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
@@ -126,6 +128,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (15 tests) |
 | Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
+| Tests del Seguimiento del equipo | `tests/seguimiento-runtime.test.mjs` | Implemented (13 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
 > Estrategia de tests y flujo de deploy/versionamiento: [testing-and-deploy.md](testing-and-deploy.md).

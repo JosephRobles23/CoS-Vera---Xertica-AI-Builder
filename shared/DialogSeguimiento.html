@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <!-- Google Charts (gstatic): la única dependencia externa bendecida para Apps Script.
+       Si no carga en ~3 s, el tab Dashboards degrada a barras CSS (mismos datos). -->
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+  <style>
+    /* ---- Tokens del CoS (tema claro fijo, como el sidebar) ---- */
+    :root {
+      --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+      --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+      --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+      --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+      --accent: oklch(0.97 0 0); --border: oklch(0.922 0 0); --input: oklch(0.922 0 0);
+      --ring: oklch(0.708 0 0);
+      --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+      --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { background: var(--background); }
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+      font-size: 13px; line-height: 1.5; padding: 14px 16px; -webkit-font-smoothing: antialiased;
+    }
+    .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+    .aviso { background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); margin: 8px 0; }
+
+    .modal-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .modal-h b { font-size: 14px; letter-spacing: -0.01em; }
+    .modal-h small { color: var(--muted-foreground); font-size: 10.5px; }
+
+    .tabs { display: flex; gap: 2px; background: var(--muted); padding: 3px; border-radius: var(--radius); margin-bottom: 12px; width: fit-content; }
+    .tabs span { padding: 6px 14px; border-radius: var(--radius-sm); color: var(--muted-foreground); font-size: 12px; font-weight: 500; cursor: pointer; }
+    .tabs span.on { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
+
+    select {
+      padding: 6px 9px; font: inherit; font-size: 12px; color: var(--foreground);
+      background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-sm);
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0;
+      border-radius: var(--radius-sm); cursor: pointer; font: inherit; font-size: 11px; font-weight: 600; padding: 4px 10px;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+    .btn-outline:hover:not(:disabled) { background: var(--accent); }
+    .loader { display: inline-block; width: 11px; height: 11px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: girar .7s linear infinite; vertical-align: -2px; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    /* ---- Tab Personas (calcado del mockup) ---- */
+    .persona { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin: 8px 0; display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+    .persona:hover { background: var(--accent); }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--muted); display: grid; place-items: center; font-weight: 600; font-size: 12px; flex: 0 0 auto; }
+    .persona .cuerpo { flex: 1; min-width: 0; }
+    .persona .fila1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .persona .fila1 b { font-size: 12.5px; }
+    .salud { font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+    .s-ok { background: #DCFCE7; color: #166534; }
+    .s-warn { background: #FEF3C7; color: #92400E; }
+    .s-bad { background: #FEE2E2; color: #991B1B; }
+    .s-nd { background: var(--muted); color: var(--muted-foreground); }
+    .persona .meta { font-size: 10.5px; color: var(--muted-foreground); margin-top: 1px; }
+    .mini-stats { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .stat { font-size: 10.5px; border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--muted-foreground); }
+    .stat b { color: var(--foreground); }
+    .stat.rojo { border-color: #FECACA; background: #FEF2F2; color: #991B1B; }
+    .stat.rojo b { color: #991B1B; }
+    .avance { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+    .avance code { background: var(--muted); border-radius: 4px; padding: 0 5px; font-size: 10px; }
+
+    /* Expandible: pendientes con acciones (Fase 2a) */
+    .pends { border-top: 1px dashed var(--border); margin-top: 8px; padding-top: 8px; }
+    .pend-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 7px 10px; margin: 5px 0; font-size: 11.5px; }
+    .pend-item.cerrado { opacity: .55; }
+    .pend-item .txt { flex: 1; min-width: 0; }
+    .pend-item small { display: block; color: var(--muted-foreground); font-size: 10px; }
+    .badge { font-size: 10px; padding: 1px 7px; border-radius: 999px; background: var(--muted); color: var(--muted-foreground); font-weight: 600; }
+
+    /* ---- Tab Actividad ---- */
+    .filtros { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .chipf { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; color: var(--muted-foreground); cursor: pointer; }
+    .chipf.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+    .tl { border-left: 2px solid var(--border); margin-left: 8px; padding-left: 14px; }
+    .tl-item { position: relative; padding: 5px 0; font-size: 11.5px; }
+    .tl-item::before { content: ''; position: absolute; left: -20px; top: 11px; width: 9px; height: 9px; border-radius: 50%; background: var(--border); }
+    .tl-item.avance::before { background: #16A34A; }
+    .tl-item.blocker::before { background: #DC2626; }
+    .tl-item.riesgo::before { background: #D97706; }
+    .tl-item.decision::before { background: #2563EB; }
+    .tl-item.pendiente::before { background: #7C3AED; }
+    .tl-item small { color: var(--muted-foreground); }
+    .tl-tipo { font-size: 9.5px; font-weight: 700; border-radius: 4px; padding: 1px 5px; margin-right: 4px; }
+    .t-avance { background: #DCFCE7; color: #166534; }
+    .t-blocker { background: #FEE2E2; color: #991B1B; }
+    .t-riesgo { background: #FEF3C7; color: #92400E; }
+    .t-decision { background: #DBEAFE; color: #1E40AF; }
+    .t-pendiente { background: #EDE9FE; color: #5B21B6; }
+    .t-contradiccion { background: #FEE2E2; color: #991B1B; }
+
+    /* ---- Tab Dashboards ---- */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .chart { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+    .chart h6 { font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+    .chart .sub { font-size: 9.5px; color: var(--muted-foreground); font-weight: 400; }
+    .gc { width: 100%; height: 150px; }
+    /* Fallback CSS (si gstatic no carga) */
+    .cols { display: flex; align-items: flex-end; gap: 10px; height: 110px; padding-top: 4px; }
+    .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; justify-content: flex-end; }
+    .col .bar { width: 70%; border-radius: 4px 4px 0 0; }
+    .col small { font-size: 9px; color: var(--muted-foreground); text-align: center; }
+    .hb { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 10.5px; }
+    .hb span { flex: 0 0 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hb .track { flex: 1; background: var(--muted); border-radius: 999px; height: 10px; }
+    .hb .fill { height: 10px; border-radius: 999px; }
+    .hb small { flex: 0 0 46px; text-align: right; color: var(--muted-foreground); }
+
+    #toast {
+      position: fixed; left: 16px; right: 16px; bottom: 14px; background: var(--popover); color: var(--popover-foreground);
+      border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+      padding: 10px 12px; font-size: 12px; display: none; align-items: center; gap: 8px; z-index: 60;
+    }
+  </style>
+</head>
+<body>
+  <div class="modal-h">
+    <b>👥 Seguimiento del equipo</b>
+    <small><span id="reloj">cargando…</span> · <select id="selDias" onchange="cambiarVentana()"><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option></select></small>
+  </div>
+  <div class="tabs">
+    <span id="tabPersonas" class="on" onclick="verTab('personas')">Personas</span>
+    <span id="tabActividad" onclick="verTab('actividad')">Actividad</span>
+    <span id="tabDashboards" onclick="verTab('dashboards')">Dashboards</span>
+  </div>
+
+  <div id="vPersonas"><p class="hint">Cargando…</p></div>
+  <div id="vActividad" style="display:none"></div>
+  <div id="vDashboards" style="display:none"></div>
+
+  <div id="toast"></div>
+
+  <script>
+    function g(id) { return document.getElementById(id); }
+    function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+    /* ---- Loader + bridge cosRun (patrón estándar del CoS) ---- */
+    var _btnActivo = null;
+    document.addEventListener('click', function (e) {
+      _btnActivo = (e.target && e.target.closest) ? e.target.closest('button') : null;
+      setTimeout(function () { _btnActivo = null; }, 0);
+    }, true);
+    function tomarBtnActivo_() { var b = _btnActivo; _btnActivo = null; return b; }
+    function setLoading(btn, on) {
+      if (!btn) return;
+      if (on) { if (btn._loading) return; btn._loading = true; btn._html = btn.innerHTML;
+        btn.innerHTML = '<span class="loader"></span>'; btn.disabled = true;
+      } else { if (!btn._loading) return; btn._loading = false; btn.innerHTML = btn._html; btn.disabled = false; }
+    }
+    function run(method) {
+      return function () {
+        var args = Array.prototype.slice.call(arguments);
+        var btn = tomarBtnActivo_();
+        setLoading(btn, true);
+        return new Promise(function (resolve, reject) {
+          google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)
+            .cosRun(method, JSON.stringify(args));
+        }).then(function (v) { setLoading(btn, false); return v; },
+                function (e) { setLoading(btn, false); throw e; });
+      };
+    }
+    function toast(msg) {
+      var t = g('toast');
+      t.textContent = msg; t.style.display = 'flex';
+      clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = 'none'; }, 2600);
+    }
+
+    /* ---- Estado + carga ---- */
+    var state = { dias: 7, data: null, tab: 'personas', expandida: null,
+      filtroPersona: '', filtroTipo: '', ultimaCarga: 0 };
+    var TIPOS = ['avance', 'blocker', 'riesgo', 'decision', 'pendiente'];
+    var TIPO_LBL = { avance: 'AVANCE', blocker: 'BLOCKER', riesgo: 'RIESGO', decision: 'DECISIÓN', pendiente: 'PENDIENTE', contradiccion: 'CONTRADICCIÓN' };
+
+    function cargar() {
+      run('cargarSeguimiento')(state.dias).then(function (d) {
+        state.data = d; state.ultimaCarga = Date.now();
+        pintarReloj(); pintarTodo();
+      }).catch(function (e) {
+        g('vPersonas').innerHTML = '<p class="hint">Error: ' + escHtml(e.message) + '</p>';
+      });
+    }
+    function cambiarVentana() { state.dias = parseInt(g('selDias').value, 10); cargar(); }
+    function pintarReloj() {
+      var s = Math.round((Date.now() - state.ultimaCarga) / 1000);
+      g('reloj').textContent = 'actualizado hace ' + s + ' s · ⟳ auto';
+    }
+    setInterval(pintarReloj, 5000);
+    setInterval(cargar, 60000);   // auto-refresco mientras el modal esté abierto
+
+    function verTab(tab) {
+      state.tab = tab;
+      ['personas', 'actividad', 'dashboards'].forEach(function (t) {
+        g('v' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === tab) ? '' : 'none';
+        g('tab' + t.charAt(0).toUpperCase() + t.slice(1)).className = (t === tab) ? 'on' : '';
+      });
+      if (tab === 'dashboards') pintarDashboards();
+    }
+    function pintarTodo() { pintarPersonas(); pintarActividad(); if (state.tab === 'dashboards') pintarDashboards(); }
+
+    /* ---- Tab Personas ---- */
+    var SALUD_LBL = { ok: 'AL DÍA', warn: '', bad: '', 'sin-datos': 'SIN DATOS' };
+    function chipSalud(p) {
+      var cls = { ok: 's-ok', warn: 's-warn', bad: 's-bad', 'sin-datos': 's-nd' }[p.salud] || 's-nd';
+      var txt = p.salud === 'ok' ? 'AL DÍA'
+        : p.salud === 'warn' ? (p.diasSinReporte + ' DÍAS SIN REPORTAR')
+        : p.salud === 'bad' ? ('SILENCIO · ' + p.diasSinReporte + ' DÍAS')
+        : 'SIN DATOS';
+      return '<span class="salud ' + cls + '">' + txt + '</span>';
+    }
+    function iniciales(n) {
+      return String(n || '?').split(/\s+/).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+    }
+    function pintarPersonas() {
+      var d = state.data, html = '';
+      if (!d.brainEnabled) {
+        html += '<div class="aviso">🧠 Activa el second brain (pestaña Brain del sidebar) para ver blockers, pendientes y avances. Por ahora: cumplimiento y racha desde las hojas.</div>';
+      }
+      if (!d.personas.length) { g('vPersonas').innerHTML = html + '<p class="hint">No hay personas en Equipo todavía.</p>'; return; }
+
+      d.personas.forEach(function (p, i) {
+        var bl = p.blockers.length
+          ? '<span class="stat rojo"><b>' + p.blockers.length + '</b> blocker(s) · ' + p.blockers[0].dias + ' días</span>' : '<span class="stat"><b>0</b> blockers</span>';
+        var abiertos = p.pendientes.filter(function (x) { return x.abierto; }).length;
+        html += '<div class="persona" onclick="expandir(' + i + ')">' +
+          '<div class="avatar">' + escHtml(iniciales(p.nombre)) + '</div>' +
+          '<div class="cuerpo">' +
+            '<div class="fila1"><b>' + escHtml(p.nombre) + '</b> ' + chipSalud(p) + '</div>' +
+            '<div class="meta">Último reporte: ' + (p.ultimoReporte || '—') +
+              (p.racha ? ' · racha de ' + p.racha + ' día(s)' : '') +
+              (p.cumplimiento != null ? ' · cumplimiento ' + p.cumplimiento + '%' : '') + '</div>' +
+            '<div class="mini-stats">' + bl +
+              '<span class="stat"><b>' + abiertos + '</b> pendientes</span>' +
+              '<span class="stat"><b>' + p.avances7d + '</b> avances (' + state.data.dias + 'd)</span></div>' +
+            (p.ultimoAvance ? '<div class="avance">↳ <code>' + escHtml(p.ultimoAvance.fecha) + '</code> ' + escHtml(p.ultimoAvance.texto) + '</div>' : '') +
+            (state.expandida === i ? pendientesHtml(p) : '') +
+          '</div></div>';
+      });
+      g('vPersonas').innerHTML = html;
+    }
+    function expandir(i) { state.expandida = (state.expandida === i) ? null : i; pintarPersonas(); }
+
+    /* Fase 2a: pendientes con Resuelto / Descartar / Reabrir */
+    function pendientesHtml(p) {
+      if (!p.file) return '<div class="pends"><p class="hint">Sin página en el brain todavía.</p></div>';
+      if (!p.pendientes.length) return '<div class="pends"><p class="hint">Sin pendientes en esta ventana.</p></div>';
+      var html = '<div class="pends" onclick="event.stopPropagation()">';
+      p.pendientes.forEach(function (t) {
+        html += '<div class="pend-item' + (t.abierto ? '' : ' cerrado') + '">' +
+          '<div class="txt">' + escHtml(t.texto) + '<small>' + escHtml(t.fecha) + '</small></div>' +
+          (t.abierto
+            ? '<button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'resolver\',\'' + escAttr(t.texto) + '\')">✓ Resuelto</button>' +
+              '<button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'descartar\',\'' + escAttr(t.texto) + '\')">🗑 Descartar</button>'
+            : '<span class="badge">cerrado</span>' +
+              '<button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'reabrir\',\'' + escAttr(t.texto) + '\')">↩ Reabrir</button>') +
+          '</div>';
+      });
+      return html + '</div>';
+    }
+    function accionPend(file, linea, accion, texto) {
+      var msg = accion === 'resolver' ? '¿Marcar como RESUELTO?\n\n« ' + texto + ' »'
+        : accion === 'descartar' ? '¿DESCARTAR este pendiente (no aplica / duplicado)?\n\n« ' + texto + ' »'
+        : '¿REABRIR este pendiente?\n\n« ' + texto + ' »';
+      if (!confirm(msg)) return;
+      run('resolverPendiente')(file, linea, accion).then(function () {
+        toast(accion === 'resolver' ? '✓ Resuelto' : (accion === 'descartar' ? 'Descartado' : 'Reabierto'));
+        cargar();
+      }).catch(function (e) { toast('Error: ' + e.message); });
+    }
+
+    /* ---- Tab Actividad ---- */
+    function pintarActividad() {
+      var d = state.data;
+      if (!d.brainEnabled) { g('vActividad').innerHTML = '<div class="aviso">🧠 Activa el second brain para ver la actividad del equipo.</div>'; return; }
+
+      var personas = ['', ''];
+      var opts = '<option value="">Todo el equipo</option>' + d.personas.map(function (p) {
+        return '<option value="' + escAttr(p.nombre) + '"' + (state.filtroPersona === p.nombre ? ' selected' : '') + '>' + escHtml(p.nombre) + '</option>';
+      }).join('');
+      var chips = '<span class="chipf' + (state.filtroTipo === '' ? ' on' : '') + '" onclick="fTipo(\'\')">Todos</span>' +
+        TIPOS.map(function (t) {
+          return '<span class="chipf' + (state.filtroTipo === t ? ' on' : '') + '" onclick="fTipo(\'' + t + '\')">' +
+            TIPO_LBL[t].charAt(0) + TIPO_LBL[t].slice(1).toLowerCase() + 's</span>';
+        }).join('');
+
+      var items = d.actividad.filter(function (it) {
+        if (state.filtroTipo && it.tipo !== state.filtroTipo) return false;
+        if (state.filtroPersona && it.quien !== state.filtroPersona) return false;
+        return true;
+      });
+      var tl = items.length ? '<div class="tl">' + items.map(function (it) {
+        return '<div class="tl-item ' + it.tipo + '">' +
+          '<span class="tl-tipo t-' + it.tipo + '">' + (TIPO_LBL[it.tipo] || it.tipo.toUpperCase()) + '</span>' +
+          '<b>' + escHtml(it.quien) + '</b> · ' + escHtml(it.texto) + (it.cerrado ? ' <span class="badge">cerrado</span>' : '') +
+          ' <small>· ' + escHtml(it.fecha) + '</small></div>';
+      }).join('') + '</div>' : '<p class="hint">Sin actividad en esta ventana con esos filtros.</p>';
+
+      g('vActividad').innerHTML =
+        '<div class="filtros"><select onchange="fPersona(this.value)">' + opts + '</select>' + chips + '</div>' + tl;
+    }
+    function fPersona(v) { state.filtroPersona = v; pintarActividad(); }
+    function fTipo(v) { state.filtroTipo = v; pintarActividad(); }
+
+    /* ---- Tab Dashboards: Google Charts con fallback CSS ---- */
+    var chartsListo = false;
+    try {
+      google.charts.load('current', { packages: ['corechart', 'bar'] });
+      google.charts.setOnLoadCallback(function () { chartsListo = true; if (state.tab === 'dashboards') pintarDashboards(); });
+    } catch (e) { /* sin gstatic → fallback CSS */ }
+    setTimeout(function () { if (!chartsListo && state.tab === 'dashboards') pintarDashboards(); }, 3000);
+
+    var PAL = { ok: '#16A34A', warn: '#D97706', bad: '#DC2626', azul: '#2563EB', lila: '#7C3AED' };
+    function colorSalud(s) { return s === 'ok' ? PAL.ok : (s === 'warn' ? PAL.warn : PAL.bad); }
+
+    function pintarDashboards() {
+      var d = state.data;
+      if (!d) return;
+      if (!d.brainEnabled) {
+        g('vDashboards').innerHTML =
+          '<div class="aviso">🧠 Con el brain apagado solo hay cumplimiento.</div>' + shellCharts(['c1']);
+      } else {
+        g('vDashboards').innerHTML = shellCharts(['c1', 'c2', 'c3', 'c4']);
+      }
+      dibujar(d);
+    }
+    function shellCharts(ids) {
+      var t = {
+        c1: 'Cumplimiento de Daily <span class="sub">· ventana, días hábiles, prorrateado</span>',
+        c2: 'Blockers por edad <span class="sub">· abiertos hoy</span>',
+        c3: 'Pendientes por persona <span class="sub">· abiertos (' + state.dias + 'd)</span>',
+        c4: 'Actividad del brain <span class="sub">· ingestas por día</span>'
+      };
+      return '<div class="grid2">' + ids.map(function (id) {
+        return '<div class="chart"><h6>' + t[id] + '</h6><div id="' + id + '" class="gc"></div></div>';
+      }).join('') + '</div>';
+    }
+
+    function dibujar(d) {
+      var ch = d.charts;
+      if (chartsListo) {
+        gcColumnas('c1', ch.cumplimiento.map(function (x) { return [x.nombre, x.pct == null ? 0 : x.pct, colorSalud(x.salud)]; }), '%');
+        if (d.brainEnabled) {
+          gcBarras('c2', ch.blockers.map(function (x) { return [x.etiqueta, x.dias]; }), 'días');
+          gcColumnas('c3', ch.pendientes.map(function (x) { return [x.nombre, x.abiertos, x.lider ? PAL.lila : PAL.azul]; }), '');
+          gcArea('c4', ch.actividadBrain.map(function (x) { return [x.fecha.slice(5), x.n]; }));
+        }
+      } else {
+        cssColumnas('c1', ch.cumplimiento.map(function (x) { return { lbl: x.nombre + (x.pct == null ? ' —' : ' ' + x.pct + '%'), v: x.pct || 0, c: colorSalud(x.salud) }; }), 100);
+        if (d.brainEnabled) {
+          cssBarras('c2', ch.blockers.map(function (x) { return { lbl: x.etiqueta, v: x.dias, c: x.dias >= 14 ? PAL.bad : PAL.warn, suf: ' días' }; }));
+          cssColumnas('c3', ch.pendientes.map(function (x) { return { lbl: x.nombre + ' ' + x.abiertos, v: x.abiertos, c: x.lider ? PAL.lila : PAL.azul }; }), null);
+          cssBarras('c4', ch.actividadBrain.filter(function (x) { return x.n > 0; }).slice(-8).map(function (x) { return { lbl: x.fecha, v: x.n, c: PAL.ok, suf: '' }; }));
+        }
+      }
+    }
+
+    /* Google Charts */
+    function gcOpts(vAxisTitle) {
+      return { legend: 'none', backgroundColor: 'transparent', chartArea: { left: 34, top: 8, width: '88%', height: '70%' },
+        fontName: 'Inter', fontSize: 10, vAxis: { title: vAxisTitle, minValue: 0 } };
+    }
+    function gcColumnas(id, filas, unidad) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', ''); dt.addColumn('number', unidad); dt.addColumn({ type: 'string', role: 'style' });
+      dt.addRows(filas);
+      new google.visualization.ColumnChart(g(id)).draw(dt, gcOpts(unidad));
+    }
+    function gcBarras(id, filas, unidad) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', ''); dt.addColumn('number', unidad);
+      dt.addRows(filas.length ? filas : [['—', 0]]);
+      new google.visualization.BarChart(g(id)).draw(dt, { legend: 'none', backgroundColor: 'transparent',
+        chartArea: { left: 120, top: 8, width: '70%', height: '80%' }, fontName: 'Inter', fontSize: 10,
+        colors: ['#DC2626'], hAxis: { minValue: 0 } });
+    }
+    function gcArea(id, filas) {
+      var dt = new google.visualization.DataTable();
+      dt.addColumn('string', ''); dt.addColumn('number', 'ingestas');
+      dt.addRows(filas);
+      new google.visualization.AreaChart(g(id)).draw(dt, { legend: 'none', backgroundColor: 'transparent',
+        chartArea: { left: 26, top: 8, width: '90%', height: '72%' }, fontName: 'Inter', fontSize: 10,
+        colors: ['#16A34A'], vAxis: { minValue: 0 } });
+    }
+
+    /* Fallback CSS (mismos datos, sin gstatic) */
+    function cssColumnas(id, items, max) {
+      var tope = max || Math.max(1, Math.max.apply(null, items.map(function (x) { return x.v; })));
+      g(id).innerHTML = '<div class="cols">' + items.map(function (x) {
+        return '<div class="col"><div class="bar" style="height:' + Math.round((x.v / tope) * 95) + 'px;background:' + x.c + '"></div><small>' + escHtml(x.lbl) + '</small></div>';
+      }).join('') + '</div>';
+    }
+    function cssBarras(id, items) {
+      var tope = Math.max(1, Math.max.apply(null, items.map(function (x) { return x.v; }).concat([1])));
+      g(id).innerHTML = items.length ? items.map(function (x) {
+        return '<div class="hb"><span>' + escHtml(x.lbl) + '</span><div class="track"><div class="fill" style="width:' + Math.round((x.v / tope) * 100) + '%;background:' + x.c + '"></div></div><small>' + x.v + (x.suf || '') + '</small></div>';
+      }).join('') : '<p class="hint">Nada que mostrar.</p>';
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

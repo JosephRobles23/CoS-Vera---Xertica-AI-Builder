@@ -39,6 +39,7 @@ function construirMenu(ui) {
     .addItem('📝 Formularios', 'cosMenu1')
     .addItem('📤 Compartir reportes', 'cosMenu2')
     .addItem('☀️ Morning Briefing', 'cosMenu3')
+    .addItem('👥 Seguimiento del equipo', 'cosMenu4')
     .addToUi();
 }
 
@@ -58,7 +59,9 @@ var DIALOGOS_ = {
   // Matriz de compartir reportes: consolidado completo + destinatarios por persona.
   compartir: { archivo: 'DialogCompartir', titulo: 'CoS — Compartir reportes', ancho: 640, alto: 580 },
   // Morning Briefing: config con vista previa en vivo.
-  briefing: { archivo: 'DialogBriefing', titulo: 'CoS — Morning Briefing', ancho: 760, alto: 640 }
+  briefing: { archivo: 'DialogBriefing', titulo: 'CoS — Morning Briefing', ancho: 760, alto: 640 },
+  // Seguimiento del equipo: salud por persona, timeline y dashboards (solo lectura + cierre de pendientes).
+  seguimiento: { archivo: 'DialogSeguimiento', titulo: 'CoS — Seguimiento del equipo', ancho: 760, alto: 680 }
 };
 
 /**
@@ -95,6 +98,11 @@ var MENU_ACTIONS_ = {
   // 'Morning Briefing' → config con vista previa.
   cosMenu3: function (sheetId, config) {
     var d = buildDialog('briefing');
+    SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  },
+  // 'Seguimiento del equipo' → salud/timeline/dashboards.
+  cosMenu4: function (sheetId, config) {
+    var d = buildDialog('seguimiento');
     SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
   }
 };
@@ -154,7 +162,10 @@ var DISPATCH_ = {
   // Morning Briefing (modal con vista previa).
   cargarBriefing:          function (sid, cfg) { return cargarBriefing(sid, cfg); },
   guardarBriefing:         function (sid, cfg, a) { return guardarBriefing(sid, cfg, a[0]); },
-  enviarBriefingPrueba:    function (sid, cfg) { return enviarBriefingPrueba(sid, cfg); }
+  enviarBriefingPrueba:    function (sid, cfg) { return enviarBriefingPrueba(sid, cfg); },
+  // Seguimiento del equipo (modal 3 tabs + cierre de pendientes).
+  cargarSeguimiento:       function (sid, cfg, a) { return cargarSeguimiento(sid, cfg, a[0]); },
+  resolverPendiente:       function (sid, cfg, a) { return resolverPendiente(sid, cfg, a[0], a[1], a[2]); }
 };
 
 /**

@@ -346,6 +346,28 @@ Briefing** (`shared/DialogBriefing.html`: config + vista previa en vivo + "envia
 
 Responder al correo para ajustar el de mañana quedó para una fase 2.
 
+## Seguimiento del equipo (modal de 3 tabs)
+
+Menú **CoS → 👥 Seguimiento del equipo** (`shared/DialogSeguimiento.html`, diseño calcado de
+[`../../html/seguimiento-equipo-mockups.html`](../../html/seguimiento-equipo-mockups.html)). Todo
+sale de `cargarSeguimiento` — **determinista** (wiki + hojas, cero LLM) con auto-refresco de 60 s:
+
+- **Personas (default)** — salud por integrante con umbrales derivados de `brain.silenceDays`
+  (verde < ½, ámbar < umbral, rojo si lo superó o el scan la marcó), cumplimiento de Daily
+  **prorrateado** desde su primer reporte (días hábiles), racha, blockers con edad, pendientes de
+  la ventana y último avance. Expandible por persona (Fase 2a): **✓ Resuelto / 🗑 Descartar /
+  ↩ Reabrir** sobre sus pendientes — la viñeta gana/pierde el sufijo de la gramática
+  (`✓ [resuelto FECHA · quién]` / `✖ [descartado …]`), con auditoría en `log.md`. Abierto = viñeta
+  sin sufijo; todos los conteos respetan esa gramática.
+- **Actividad** — timeline agregada de people+projects (viñetas fechadas del wiki, parseo puro)
+  con filtros por persona/tipo y ventana 7/30 días (default 7).
+- **Dashboards** — Google Charts (gstatic) con la paleta del CoS: cumplimiento, blockers por edad,
+  pendientes por persona (incluye al líder desde su hoja Tareas) y actividad del brain (ingestas
+  por día, leídas de la COLA de `log.md`). Si gstatic no carga en ~3 s → fallback a barras CSS.
+- Externos (`external: true`) fuera de esta fase. Sin `brain.enabled`: degradación honesta
+  (cumplimiento/racha desde las hojas + aviso). Release 2 (follow-up con botones en el correo vía
+  Web App) diseñado en [`../../html/followup-flujo-mockups.html`](../../html/followup-flujo-mockups.html).
+
 ## Relación con la v0.5
 
 Este workflow reencarna el pipeline de la v0.5

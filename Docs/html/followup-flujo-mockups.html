@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Follow-up por correo — flujo de los 4 botones</title>
+<style>
+  /* ---- Tokens del CoS (tema claro fijo) ---- */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0); --border: oklch(0.922 0 0);
+    --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    --stage: oklch(0.97 0 0); --ok: #16A34A; --warn: #D97706; --bad: #DC2626; --na: #6B7280;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: var(--stage); }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+    font-size: 13px; line-height: 1.5; padding: 28px 20px 60px; -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1180px; margin: 0 auto; }
+  .page-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .page-header .logo { width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-size: 16px; }
+  .page-header h1 { font-size: 19px; font-weight: 650; letter-spacing: -0.02em; }
+  .page-header p { font-size: 12px; color: var(--muted-foreground); }
+  .intro { max-width: 780px; color: var(--muted-foreground); font-size: 12.5px; margin: 8px 0 26px; }
+  .intro b { color: var(--foreground); }
+  .fase { margin: 34px 0 10px; display: flex; align-items: baseline; gap: 10px; }
+  .fase h2 { font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .fase span { font-size: 11px; color: var(--muted-foreground); }
+  .hint { font-size: 11px; color: var(--muted-foreground); margin-top: 6px; }
+  .idea { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; margin: 18px 0 30px; }
+  .notes { flex: 1 1 260px; min-width: 240px; padding-top: 4px; }
+  .notes h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .notes ul { margin: 0 0 10px 16px; padding: 0; font-size: 12px; color: var(--muted-foreground); }
+  .notes li { margin: 3px 0; }
+  .notes li b { color: var(--foreground); font-weight: 600; }
+  .paso { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--primary); color: var(--primary-foreground); font-size: 11px; font-weight: 700; margin-right: 6px; }
+  .flecha { align-self: center; font-size: 22px; color: var(--muted-foreground); padding: 0 2px; }
+
+  /* ---- Correo (paso 1) ---- */
+  .mail { width: 480px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #fff; box-shadow: var(--shadow-md); }
+  .mail-band { height: 4px; background: var(--primary); }
+  .mail-head { background: var(--muted); padding: 10px 14px; font-size: 11px; }
+  .mail-head b { display: block; font-size: 12.5px; }
+  .mail-head span { color: var(--muted-foreground); }
+  .mail-body { padding: 14px; }
+  .mail-body p { font-size: 12px; color: #333; }
+  .btn-form { display: inline-block; background: var(--primary); color: var(--primary-foreground); border-radius: 8px; padding: 9px 18px; font-size: 12.5px; font-weight: 600; margin: 10px 0 4px; }
+  .comp-h { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; color: var(--muted-foreground); text-transform: uppercase; margin: 16px 0 6px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .comp { background: var(--muted); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+  .comp .txt { font-size: 12px; font-weight: 600; }
+  .comp .src { font-size: 10px; color: var(--muted-foreground); margin-bottom: 8px; }
+  .bts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .bt { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 5px 11px; border: 1.5px solid; background: #fff; white-space: nowrap; }
+  .bt-ok { color: var(--ok); border-color: var(--ok); }
+  .bt-sigo { color: #1E40AF; border-color: #1E40AF; }
+  .bt-bloq { color: var(--bad); border-color: var(--bad); }
+  .bt-na { color: var(--na); border-color: var(--na); }
+  .mail-foot { border-top: 1px solid var(--border); padding: 8px 14px; font-size: 10px; color: var(--muted-foreground); }
+
+  /* ---- Teléfono (pasos 2-4) ---- */
+  .phone {
+    width: 300px; border: 10px solid #1a1a1a; border-radius: 34px; background: #fff;
+    box-shadow: var(--shadow-md); overflow: hidden; position: relative; flex: 0 0 auto;
+  }
+  .phone .notch { height: 22px; background: #1a1a1a; border-radius: 0 0 14px 14px; width: 130px; margin: 0 auto; }
+  .phone .urlbar { margin: 8px 10px; background: var(--muted); border-radius: 999px; font-size: 9.5px; color: var(--muted-foreground); padding: 5px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .phone .scr { padding: 22px 18px 30px; min-height: 330px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .phone .plogo { width: 42px; height: 42px; border-radius: 12px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-size: 20px; margin-bottom: 14px; }
+  .phone h5 { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 8px; }
+  .phone .accion { font-size: 13px; color: var(--muted-foreground); }
+  .phone .accion b { display: block; color: var(--foreground); font-size: 14.5px; margin: 8px 0 2px; line-height: 1.35; }
+  .phone .origen { font-size: 10px; color: var(--muted-foreground); margin-top: 6px; }
+  .phone .confirmar {
+    margin-top: 22px; width: 100%; border: 0; border-radius: 12px; padding: 13px; font: inherit;
+    font-size: 14px; font-weight: 700; color: #fff; box-shadow: var(--shadow);
+  }
+  .phone .cancel { margin-top: 10px; font-size: 11.5px; color: var(--muted-foreground); }
+  .phone .sello { width: 62px; height: 62px; border-radius: 50%; display: grid; place-items: center; font-size: 30px; color: #fff; margin: 6px 0 14px; }
+  .phone .listo { font-size: 15px; font-weight: 700; }
+  .phone .sub { font-size: 11.5px; color: var(--muted-foreground); margin-top: 6px; max-width: 210px; }
+  .phone .undo { margin-top: 18px; font-size: 11.5px; color: var(--muted-foreground); text-decoration: underline; }
+  .tagflow { position: absolute; top: -9px; left: 16px; font-size: 10px; font-weight: 600; background: var(--primary); color: var(--primary-foreground); border-radius: 999px; padding: 2px 9px; z-index: 2; }
+  .wrap { position: relative; }
+  .err { background: #FEF2F2; border: 1px solid #FECACA; color: #991B1B; border-radius: 10px; padding: 10px 12px; font-size: 11.5px; margin-top: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="logo">✓</div>
+    <div>
+      <h1>Follow-up por correo — el flujo de los 4 botones</h1>
+      <p>Invitación con compromisos → página de confirmación (Web App, móvil) → registrado en el brain</p>
+    </div>
+  </div>
+  <p class="intro">
+    Cada botón del correo es un <b>link con token único de un solo uso</b> (7 días de vida). El clic abre la
+    <b>página de confirmación</b> — una tarjeta responsive de UNA acción — y solo el botón "Confirmar"
+    (POST) muta el estado: los escáneres de seguridad del correo siguen links pero no envían
+    formularios, así que no pueden generar falsos positivos.
+  </p>
+
+  <!-- ============ PASO 1: EL CORREO ============ -->
+  <div class="fase"><h2><span class="paso">1</span>El correo — la invitación diaria con "Tus compromisos"</h2></div>
+  <div class="idea">
+    <div class="mail">
+      <div class="mail-band"></div>
+      <div class="mail-head"><b>Tu Daily de hoy — Chief of Staff</b><span>Vera → julio@x.com · 08:30</span></div>
+      <div class="mail-body">
+        <p>Hola Julio, es momento de tu reporte diario…</p>
+        <span class="btn-form">Llenar mi Daily</span>
+
+        <div class="comp-h">📌 Tus compromisos · ¿cómo van?</div>
+        <div class="comp">
+          <div class="txt">Validar Classroom con Carol</div>
+          <div class="src">🎥 Comité AAP · asignada por tu líder · hace 3 días</div>
+          <div class="bts">
+            <span class="bt bt-ok">✓ Lo terminé</span>
+            <span class="bt bt-sigo">⏳ Sigo en ello</span>
+            <span class="bt bt-bloq">🚧 Bloqueado</span>
+            <span class="bt bt-na">⛔ No aplica</span>
+          </div>
+        </div>
+        <div class="comp">
+          <div class="txt">Definir responsables de carga por capa</div>
+          <div class="src">📝 Tu Daily del 12-ago ("hoy voy a definir…")</div>
+          <div class="bts">
+            <span class="bt bt-ok">✓ Lo terminé</span>
+            <span class="bt bt-sigo">⏳ Sigo en ello</span>
+            <span class="bt bt-bloq">🚧 Bloqueado</span>
+            <span class="bt bt-na">⛔ No aplica</span>
+          </div>
+        </div>
+      </div>
+      <div class="mail-foot">Máx. 3 compromisos por correo (rotan por antigüedad) · cada botón funciona una sola vez</div>
+    </div>
+
+    <div class="notes">
+      <h4>Anatomía</h4>
+      <ul>
+        <li>La sección <b>solo aparece si hay compromisos abiertos</b> (y si la copia tiene la Web App desplegada — si no, la invitación sale como hoy).</li>
+        <li>Cada ítem trae su <b>origen trazable</b>: 🎥 asignado en reunión o 📝 comprometido en su propio Form.</li>
+        <li>8 links = 2 ítems × 4 tokens. En clientes de correo los "botones" son links estilizados (HTML de email: tablas + inline styles, como todo el email-runtime).</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ PASO 2: CONFIRMACIÓN (4 variantes) ============ -->
+  <div class="fase"><h2><span class="paso">2</span>El clic abre la confirmación — una tarjeta por acción (vista móvil)</h2><span>doGet · GET nunca muta</span></div>
+  <div class="idea">
+    <div class="wrap"><span class="tagflow">✓ LO TERMINÉ</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=a8f3k2</div>
+        <div class="scr">
+          <div class="plogo">☀️</div>
+          <h5 style="color:var(--ok)">Marcar como terminado</h5>
+          <div class="accion">Vas a registrar que completaste:<b>"Validar Classroom con Carol"</b>
+            <div class="origen">🎥 Comité AAP · 2026-08-10</div></div>
+          <button class="confirmar" style="background:var(--ok)">Confirmar ✓</button>
+          <div class="cancel">Cancelar (no registra nada)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><span class="tagflow" style="background:#1E40AF">⏳ SIGO EN ELLO</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=b9x1m4</div>
+        <div class="scr">
+          <div class="plogo">☀️</div>
+          <h5 style="color:#1E40AF">Sigue en curso</h5>
+          <div class="accion">Vas a registrar que sigues trabajando en:<b>"Validar Classroom con Carol"</b>
+            <div class="origen">Se re-fecha: no contará como abandonada</div></div>
+          <button class="confirmar" style="background:#1E40AF">Confirmar ⏳</button>
+          <div class="cancel">Cancelar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><span class="tagflow" style="background:var(--bad)">🚧 BLOQUEADO</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=c2p8r7</div>
+        <div class="scr">
+          <div class="plogo">☀️</div>
+          <h5 style="color:var(--bad)">Reportar bloqueo</h5>
+          <div class="accion">Vas a marcar como bloqueada:<b>"Validar Classroom con Carol"</b>
+            <div class="origen">Tu líder lo verá en 🚨 Urgente de su briefing</div></div>
+          <button class="confirmar" style="background:var(--bad)">Confirmar 🚧</button>
+          <div class="cancel">Cancelar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><span class="tagflow" style="background:var(--na)">⛔ NO APLICA</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=d5w3n9</div>
+        <div class="scr">
+          <div class="plogo">☀️</div>
+          <h5 style="color:var(--na)">No es una tarea tuya</h5>
+          <div class="accion">Vas a descartar:<b>"Validar Classroom con Carol"</b>
+            <div class="origen">¿Se extrajo mal de la reunión? Esto ayuda a mejorar la detección.</div></div>
+          <button class="confirmar" style="background:var(--na)">Confirmar ⛔</button>
+          <div class="cancel">Cancelar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PASO 3: RESULTADO ============ -->
+  <div class="fase"><h2><span class="paso">3</span>Confirmar (POST) → registrado, con deshacer — y los estados de error</h2><span>doPost · token de un solo uso</span></div>
+  <div class="idea">
+    <div class="wrap"><span class="tagflow" style="background:var(--ok)">ÉXITO</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec</div>
+        <div class="scr">
+          <div class="sello" style="background:var(--ok)">✓</div>
+          <div class="listo">Registrado</div>
+          <div class="sub">"Validar Classroom con Carol" quedó marcada como <b>terminada</b>. Tu líder lo verá en su próximo briefing.</div>
+          <div class="undo">¿Fue un error? Deshacer</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><span class="tagflow" style="background:var(--warn)">TOKEN YA USADO</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=a8f3k2</div>
+        <div class="scr">
+          <div class="sello" style="background:var(--warn)">!</div>
+          <div class="listo">Ya registrado</div>
+          <div class="sub">Esta acción ya se registró el 2026-08-15 a las 09:12. Cada botón funciona una sola vez.</div>
+          <div class="err">Si necesitas cambiarla, usa los botones de tu próximo correo.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><span class="tagflow" style="background:var(--na)">TOKEN VENCIDO</span>
+      <div class="phone"><div class="notch"></div>
+        <div class="urlbar">script.google.com/macros/s/…/exec?t=viejo01</div>
+        <div class="scr">
+          <div class="sello" style="background:var(--na)">⌛</div>
+          <div class="listo">Enlace vencido</div>
+          <div class="sub">Este botón era de un correo de hace más de 7 días. Tu próxima invitación traerá botones frescos.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <h4>Reglas del backend</h4>
+      <ul>
+        <li><b>GET</b> (abrir el link) solo pinta la tarjeta — <b>nunca muta</b>. La mutación vive en el <b>POST</b> del botón Confirmar: inmune a escáneres de correo.</li>
+        <li>Token: un solo uso, 7 días, vive en la pestaña oculta <code>_Tokens</code>; el dispatcher purga los vencidos a diario.</li>
+        <li>El efecto del POST es <b>determinista</b> (cero LLM): sufijo en la viñeta del wiki (✓/⏳/🚧/⛔ + fecha + quién), <code>open_blockers</code> si es bloqueo, línea de auditoría en <code>log.md</code>.</li>
+        <li>"Deshacer" es un token fresco de un solo uso que revierte el sufijo (misma mecánica).</li>
+        <li>Todo con los tokens del CoS, tema claro, mobile-first (se abre desde el correo del celular).</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="hint" style="margin-top:26px">
+    Maqueta estática · Docs/html/followup-flujo-mockups.html · el HTML real del correo se genera en
+    email-runtime (tablas + estilos inline) y las tarjetas en la Web App del stub (doGet/doPost → CoSLib).
+  </p>
+</div>
+</body>
+</html>

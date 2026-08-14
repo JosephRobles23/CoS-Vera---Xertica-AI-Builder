@@ -41,6 +41,7 @@ const RUNTIME_FILES = [
   'meet-notes-runtime.js',
   'tasks-runtime.js',
   'briefing-runtime.js',
+  'seguimiento-runtime.js',
   'ui-runtime.js'
 ];
 
