@@ -304,7 +304,13 @@ test('enviarBriefingPrueba ignora hora/día y de paso archiva las Hechas', () =>
 // --- Config del modal ---
 
 test('guardarBriefing valida hora, días y secciones; cargarBriefing la devuelve con preview', () => {
-  const h = brHarness({ calendar: [{ id: 'ev1', title: 'Sync', start: new Date(2026, 7, 13, 10, 0), guests: [] }] });
+  // cargarBriefing arma la preview con el RELOJ REAL: el evento debe ser de "hoy real",
+  // no de una fecha fija (si no, el test solo pasa ese día).
+  const hoyReal = new Date();
+  const h = brHarness({ calendar: [{
+    id: 'ev1', title: 'Sync', guests: [],
+    start: new Date(hoyReal.getFullYear(), hoyReal.getMonth(), hoyReal.getDate(), 10, 0)
+  }] });
   const config = h.api.construirConfig('SID', CONFIG);
 
   assert.throws(() => h.api.guardarBriefing('SID', config, { hora: '25:99', dias: [1], secciones: [{ id: 'dia', on: true }] }), /Hora inválida/);
