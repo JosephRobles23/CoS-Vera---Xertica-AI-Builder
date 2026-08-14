@@ -149,6 +149,7 @@ var DISPATCH_ = {
   guardarFlags:            function (sid, cfg, a) { return guardarFlags(sid, cfg, a[0]); },
   olvidarPersona:          function (sid, cfg, a) { return olvidarPersona(sid, cfg, a[0]); },
   olvidarProyecto:         function (sid, cfg, a) { return olvidarProyecto(sid, cfg, a[0]); },
+  limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
   // Backfill del histórico al brain (job reanudable; lo avanza el dispatcher).
   iniciarBackfill:         function (sid, cfg) { return iniciarBackfill(sid, cfg); },
   estadoBackfill:          function (sid, cfg) { return estadoBackfill(sid, cfg); },

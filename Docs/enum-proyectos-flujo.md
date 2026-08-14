@@ -87,8 +87,10 @@ function schemaConProyectos_(root, baseSchema) {
   var conocidos = Object.keys(cargarProyectos_(root))
                         .map(function (s) { return mapa[s].name; });   // nombres canónicos
   var ev = baseSchema…eventos.items.properties;
-  ev.proyecto        = { type: 'string', enum: conocidos.concat(['OTRO', '']) };
+  ev.proyecto        = { type: 'string', enum: conocidos.concat(['OTRO', 'NINGUNO']) };
   ev.proyecto_nuevo  = { type: 'string' };   // SOLO se lee si proyecto === 'OTRO'
+  // OJO: el API rechaza con 400 los valores VACÍOS en un enum — de ahí el sentinela 'NINGUNO'
+  // (aprendido en producción: la v25 usaba '' y TODAS las llamadas de ingesta daban Bad Request).
   return baseSchema;
 }
 ```
@@ -96,7 +98,7 @@ function schemaConProyectos_(root, baseSchema) {
 El modelo ve tres salidas posibles para `proyecto`:
 
 - **Un nombre canónico de la lista** → mapeo directo, sin fuzzy matching, sin error posible.
-- **`''` (vacío)** → el hecho no refiere a ningún proyecto distinguible.
+- **`'NINGUNO'`** → el hecho no refiere a ningún proyecto distinguible (sentinela; se mapea a vacío en código).
 - **`'OTRO'`** → el modelo cree que es un proyecto que no está en el catálogo, y propone el
   nombre en `proyecto_nuevo` (campo libre → pasa por la compuerta determinista).
 
@@ -107,12 +109,12 @@ El modelo ve tres salidas posibles para `proyecto`:
 ```mermaid
 flowchart TD
     A["Entrada (formulario o nota de Meet)"] --> B["cargarProyectos_(root)<br/>lee _projects.json"]
-    B --> C["schemaConProyectos_<br/>inyecta enum: [canónicos] + 'OTRO' + ''"]
+    B --> C["schemaConProyectos_<br/>inyecta enum: [canónicos] + 'OTRO' + 'NINGUNO'"]
     C --> D["callGemini_ (Flash, <b>temp 0</b>)<br/>prompt endurecido:<br/>'nombre propio, máx 3-4 palabras,<br/>NUNCA razonamiento en campos'"]
 
     D --> E{"evento.proyecto"}
     E -- "nombre del enum" --> F["✅ Match directo garantizado<br/>por decodificación restringida<br/>(sin Jaccard, sin alias nuevos)"]
-    E -- "'' (vacío)" --> G["Evento sin proyecto:<br/>vive en persona + acta"]
+    E -- "'NINGUNO'" --> G["Evento sin proyecto:<br/>vive en persona + acta"]
     E -- "'OTRO'" --> H["sanitizarProyecto_(proyecto_nuevo)<br/><b>compuerta determinista</b>"]
 
     H --> I{"¿pasa la compuerta?<br/>≤60 chars, ≤6 palabras,<br/>1 oración, sin marcadores<br/>de fuga, sin saltos de línea"}
@@ -204,7 +206,7 @@ catálogo pasa a ser 100 % curado por humano y el enum se vuelve un vocabulario 
 
 | Caso | Comportamiento |
 |---|---|
-| Wiki nuevo (catálogo vacío) | El enum es solo `['OTRO', '']` → todo proyecto nuevo pasa por la compuerta. Es el comportamiento de hoy pero saneado; no empeora nada. |
+| Wiki nuevo (catálogo vacío) | El enum es solo `['OTRO', 'NINGUNO']` → todo proyecto nuevo pasa por la compuerta. Es el comportamiento de hoy pero saneado; no empeora nada. |
 | Catálogo crece mucho (50+ proyectos) | El enum agranda el schema (tokens de entrada). A escala de un equipo de C-level (~5-20 iniciativas) es irrelevante; si llegara a doler, se poda con `status: activo` en `_projects.json`. |
 | El modelo se equivoca de canónico | Posible pero mucho menos probable que el fuzzy actual (el modelo ve los nombres con contexto semántico; el Jaccard solo ve tokens). Corrección: `mergearProyectos` / edición de la página. |
 | Proyecto renombrado por el equipo | El nombre viejo sigue en el enum; el nuevo entra por OTRO y se fusiona con `mergearProyectos` (los aliases quedan). |

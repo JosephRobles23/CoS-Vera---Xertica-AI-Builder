@@ -210,6 +210,22 @@ test('guardas anti-dup namespaced por sheetId', () => {
   assert.equal(api.yaEnviado_('S2', 'daily', 'beto@x', '2026-07-24'), true);   // S2 intacto
 });
 
+test('limpiarGuardasMeet borra SOLO meet-doc/meet-noaccess del líder (correos y otros líderes intactos)', () => {
+  const h = makeHarness();
+  const { api } = h;
+  api.marcarEnviado_('S1', 'meet-doc', 'doc1', 'v1');
+  api.marcarEnviado_('S1', 'meet-noaccess', 'doc2', '2026-08-14');
+  api.marcarEnviado_('S1', 'daily', 'ana@x', '2026-08-14');       // correo del día: NO tocar
+  api.marcarEnviado_('S2', 'meet-doc', 'doc9', 'v1');             // otro líder: NO tocar
+
+  const borradas = api.limpiarGuardasMeet('S1');
+  assert.equal(borradas, 2);
+  assert.equal(api.yaEnviado_('S1', 'meet-doc', 'doc1', 'v1'), false);
+  assert.equal(api.yaEnviado_('S1', 'meet-noaccess', 'doc2', '2026-08-14'), false);
+  assert.equal(api.yaEnviado_('S1', 'daily', 'ana@x', '2026-08-14'), true);
+  assert.equal(api.yaEnviado_('S2', 'meet-doc', 'doc9', 'v1'), true);
+});
+
 // --- Integración: onFormSubmit → Summary ---
 
 test('generarSummaryFila: crea columna, escribe Summary y es idempotente', () => {

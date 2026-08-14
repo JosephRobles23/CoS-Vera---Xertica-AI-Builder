@@ -448,7 +448,7 @@ function meetSystem_() {
     '    como aparece; si ya existe en EXTERNOS CONOCIDOS, usa ese nombre canónico.',
     '  · proyecto: elige EXACTAMENTE uno del catálogo permitido; si la iniciativa no está en el',
     '    catálogo, pon proyecto "OTRO" y SOLO el nombre propio (máximo 3-4 palabras) en',
-    '    "proyecto_nuevo". Si no es evidente, deja proyecto vacío. NUNCA escribas razonamiento,',
+    '    "proyecto_nuevo". Si no es evidente, pon proyecto "NINGUNO". NUNCA escribas razonamiento,',
     '    alternativas ni explicaciones dentro de ningún campo.',
     '  · DEDUP: si una acción ya figura (aunque parafraseada) en los PENDIENTES YA REGISTRADOS',
     '    de esa persona, NO la emitas de nuevo como evento "accion".',

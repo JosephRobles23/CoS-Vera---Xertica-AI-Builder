@@ -318,28 +318,34 @@ test('schemaConProyectos_ inyecta enum + proyecto_nuevo sin mutar el schema base
   const h = brainHarness();
   const root = h.api.ensureBrainFolder_('SID', CONFIG);
 
-  // catálogo vacío → enum mínimo ['OTRO','']
+  // catálogo vacío → enum mínimo ['OTRO','NINGUNO']
   let schema = plain(h.api.schemaConProyectos_(root, h.api.INGEST_SCHEMA_));
-  assert.deepEqual(schema.properties.eventos.items.properties.proyecto.enum, ['OTRO', '']);
+  assert.deepEqual(schema.properties.eventos.items.properties.proyecto.enum, ['OTRO', 'NINGUNO']);
   assert.equal(schema.properties.eventos.items.properties.proyecto_nuevo.type, 'string');
 
-  // con proyectos → nombres canónicos + OTRO + ''
+  // con proyectos → nombres canónicos + OTRO + NINGUNO
   h.api.resolverProyecto_(root, 'AI Academy');
   h.api.resolverProyecto_(root, 'Dealflow');
   schema = plain(h.api.schemaConProyectos_(root, h.api.INGEST_SCHEMA_));
   assert.deepEqual(schema.properties.eventos.items.properties.proyecto.enum,
-    ['AI Academy', 'Dealflow', 'OTRO', '']);
+    ['AI Academy', 'Dealflow', 'OTRO', 'NINGUNO']);
+
+  // regresión del 400 de la v25: el API rechaza valores vacíos en un enum — jamás emitirlos
+  const enumVals = schema.properties.eventos.items.properties.proyecto.enum;
+  assert.ok(enumVals.every((v) => typeof v === 'string' && v.length > 0),
+    'ningún valor vacío o no-string en el enum');
 
   // el base NO se mutó
   assert.equal(h.api.INGEST_SCHEMA_.properties.eventos.items.properties.proyecto.enum, undefined);
   assert.equal(h.api.INGEST_SCHEMA_.properties.eventos.items.properties.proyecto_nuevo, undefined);
 });
 
-test('nombreProyectoEvento_: canónico directo, OTRO lee proyecto_nuevo, vacío queda vacío', () => {
+test('nombreProyectoEvento_: canónico directo, OTRO lee proyecto_nuevo, NINGUNO/vacío quedan vacíos', () => {
   const h = brainHarness();
   assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'AI Academy' }), 'AI Academy');
   assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'OTRO', proyecto_nuevo: 'Fénix' }), 'Fénix');
   assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'OTRO' }), '');
+  assert.equal(h.api.nombreProyectoEvento_({ proyecto: 'NINGUNO' }), '');
   assert.equal(h.api.nombreProyectoEvento_({ proyecto: '' }), '');
   assert.equal(h.api.nombreProyectoEvento_({}), '');
 });
@@ -357,7 +363,7 @@ test('ingestarFila_ manda el enum del catálogo y temperatura 0 en el request', 
   const gc = JSON.parse(call.options.payload).generationConfig;
   assert.equal(gc.temperature, 0);
   assert.deepEqual(gc.responseSchema.properties.eventos.items.properties.proyecto.enum,
-    ['Proyecto Alpha', 'OTRO', '']);
+    ['Proyecto Alpha', 'OTRO', 'NINGUNO']);
 });
 
 test('ingesta e2e: OTRO válido crea el proyecto; OTRO basura va al log y no crea nada', () => {

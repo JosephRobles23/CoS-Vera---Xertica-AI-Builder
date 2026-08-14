@@ -444,7 +444,7 @@ test('runMeetPass_ manda enum del catálogo + temperatura 0, y OTRO basura va al
   const gc = JSON.parse(geminiCalls(h)[0].options.payload).generationConfig;
   assert.equal(gc.temperature, 0);
   assert.deepEqual(gc.responseSchema.properties.eventos.items.properties.proyecto.enum,
-    ['Classroom', 'OTRO', '']);
+    ['Classroom', 'OTRO', 'NINGUNO']);
   assert.equal(gc.responseSchema.properties.eventos.items.properties.proyecto_nuevo.type, 'string');
 
   // OTRO válido creó página; OTRO basura no, y quedó en el log

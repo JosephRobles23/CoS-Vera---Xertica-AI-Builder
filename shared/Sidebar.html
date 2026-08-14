@@ -286,6 +286,7 @@
       <input id="m_dias" type="number" min="1" max="365" value="30">
       <div id="meetEstado" class="hint"></div>
       <button class="btn btn-outline" onclick="iniciarImportNotasUI()"><i data-lucide="history"></i> Importar notas</button>
+      <button class="btn btn-outline" id="btnRetryMeet" style="display:none" onclick="reintentarNotasUI()"><i data-lucide="rotate-ccw"></i> Reintentar errores</button>
       <button class="btn btn-ghost" id="btnCancelMeet" style="display:none" onclick="cancelarImportNotasUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
     </div>
   </div>
@@ -598,12 +599,23 @@
         el.textContent = st.enabled ? 'Sin importación en curso.' : 'Activa y guarda el flag para poder importar.';
         btnC.style.display = 'none';
       }
+      // Reintento: solo cuando el import terminó dejando errores (limpia guardas meet y relanza).
+      g('btnRetryMeet').style.display =
+        (st.status === 'done' && parseInt(st.errores, 10) > 0) ? '' : 'none';
       if (st.status === 'running') {
         if (!_meetPoll) _meetPoll = setInterval(refrescarMeet, 45000);
       } else if (_meetPoll) {
         clearInterval(_meetPoll); _meetPoll = null;
       }
       icons();
+    }
+    function reintentarNotasUI() {
+      var dias = parseInt(g('m_dias').value, 10) || 30;
+      if (!confirm('Se limpiarán las marcas de las notas de Meet (fallidas y procesadas: la re-ingesta no duplica) y se relanzará la importación de los últimos ' + dias + ' días. ¿Continuar?')) return;
+      runB('limpiarGuardasMeet')().then(function () {
+        return runB('iniciarImportNotas')(dias);
+      }).then(function (r) { toast('Reintento iniciado'); pintarMeet(r); })
+        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function refrescarMeet() {
       runB('estadoImportNotas')().then(pintarMeet)

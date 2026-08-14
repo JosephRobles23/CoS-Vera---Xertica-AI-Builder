@@ -80,23 +80,26 @@ var RESUMEN_MAX_ = 600;
 
 /**
  * Clona un responseSchema base e inyecta en eventos[] el campo `proyecto` como enum de los
- * nombres canónicos de _projects.json + 'OTRO' + '' (vacío = sin proyecto), más el campo libre
- * `proyecto_nuevo` (solo se lee cuando proyecto === 'OTRO'; pasa por la compuerta).
- * Con catálogo vacío el enum es ['OTRO',''] : todo nombre nuevo entra por el camino saneado.
+ * nombres canónicos de _projects.json + 'OTRO' + 'NINGUNO', más el campo libre `proyecto_nuevo`
+ * (solo se lee cuando proyecto === 'OTRO'; pasa por la compuerta).
+ * Con catálogo vacío el enum es ['OTRO','NINGUNO']: todo nombre nuevo entra por el camino saneado.
+ * OJO: el API rechaza con 400 los valores vacíos en un enum — por eso el sentinela 'NINGUNO'
+ * en vez de '' (bug de la v25: todas las llamadas de ingesta reventaban con Bad Request).
  */
 function schemaConProyectos_(root, base) {
   var schema = JSON.parse(JSON.stringify(base));
   var mapa = cargarProyectos_(root);
-  var nombres = Object.keys(mapa).map(function (s) { return mapa[s].name; });
+  var nombres = Object.keys(mapa).map(function (s) { return mapa[s].name; }).filter(Boolean);
   var props = schema.properties.eventos.items.properties;
-  props.proyecto = { type: 'string', enum: nombres.concat(['OTRO', '']) };
+  props.proyecto = { type: 'string', enum: nombres.concat(['OTRO', 'NINGUNO']) };
   props.proyecto_nuevo = { type: 'string' };
   return schema;
 }
 
-/** Nombre de proyecto que el LLM propuso para un evento (enum: canónico | 'OTRO' | ''). */
+/** Nombre de proyecto que el LLM propuso para un evento (enum: canónico | 'OTRO' | 'NINGUNO'). */
 function nombreProyectoEvento_(ev) {
   var v = str_(ev.proyecto);
+  if (v === 'NINGUNO') return '';
   if (v === 'OTRO') return str_(ev.proyecto_nuevo);
   return v;
 }
@@ -178,7 +181,7 @@ function ingestSystem_(baseSystem) {
     '  · persona: a quién refiere (por defecto, quien reporta).',
     '  · proyecto: elige EXACTAMENTE uno del catálogo permitido; si la iniciativa no está en el',
     '    catálogo, pon proyecto "OTRO" y SOLO el nombre propio (máximo 3-4 palabras) en',
-    '    "proyecto_nuevo". Si no es evidente, deja proyecto vacío. NUNCA escribas razonamiento,',
+    '    "proyecto_nuevo". Si no es evidente, pon proyecto "NINGUNO". NUNCA escribas razonamiento,',
     '    alternativas ni explicaciones dentro de ningún campo.',
     '  · texto: el hecho en una frase. confidence: 0..1.',
     '  · Usa "contradiccion" SOLO si el reporte contradice el ESTADO PREVIO que se te da abajo.',

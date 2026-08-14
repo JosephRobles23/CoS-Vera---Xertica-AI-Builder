@@ -250,6 +250,26 @@ function marcarEnviado_(sheetId, tipo, id, fecha) {
  * Borra las guardas de un líder (para re-probar el flujo por hora el mismo día).
  * Público: lo llama el stub. @return {number} claves borradas.
  */
+/**
+ * Borra SOLO las guardas de notas de Meet ('meet-doc' y 'meet-noaccess') de un líder, para
+ * reintentar la ingesta de notas que fallaron (p.ej. tras corregir un bug). No toca las guardas
+ * de correos del día. La re-ingesta de un doc ya indexado es idempotente (dedup por fuente);
+ * solo cuesta la llamada a Gemini. Público (sidebar via cosRun → dispatch).
+ * @return {number} claves borradas.
+ */
+function limpiarGuardasMeet(sheetId) {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var prefijos = ['sent:' + sheetId + ':meet-doc:', 'sent:' + sheetId + ':meet-noaccess:'];
+  var n = 0;
+  Object.keys(all).forEach(function (k) {
+    for (var i = 0; i < prefijos.length; i++) {
+      if (k.indexOf(prefijos[i]) === 0) { props.deleteProperty(k); n++; break; }
+    }
+  });
+  return n;
+}
+
 function limpiarGuardasEnvio(sheetId) {
   var props = PropertiesService.getScriptProperties();
   var all = props.getProperties();

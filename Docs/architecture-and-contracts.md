@@ -117,7 +117,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Web App de follow-up (tokens un-solo-uso, GET nunca muta, 4 acciones + deshacer, higiene) | `shared/webapp-runtime.js` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
-| Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (38 tests) |
+| Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (39 tests) |
 | Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (33 tests) |
 | Tests de generación de preguntas por IA | `tests/forms-ai-runtime.test.mjs` | Implemented (13 tests) |
 | Tests de UI (menú, diálogos, `dispatch`) | `tests/ui-runtime.test.mjs` | Implemented (9 tests) |
