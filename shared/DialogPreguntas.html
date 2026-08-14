@@ -23,20 +23,7 @@
       --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
       --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
     }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0);
-        --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0);
-        --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0);
-        --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0);
-        --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0);
-        --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0);
-        --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0);
-        --destructive: oklch(0.704 0.191 22.216);
-        --border: oklch(1 0 0 / 0.1); --input: oklch(1 0 0 / 0.15); --ring: oklch(0.556 0 0);
-        --scroll: oklch(1 0 0 / 0.2); --scroll-hover: oklch(1 0 0 / 0.35);
-      }
-    }
+    /* Tema fijo CLARO: sin bloque prefers-color-scheme (consistente con el sidebar). */
     * { box-sizing: border-box; margin: 0; scrollbar-width: thin; scrollbar-color: var(--scroll) transparent; }
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
