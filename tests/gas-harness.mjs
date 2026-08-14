@@ -42,6 +42,7 @@ const RUNTIME_FILES = [
   'tasks-runtime.js',
   'briefing-runtime.js',
   'seguimiento-runtime.js',
+  'webapp-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -303,7 +304,8 @@ export function makeHarness(opts = {}) {
     Utilities: {
       sleep: () => {},
       formatDate: (d, tz, fmt) => formatDate_(d, tz, fmt),
-      newBlob: (content, mime, name) => makeBlob(content, mime, name)
+      newBlob: (content, mime, name) => makeBlob(content, mime, name),
+      getUuid: (() => { let n = 0; return () => 'uuid-' + (++n); })()
     },
     UrlFetchApp: {
       fetch: (url, options) => {
@@ -366,6 +368,17 @@ export function makeHarness(opts = {}) {
     },
     FormApp: opts.FormApp || { DestinationType: { SPREADSHEET: 'SPREADSHEET' } },
     HtmlService: {
+      // HtmlOutput desde string (páginas de la Web App): expone getContent para los tests.
+      createHtmlOutput: (html) => {
+        const out = {
+          _html: String(html == null ? '' : html), _title: null,
+          getContent: () => out._html,
+          setTitle(t) { out._title = t; return out; },
+          setXFrameOptionsMode() { return out; }
+        };
+        return out;
+      },
+      XFrameOptionsMode: { ALLOWALL: 'ALLOWALL' },
       // Devuelve un HtmlOutput mock encadenable que recuerda el archivo y los ajustes aplicados,
       // para poder afirmar en tests qué archivo cargó buildSidebar/buildDialog.
       createHtmlOutputFromFile: (name) => {

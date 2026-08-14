@@ -49,6 +49,8 @@ var AJUSTES_DEFAULTS_ = {
   'meet.import.ok': '0',
   'meet.import.sinAcceso': '0',
   'meet.import.errores': '0',
+  // --- Web App de follow-up (Release 2 del seguimiento) ---
+  'webapp.url': '',                  // override manual; vacío → ScriptApp.getService().getUrl()
   // --- Morning Briefing (resumen diario por correo; modal propio) ---
   'briefing.enabled': 'false',
   'briefing.hora': '07:30',
@@ -291,6 +293,7 @@ function getAjustes_(sheetId, settingsSheetName) {
     consolidado: {
       cc: listaCorreos_(flat['consolidado.cc'])
     },
+    webapp: { url: str_(flat['webapp.url']) },
     briefing: {
       enabled:   bool_(flat['briefing.enabled']),
       hora:      normHora_(flat['briefing.hora'], ss) || '07:30',
@@ -344,7 +347,8 @@ function construirConfig(sheetId, staticConfig) {
     deepPrep: aj.deepPrep,    // feature flag + selección/timing del Deep Prep
     consolidado: aj.consolidado,  // cc del consolidado completo (compartir reportes)
     meet: aj.meet,            // feature flag + import inicial de Notas de Gemini
-    briefing: aj.briefing     // Morning Briefing (flag, hora, días, secciones, prompt personal)
+    briefing: aj.briefing,    // Morning Briefing (flag, hora, días, secciones, prompt personal)
+    webapp: aj.webapp         // URL de la Web App de follow-up (override; vacío = auto)
   };
 }
 

@@ -240,6 +240,24 @@ Ejecutar → diagnostico   (en el editor del stub, y revisar Ver → Registro)
 
 ---
 
+## 2d. Web App de follow-up (botones en el correo) — una vez por copia 🖥️
+
+Los botones "✓ Lo terminé / ⏳ Sigo / 🚧 Bloqueado / ⛔ No aplica" del correo necesitan que **cada
+copia** esté desplegada como Web App (es el endpoint de los tokens). Sin este paso nada se rompe:
+la invitación simplemente sale sin la sección de compromisos.
+
+En el editor de Apps Script de la copia (Extensiones → Apps Script):
+
+1. **Implementar → Nueva implementación → Aplicación web.**
+2. "Ejecutar como": **Yo** (el líder — así el POST puede escribir su brain).
+3. "Quién tiene acceso": **Cualquier usuario con el enlace** (los miembros no se loguean: el
+   token de un solo uso es la llave).
+4. Implementar. La URL queda resuelta sola (`ScriptApp.getService().getUrl()`); si hiciera falta
+   forzarla, la clave `webapp.url` en la pestaña Ajustes la sobreescribe.
+
+**Para qué:** el clic del correo abre una tarjeta de confirmación (GET, nunca muta) y solo el
+botón Confirmar (POST) registra — inmune a los escáneres de seguridad del correo.
+
 ## 3. Verificar
 
 ```bash

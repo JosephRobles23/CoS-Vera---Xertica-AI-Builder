@@ -40,7 +40,7 @@ function runDispatcher(sheetId, config, nowOverride) {
     if (isWeekday && forms.dailyUrl &&
         horaCoincide_(config.schedule.invitesDaily, hhmm, win) &&
         !yaEnviado_(sheetId, 'daily', p.correo, today)) {
-      enviarInvitacion_('daily', p, leaderName, forms.dailyUrl);
+      enviarInvitacion_('daily', p, leaderName, forms.dailyUrl, sheetId, config);
       marcarEnviado_(sheetId, 'daily', p.correo, today);
     }
     // Weekly: viernes (o L–V si weeklyOnlyFriday=false)
@@ -48,7 +48,7 @@ function runDispatcher(sheetId, config, nowOverride) {
     if (weeklyOK && forms.weeklyUrl &&
         horaCoincide_(config.schedule.invitesWeekly, hhmm, win) &&
         !yaEnviado_(sheetId, 'weekly', p.correo, today)) {
-      enviarInvitacion_('weekly', p, leaderName, forms.weeklyUrl);
+      enviarInvitacion_('weekly', p, leaderName, forms.weeklyUrl, sheetId, config);
       marcarEnviado_(sheetId, 'weekly', p.correo, today);
     }
   });
@@ -99,6 +99,18 @@ function runDispatcher(sheetId, config, nowOverride) {
       if (typeof Logger !== 'undefined') Logger.log('brain: scan de silencios falló (%s).', e);
     }
     marcarEnviado_(sheetId, 'brain-scan', 'silencios', today);
+  }
+
+  // --- 3a) Higiene diaria: tokens de follow-up vencidos + guardas sent:* viejas (>90 días).
+  // Sin gate de brain: las guardas crecen con o sin él. Las claves 'v1' (anti-dup permanente,
+  // p.ej. meet-doc) nunca se tocan.
+  if (!yaEnviado_(sheetId, 'brain-scan', 'higiene', today)) {
+    try {
+      purgaHigiene_(sheetId, config, now);
+    } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('higiene: purga falló (%s).', e);
+    }
+    marcarEnviado_(sheetId, 'brain-scan', 'higiene', today);
   }
 
   // --- 3b) Purga del raw/ por retención (gobernanza): 1×/día, junto al scan ---

@@ -365,8 +365,30 @@ sale de `cargarSeguimiento` — **determinista** (wiki + hojas, cero LLM) con au
   pendientes por persona (incluye al líder desde su hoja Tareas) y actividad del brain (ingestas
   por día, leídas de la COLA de `log.md`). Si gstatic no carga en ~3 s → fallback a barras CSS.
 - Externos (`external: true`) fuera de esta fase. Sin `brain.enabled`: degradación honesta
-  (cumplimiento/racha desde las hojas + aviso). Release 2 (follow-up con botones en el correo vía
-  Web App) diseñado en [`../../html/followup-flujo-mockups.html`](../../html/followup-flujo-mockups.html).
+  (cumplimiento/racha desde las hojas + aviso).
+
+### Follow-up con botones en el correo (Release 2 — Web App)
+
+Flujo diseñado en [`../../html/followup-flujo-mockups.html`](../../html/followup-flujo-mockups.html)
+(`shared/webapp-runtime.js` + `doGet/doPost` en el stub):
+
+- La **invitación** (daily y weekly) gana la sección "📌 Tus compromisos": máx 3 pendientes
+  abiertos de la persona, **round-robin** por antigüedad de última pregunta, con 4 botones-token:
+  `✓ Lo terminé · ⏳ Sigo en ello · 🚧 Bloqueado · ⛔ No aplica`.
+- **GET nunca muta** (tarjeta de confirmación calcada del mockup; los escáneres de correo siguen
+  links pero no envían forms); solo el **POST** de Confirmar aplica el efecto determinista:
+  `✓` sufijo resuelto · re-fecha · `open_blockers` (fluye a Urgente) · `✖` + auditoría de
+  extracción. Cada éxito emite un token de **Deshacer**. Al usar un botón se invalidan sus 3
+  hermanos. Páginas de gracia para token usado/vencido/inválido.
+- **Tokens**: pestaña oculta `_Tokens`, un solo uso, TTL 7 días. Higiene diaria (`purgaHigiene_`,
+  dispatcher): tokens vencidos + guardas `sent:*` con fecha > 90 días (las `v1` — anti-dup
+  permanente, p.ej. `meet-doc` — jamás se tocan).
+- **Dedup del grill**: el prompt de la ingesta de Meet recibe los pendientes abiertos del equipo
+  ("PENDIENTES YA REGISTRADOS") para no re-emitir como acción nueva lo ya asignado.
+- **Deployment** (una vez por copia): desplegar el stub como Web App — "ejecutar como: yo
+  (el líder)", "acceso: cualquier usuario con el enlace". La URL se resuelve sola
+  (`ScriptApp.getService().getUrl()`; override `webapp.url` en Ajustes). **Sin deployment, la
+  invitación sale sin sección** — nada se rompe.
 
 ## Relación con la v0.5
 

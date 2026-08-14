@@ -14,9 +14,19 @@
  * @param {Object} persona     { nombre, correo, rol }
  * @param {string} leaderName  nombre del líder (se nombra en el correo)
  * @param {string} formUrl     URL del Form correspondiente
+ * @param {string} [sheetId]   con config: habilita la sección "Tus compromisos" (Release 2)
+ * @param {Object} [config]
  */
-function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
+function enviarInvitacion_(tipo, persona, leaderName, formUrl, sheetId, config) {
   var esDaily = (tipo === 'daily');
+
+  // Follow-up de compromisos (best-effort: si algo falla, la invitación sale como siempre).
+  var compromisos = [];
+  if (sheetId && config) {
+    try { compromisos = compromisosParaInvitacion_(sheetId, config, persona); } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('followup: no se pudo armar la sección (%s).', e);
+    }
+  }
 
   var asunto = esDaily
     ? 'Tu Daily de hoy — Chief of Staff'
@@ -35,6 +45,12 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     ? 'Transparencia: tu reporte también llega a ' + persona.compartirCon.join(', ') + '.\n\n'
     : '';
 
+  // Texto plano de los compromisos (los botones viven en el HTML; aquí solo se listan).
+  var notaCompromisos = compromisos.length
+    ? '📌 Tus compromisos (responde con los botones de la versión HTML):\n' +
+      compromisos.map(function (c) { return '· ' + c.texto; }).join('\n') + '\n\n'
+    : '';
+
   var cuerpo =
     'Hola ' + (persona.nombre || '') + ',\n\n' +
     intro + '\n\n' +
@@ -43,10 +59,11 @@ function enviarInvitacion_(tipo, persona, leaderName, formUrl) {
     // contra la pestaña Equipo. Si responden con otra cuenta, la fila queda sin nombre.
     'Solo son las preguntas: responde con esta misma cuenta (' + persona.correo + ') ' +
     'y tu nombre se registra solo.\n\n' +
+    notaCompromisos +
     notaCompartir +
     'Gracias,\nVera';
 
   MailApp.sendEmail(persona.correo, asunto, cuerpo, {
-    htmlBody: renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro)
+    htmlBody: renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro, compromisos)
   });
 }

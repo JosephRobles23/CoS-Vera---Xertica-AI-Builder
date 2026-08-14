@@ -364,7 +364,8 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
 
   var raw = callGemini_(config.models.perRow, meetSystem_(),
-    meetUser_(titulo, fecha, roster, cargarExternosConocidos_(root), texto, config.leader),
+    meetUser_(titulo, fecha, roster, cargarExternosConocidos_(root), texto, config.leader,
+      pendientesAbiertosEquipo_(root, roster)),
     { responseSchema: MEET_SCHEMA_ });
   var parsed = parseNotaMeet_(raw);
 
@@ -441,11 +442,36 @@ function meetSystem_() {
     '    correo exacto). Si es alguien de fuera, deja correo vacío y pon su nombre completo tal',
     '    como aparece; si ya existe en EXTERNOS CONOCIDOS, usa ese nombre canónico.',
     '  · proyecto: la iniciativa/proyecto al que refiere el hecho, si se distingue.',
+    '  · DEDUP: si una acción ya figura (aunque parafraseada) en los PENDIENTES YA REGISTRADOS',
+    '    de esa persona, NO la emitas de nuevo como evento "accion".',
     'No inventes: si un hecho no da para evento, no lo fuerces.'
   ].join('\n');
 }
 
-function meetUser_(titulo, fecha, roster, externos, texto, leader) {
+/** Pendientes abiertos por persona del roster (para el dedup del prompt; recortado). */
+function pendientesAbiertosEquipo_(root, roster) {
+  var lineas = [];
+  var carpeta = carpetaBrain_(root, ['wiki', 'people']);
+  roster.forEach(function (p) {
+    var contenido = leerArchivoBrain_(carpeta, slugBrain_(p.correo || p.nombre) + '.md');
+    if (!contenido) return;
+    var abiertos = [];
+    parseBodySections_(parsearPagina_(contenido).body).sections.forEach(function (s) {
+      if (s.name !== 'Pendientes') return;
+      s.lines.forEach(function (l) {
+        if (!esPendienteAbierto_(l)) return;
+        var m = SEG_VINETA_RE_.exec(l.trim());
+        if (m) abiertos.push(recorteTexto_(m[2], 100));
+      });
+    });
+    abiertos.slice(0, 5).forEach(function (t) {
+      lineas.push('- ' + (p.nombre || p.correo) + ': ' + t);
+    });
+  });
+  return lineas;
+}
+
+function meetUser_(titulo, fecha, roster, externos, texto, leader, pendientesRegistrados) {
   var lineasEquipo = roster.map(function (pp) { return '- ' + (pp.nombre || pp.correo) + ' <' + pp.correo + '>'; });
   // El líder no está en el roster: se lista aparte para que sus acciones mapeen a su correo
   // (aterrizan en la hoja Tareas, la fuente del Morning Briefing).
@@ -455,6 +481,8 @@ function meetUser_(titulo, fecha, roster, externos, texto, leader) {
   return 'REUNIÓN: ' + titulo + ' (' + fecha + ')\n\n' +
     'EQUIPO (roster del líder):\n' + (lineasEquipo.join('\n') || '- (vacío)') + '\n\n' +
     'EXTERNOS CONOCIDOS:\n' + (externos.length ? externos.map(function (n) { return '- ' + n; }).join('\n') : '- (ninguno)') + '\n\n' +
+    'PENDIENTES YA REGISTRADOS (no los repitas como acciones nuevas):\n' +
+    ((pendientesRegistrados && pendientesRegistrados.length) ? pendientesRegistrados.join('\n') : '- (ninguno)') + '\n\n' +
     'NOTAS DE LA REUNIÓN:\n' + recorteTexto_(String(texto == null ? '' : texto), 9000);
 }
 

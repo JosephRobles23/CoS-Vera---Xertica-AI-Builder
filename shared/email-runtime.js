@@ -299,8 +299,32 @@ function renderDeepPrepHtml_(evento, tldr, briefing) {
   return emailShell_('Deep Prep — ' + (evento.titulo || 'Reunión'), subtitulo, contenido);
 }
 
-/** Invitación a llenar el Form: intro, botón y nota de la cuenta. */
-function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
+/** Píldora-botón de follow-up (link con token) para la sección de compromisos. */
+function botonFollowupHtml_(etiqueta, color, url) {
+  return '<a href="' + url + '" style="display:inline-block;border:1.5px solid ' + color +
+    ';color:' + color + ';border-radius:999px;padding:5px 11px;margin:2px 4px 2px 0;' +
+    'font:600 11px/1.4 ' + FUENTE_ + ';text-decoration:none;background:#ffffff;">' + etiqueta + '</a>';
+}
+
+/** Sección "📌 Tus compromisos" de la invitación (Release 2: 4 botones-token por ítem). */
+function seccionCompromisosHtml_(compromisos) {
+  var items = compromisos.map(function (c) {
+    return '<div style="background:' + MARCA_.cream2 + ';border-radius:10px;padding:10px 12px;margin:8px 0;">' +
+      '<div style="font:600 13px/1.4 ' + FUENTE_ + ';color:' + MARCA_.ink + ';">' + escapeHtml_(c.texto) + '</div>' +
+      '<div style="font:400 10px/1.4 ' + FUENTE_ + ';color:' + MARCA_.tenue + ';margin:1px 0 7px;">desde ' + escapeHtml_(c.fecha) + ' · cada botón funciona una sola vez</div>' +
+      botonFollowupHtml_('✓ Lo terminé', '#16A34A', c.links.terminado) +
+      botonFollowupHtml_('⏳ Sigo en ello', '#1E40AF', c.links.sigo) +
+      botonFollowupHtml_('🚧 Bloqueado', '#DC2626', c.links.bloqueado) +
+      botonFollowupHtml_('⛔ No aplica', '#6B7280', c.links.noaplica) +
+      '</div>';
+  }).join('');
+  return '<div style="border-top:1px solid ' + MARCA_.borde + ';margin-top:14px;padding-top:12px;">' +
+    '<div style="font:700 10.5px/1.4 ' + FUENTE_ + ';letter-spacing:.05em;color:' + MARCA_.tenue + ';text-transform:uppercase;">📌 Tus compromisos · ¿cómo van?</div>' +
+    items + '</div>';
+}
+
+/** Invitación a llenar el Form: intro, botón, nota de la cuenta y (si hay) compromisos. */
+function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro, compromisos) {
   var esDaily = (tipo === 'daily');
   var titulo = 'Hola ' + (persona.nombre || '') + ',';
 
@@ -313,6 +337,11 @@ function renderInvitacionHtml_(tipo, persona, leaderName, formUrl, intro) {
       'Solo son las preguntas: responde con <strong style="color:' + MARCA_.ink + ';">' +
       escapeHtml_(persona.correo) + '</strong> y tu nombre se registra solo.</div>' +
     '</td></tr></table>';
+
+  // Follow-up de compromisos (Release 2): los 4 botones-token por ítem.
+  if (compromisos && compromisos.length) {
+    contenido += seccionCompromisosHtml_(compromisos);
+  }
 
   // Transparencia activa (compartir reportes): la persona sabe a quién más llega su reporte.
   if (persona.compartirCon && persona.compartirCon.length) {

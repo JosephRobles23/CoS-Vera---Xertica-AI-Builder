@@ -45,6 +45,13 @@ function cosMenu3() { return CoSLib.menuAction('cosMenu3', getSheetId_(), getCon
 function cosMenu4() { return CoSLib.menuAction('cosMenu4', getSheetId_(), getConfig_()); }
 function cosMenu5() { return CoSLib.menuAction('cosMenu5', getSheetId_(), getConfig_()); }
 
+// --- Web App de follow-up (Release 2 del seguimiento) ---
+// Requiere desplegar ESTA copia como Web App ("ejecutar como: yo", "acceso: cualquiera con el
+// enlace") — ver Docs/deploy-terminal.md. Sin deployment, los correos salen sin botones (nada
+// se rompe). GET pinta la confirmación; solo el POST (Confirmar) muta — anti-escáneres.
+function doGet(e)  { return CoSLib.webAction('get', e, getSheetId_(), getConfig_()); }
+function doPost(e) { return CoSLib.webAction('post', e, getSheetId_(), getConfig_()); }
+
 // --- Activadores (instalados por setupTriggers; NO ejecutar onFormSubmit a mano) ---
 
 function onFormSubmit(e) {
