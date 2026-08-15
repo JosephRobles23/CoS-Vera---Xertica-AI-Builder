@@ -456,4 +456,8 @@ test('runMeetPass_ manda enum del catálogo + temperatura 0, y OTRO basura va al
   // el evento huérfano no se perdió: está en la página de Julio, sin proyecto
   const julio = leerWiki(h, root, ['wiki', 'people'], 'julio-x-com.md');
   assert.match(julio, /avance huérfano/);
+
+  // separación: la viñeta de la página de proyecto lleva el autor (persona del evento)
+  const fenix = leerWiki(h, root, ['wiki', 'projects'], 'fenix.md');
+  assert.match(fenix, /arrancó Fénix · por Julio Toloza/);
 });

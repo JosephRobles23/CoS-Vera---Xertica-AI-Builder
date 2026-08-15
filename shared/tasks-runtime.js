@@ -112,6 +112,73 @@ function agregarTarea_(sheetId, config, t) {
   return true;
 }
 
+/**
+ * Actualiza campos de una tarea por Id (estado/vence/prioridad/proyecto/texto). Valida enums.
+ * @return {Object} la tarea actualizada (shape de listarTareas_)
+ * @throws si el Id ya no está en la hoja (la fila se borró/archivó a mano): el caller muestra
+ *         el error y recarga — la hoja es la fuente de verdad, jamás se recrea en silencio.
+ */
+function actualizarTarea_(sheetId, config, id, campos) {
+  campos = campos || {};
+  var t = null;
+  var tareas = listarTareas_(sheetId, config);
+  for (var i = 0; i < tareas.length; i++) if (tareas[i].id === String(id)) { t = tareas[i]; break; }
+  if (!t) throw new Error('La tarea ya no está en la hoja Tareas (¿se borró o archivó?). Recarga el modal.');
+
+  if (campos.estado != null && ESTADOS_TAREA_.indexOf(campos.estado) === -1) {
+    throw new Error('Estado inválido: "' + campos.estado + '".');
+  }
+  if (campos.prioridad != null && PRIORIDADES_TAREA_.indexOf(campos.prioridad) === -1) {
+    throw new Error('Prioridad inválida: "' + campos.prioridad + '".');
+  }
+  if (campos.vence != null && String(campos.vence) !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(campos.vence))) {
+    throw new Error('Fecha inválida: "' + campos.vence + '" (usa YYYY-MM-DD o vacío).');
+  }
+
+  var sh = getSpreadsheet_(sheetId).getSheetByName(nombreHojaTareas_(config));
+  if (campos.texto != null && String(campos.texto).trim()) { t.texto = String(campos.texto).trim(); sh.getRange(t.fila, 1).setValue(t.texto); }
+  if (campos.proyecto != null) { t.proyecto = String(campos.proyecto).trim(); sh.getRange(t.fila, 2).setValue(t.proyecto); }
+  if (campos.vence != null) { t.vence = String(campos.vence); sh.getRange(t.fila, 3).setValue(t.vence); }
+  if (campos.prioridad != null) { t.prioridad = campos.prioridad; sh.getRange(t.fila, 4).setValue(t.prioridad); }
+  if (campos.estado != null) { t.estado = campos.estado; sh.getRange(t.fila, 5).setValue(t.estado); }
+  return t;
+}
+
+/**
+ * Archiva UNA tarea por Id (cualquier estado: "esto ya no aplica" existe en la vida real).
+ * Mueve la fila a Archivo con 'Archivada el' = hoy y anota el espejo del wiki. @return {boolean}
+ */
+function archivarTarea_(sheetId, config, id, todayISO) {
+  var ss = getSpreadsheet_(sheetId);
+  var sh = ss.getSheetByName(nombreHojaTareas_(config));
+  if (!sh || sh.getLastRow() < 2) throw new Error('La hoja Tareas está vacía.');
+
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, TAREAS_HEADERS_.length).getValues();
+  var fila = -1, row = null;
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][6]) === String(id)) { fila = i + 2; row = rows[i]; break; }
+  }
+  if (fila === -1) throw new Error('La tarea ya no está en la hoja Tareas (¿se borró o archivó?). Recarga el modal.');
+
+  var arch = ss.getSheetByName(nombreHojaArchivo_(config));
+  if (!arch) arch = ss.insertSheet(nombreHojaArchivo_(config));
+  if (arch.getLastRow() < 1) {
+    arch.getRange(1, 1, 1, TAREAS_HEADERS_.length + 1).setValues([TAREAS_HEADERS_.concat(['Archivada el'])]);
+    estilizarTabla_(arch, TAREAS_HEADERS_.length + 1, [320, 140, 100, 90, 110, 220, 120, 110]);
+  }
+  arch.getRange(arch.getLastRow() + 1, 1, 1, TAREAS_HEADERS_.length + 1).setValues([row.concat([todayISO])]);
+  marcarTareaArchivadaWiki_(sheetId, config, row, todayISO);
+
+  // Quita la fila con el patrón clear + rewrite de archivarHechas_ (idéntico en tests y GAS).
+  var vivas = rows.filter(function (r, i) { return i + 2 !== fila && String(r[0] == null ? '' : r[0]).trim(); });
+  sh.clearContents();
+  var values = [TAREAS_HEADERS_].concat(vivas);
+  sh.getRange(1, 1, values.length, TAREAS_HEADERS_.length).setValues(values);
+  estilizarTabla_(sh, TAREAS_HEADERS_.length, [320, 140, 100, 90, 110, 220, 120]);
+  aplicarDropdownsTareas_(sh);
+  return true;
+}
+
 /** Todas las filas de Tareas como objetos (fila 1-based incluida para escrituras). */
 function listarTareas_(sheetId, config) {
   var ss = getSpreadsheet_(sheetId);
@@ -158,6 +225,18 @@ function tareasPendientesHoy_(sheetId, config, todayISO) {
   var peso = function (t) { return t.atrasada ? 0 : (t.hoy ? 1 : 2); };
   tareas.sort(function (a, b) { return peso(a) - peso(b); });
   return tareas;
+}
+
+/**
+ * Higiene diaria de la hoja Tareas: formato idempotente + espejo al wiki + archivado de Hechas.
+ * La llama el dispatcher 1×/día (guarda 'tareas-hig'); antes vivía dentro del envío del briefing.
+ */
+function runTareasHygiene_(sheetId, config, todayISO) {
+  ensureTareasSheet_(sheetId, config);
+  try { sincronizarTareasWiki_(sheetId, config, todayISO); } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('tareas: sync al wiki falló (%s).', e);
+  }
+  archivarHechas_(sheetId, config, todayISO);
 }
 
 // --- Espejo en el brain: wiki/tasks/ (trazabilidad de las tareas del líder) ---

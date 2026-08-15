@@ -392,6 +392,19 @@ test('ingesta e2e: OTRO válido crea el proyecto; OTRO basura va al log y no cre
   assert.ok(!/avance sin hogar \(/.test(person), 'sin anotación de proyecto');
 });
 
+test('separación: la página de PROYECTO lleva autor "· por"; la de persona NO', () => {
+  const h = brainHarness(EVENTOS);
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.ingestarFila_('SID', config, 'daily', { nombre: 'Ada Lovelace', correo: 'ada@x.com' },
+    [{ q: 'q', a: 'a' }], 2, 'SYS');
+
+  const root = rootOf(h);
+  const proj = h.api.leerArchivoBrain_(sub(sub(root, 'wiki'), 'projects'), 'proyecto-alpha.md');
+  assert.match(proj, /cerró el diseño · por Ada Lovelace/, 'viñeta de proyecto con autor');
+  const person = h.api.leerArchivoBrain_(sub(sub(root, 'wiki'), 'people'), 'ada-x-com.md');
+  assert.ok(!/· por /.test(person), 'la página de la persona no se anota a sí misma');
+});
+
 // --- Techos defensivos de los campos narrativos ---
 
 test('parseIngest_ trunca texto (300) y summary (600)', () => {

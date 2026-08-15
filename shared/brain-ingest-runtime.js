@@ -241,6 +241,9 @@ function escribirBrain_(root, config, tipo, meta, pairs, row, parsed, fechaOverr
   var proyectos = {};   // slug -> name
   var rechazados = [];
   eventos.forEach(function (ev) {
+    ev._autorName = str_(meta.nombre) || str_(meta.correo);   // autor para viñetas de proyecto
+  });
+  eventos.forEach(function (ev) {
     var nombre = nombreProyectoEvento_(ev);
     if (!nombre) return;
     var p = resolverProyecto_(root, nombre);
@@ -345,7 +348,12 @@ function mergearEventosEnBody_(body, eventos, fecha, conProyecto) {
   (eventos || []).forEach(function (ev) {
     var seccion = SECCIONES_EVENTO_[ev.tipo];
     if (!seccion) return;
-    var suf = (conProyecto && ev._proyectoName) ? ' (' + ev._proyectoName + ')' : '';
+    // Página de persona: anota el proyecto. Página de proyecto: anota el AUTOR ('· por Nombre',
+    // antes de cualquier sufijo de cierre ✓/✖ futuro) — así Actividad puede filtrar por autor.
+    // Solo hacia adelante: las viñetas viejas sin autor son inatribuibles.
+    var suf = conProyecto
+      ? (ev._proyectoName ? ' (' + ev._proyectoName + ')' : '')
+      : (ev._autorName ? ' · por ' + ev._autorName : '');
     var bullet = '- [' + fecha + '] ' + ev.texto + suf;
     upsertLineaSeccion_(parsed, seccion, bullet);
   });

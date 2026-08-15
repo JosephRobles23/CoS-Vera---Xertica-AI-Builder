@@ -40,6 +40,7 @@ function construirMenu(ui) {
     .addItem('📤 Compartir reportes', 'cosMenu2')
     .addItem('☀️ Morning Briefing', 'cosMenu3')
     .addItem('👥 Seguimiento del equipo', 'cosMenu4')
+    .addItem('🎯 Mi seguimiento', 'cosMenu5')
     .addToUi();
 }
 
@@ -61,7 +62,9 @@ var DIALOGOS_ = {
   // Morning Briefing: config con vista previa en vivo.
   briefing: { archivo: 'DialogBriefing', titulo: 'CoS — Morning Briefing', ancho: 760, alto: 640 },
   // Seguimiento del equipo: salud por persona, timeline y dashboards (solo lectura + cierre de pendientes).
-  seguimiento: { archivo: 'DialogSeguimiento', titulo: 'CoS — Seguimiento del equipo', ancho: 760, alto: 680 }
+  seguimiento: { archivo: 'DialogSeguimiento', titulo: 'CoS — Seguimiento del equipo', ancho: 760, alto: 680 },
+  // Mi seguimiento: las tareas del PROPIO líder (Hoy/Tareas/Tablero + creación) sobre la hoja Tareas.
+  miseguimiento: { archivo: 'DialogMiSeguimiento', titulo: 'CoS — Mi seguimiento', ancho: 760, alto: 680 }
 };
 
 /**
@@ -103,6 +106,11 @@ var MENU_ACTIONS_ = {
   // 'Seguimiento del equipo' → salud/timeline/dashboards.
   cosMenu4: function (sheetId, config) {
     var d = buildDialog('seguimiento');
+    SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  },
+  // 'Mi seguimiento' → tareas del líder (Hoy/Tareas/Tablero + creación híbrida).
+  cosMenu5: function (sheetId, config) {
+    var d = buildDialog('miseguimiento');
     SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
   }
 };
@@ -150,6 +158,12 @@ var DISPATCH_ = {
   olvidarPersona:          function (sid, cfg, a) { return olvidarPersona(sid, cfg, a[0]); },
   olvidarProyecto:         function (sid, cfg, a) { return olvidarProyecto(sid, cfg, a[0]); },
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
+  // Mi seguimiento (modal del líder): lectura + mutadores de la hoja Tareas + foco manual.
+  cargarMiSeguimiento:     function (sid, cfg, a) { return cargarMiSeguimiento(sid, cfg); },
+  crearTarea:              function (sid, cfg, a) { return crearTarea(sid, cfg, a[0]); },
+  actualizarTarea:         function (sid, cfg, a) { return actualizarTarea(sid, cfg, a[0], a[1]); },
+  archivarTarea:           function (sid, cfg, a) { return archivarTarea(sid, cfg, a[0]); },
+  guardarFoco:             function (sid, cfg, a) { return guardarFoco(sid, cfg, a[0]); },
   // Backfill del histórico al brain (job reanudable; lo avanza el dispatcher).
   iniciarBackfill:         function (sid, cfg) { return iniciarBackfill(sid, cfg); },
   estadoBackfill:          function (sid, cfg) { return estadoBackfill(sid, cfg); },

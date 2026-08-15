@@ -28,9 +28,9 @@ test('construirMenu arma el menú CoS con handlers del stub por nombre', () => {
   assert.equal(ui._menu._name, 'CoS');
   assert.equal(ui._menu._added, true);
   const items = ui._items.filter((i) => i.kind === 'item');
-  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar', 'cosMenu1', 'cosMenu2', 'cosMenu3', 'cosMenu4']);
+  assert.deepEqual(items.map((i) => i.fn), ['abrirSidebar', 'cosMenu1', 'cosMenu2', 'cosMenu3', 'cosMenu4', 'cosMenu5']);
   assert.deepEqual(items.map((i) => i.caption),
-    ['⚙️ Configurar', '📝 Formularios', '📤 Compartir reportes', '☀️ Morning Briefing', '👥 Seguimiento del equipo']);
+    ['⚙️ Configurar', '📝 Formularios', '📤 Compartir reportes', '☀️ Morning Briefing', '👥 Seguimiento del equipo', '🎯 Mi seguimiento']);
 });
 
 test('buildSidebar carga el HTML de la librería con título', () => {
@@ -64,8 +64,9 @@ test('menuAction(\'cosMenu1\') abre el modal de preguntas con showModalDialog', 
 });
 
 test('menuAction lanza si el slot no tiene acción asignada', () => {
+  // cosMenu1..5 ya están todos asignados: un slot inexistente cae por el mismo camino.
   const { api } = makeHarness();
-  assert.throws(() => api.menuAction('cosMenu5', SID, config), /no asignada/);
+  assert.throws(() => api.menuAction('cosMenu9', SID, config), /no asignada/);
 });
 
 test('dispatch enruta cargarConfig igual que la llamada directa', () => {

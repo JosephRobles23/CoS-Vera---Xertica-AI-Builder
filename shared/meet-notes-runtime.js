@@ -374,6 +374,11 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
   var source = guardarRawMeet_(root, cand, titulo, fecha, texto);
 
   // 2) proyectos. La compuerta puede rechazar (null): el evento vive igual en persona/acta.
+  // Autor para las viñetas de proyecto: la misma compuerta de personas evita que una fuga del
+  // LLM en `persona` contamine la anotación '· por'.
+  parsed.eventos.forEach(function (ev) {
+    ev._autorName = sanitizarPersona_(ev.persona) || '';
+  });
   var proyectos = {};
   var rechazados = [];
   parsed.eventos.forEach(function (ev) {

@@ -57,6 +57,7 @@ var AJUSTES_DEFAULTS_ = {
   'briefing.dias': '1,2,3,4,5',      // días ISO (1=lun … 7=dom) en que se envía
   'briefing.secciones': '',          // JSON [{id,on}] ordenado; '' → BRIEFING_SECCIONES_DEFAULT_
   'briefing.prompt': '',             // instrucción personal del líder (tono, idioma, reglas)
+  'briefing.focoManual': '',         // foco escrito por el líder (Mi seguimiento); con valor, manda sobre el foco del LLM
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -299,7 +300,8 @@ function getAjustes_(sheetId, settingsSheetName) {
       hora:      normHora_(flat['briefing.hora'], ss) || '07:30',
       dias:      listaEnteros_(flat['briefing.dias'], [1, 2, 3, 4, 5]),
       secciones: seccionesBriefing_(flat['briefing.secciones']),
-      prompt:    str_(flat['briefing.prompt'])
+      prompt:    str_(flat['briefing.prompt']),
+      focoManual: str_(flat['briefing.focoManual'])
     },
     meet: {
       enabled:      bool_(flat['meet.enabled']),

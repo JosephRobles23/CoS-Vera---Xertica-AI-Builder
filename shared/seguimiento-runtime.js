@@ -65,7 +65,7 @@ function cargarSeguimiento(sheetId, config, dias) {
     dias: n,
     hoy: hoy,
     personas: personas,
-    actividad: root ? actividadWiki_(root, desdeUTC) : [],
+    actividad: root ? actividadWiki_(root, desdeUTC, (config.leader && config.leader.name) || '') : [],
     charts: {
       cumplimiento: personas.map(function (p) {
         return { nombre: p.nombre, pct: p.cumplimiento, salud: p.salud };
@@ -264,8 +264,12 @@ var SEG_TIPOS_SECCION_ = {
   'Decisiones': 'decision', 'Pendientes': 'pendiente', 'Contradicciones': 'contradiccion'
 };
 
-function actividadWiki_(root, desdeUTC) {
+// Autor anotado en viñetas de proyecto ('texto · por Nombre', antes del sufijo de cierre).
+var SEG_AUTOR_RE_ = /\s*·\s*por\s+([^·]+)$/;
+
+function actividadWiki_(root, desdeUTC, leaderName) {
   var items = [];
+  var liderNorm = String(leaderName == null ? '' : leaderName).trim().toLowerCase();
   var recorrer = function (subcarpeta, quienDe) {
     listarArchivosBrain_(carpetaBrain_(root, ['wiki', subcarpeta]), '.md').forEach(function (a) {
       if (a.name.charAt(0) === '_') return;
@@ -279,9 +283,16 @@ function actividadWiki_(root, desdeUTC) {
         s.lines.forEach(function (l) {
           var m = SEG_VINETA_RE_.exec(l.trim());
           if (!m || isoAUTC_(m[1]) < desdeUTC) return;
+          var texto = m[2].replace(SEG_SUFIJO_RE_, '');
+          // Autor de viñetas de proyecto: se muestra sin el sufijo y habilita el filtro
+          // "incluir mis eventos" (apagado por defecto). Viñetas viejas sin autor: mio=false.
+          var autor = '';
+          var ma = SEG_AUTOR_RE_.exec(texto);
+          if (subcarpeta === 'projects' && ma) { autor = ma[1].trim(); texto = texto.replace(SEG_AUTOR_RE_, ''); }
           items.push({
-            fecha: m[1], tipo: tipo, quien: quien,
-            texto: m[2].replace(SEG_SUFIJO_RE_, ''),
+            fecha: m[1], tipo: tipo, quien: quien, autor: autor,
+            mio: !!(autor && liderNorm && autor.toLowerCase() === liderNorm),
+            texto: texto,
             cerrado: tipo === 'pendiente' && !esPendienteAbierto_(l)
           });
         });
@@ -309,14 +320,11 @@ function blockersConEdad_(personas) {
 }
 
 function pendientesPorPersona_(sheetId, config, personas) {
-  var out = personas.map(function (p) {
+  // Solo EQUIPO: la fila del líder se movió al modal "Mi seguimiento" (separación R1, ago 2026).
+  // Se conserva el flag lider:false para no romper el contrato del chart.
+  return personas.map(function (p) {
     return { nombre: p.nombre, abiertos: p.pendientes.filter(function (x) { return x.abierto; }).length, lider: false };
   });
-  try {
-    var propias = tareasPendientesHoy_(sheetId, config, hoyISO_(config)).length;
-    out.push({ nombre: (config.leader && config.leader.name) || 'Líder', abiertos: propias, lider: true });
-  } catch (e) { /* sin hoja Tareas todavía */ }
-  return out;
 }
 
 /** Ingestas por día (reportes 📝 + notas 🎥) desde la COLA de log.md — el log crece por años. */

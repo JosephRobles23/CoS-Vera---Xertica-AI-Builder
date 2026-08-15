@@ -119,18 +119,9 @@ function enviarBriefing_(sheetId, config, now, today) {
   var leader = (config.leader && config.leader.email) || '';
   if (!leader) throw new Error('Falta config.leader.email para enviar el briefing.');
 
-  // Higiene diaria de la hoja: re-asegurar formato (dropdowns, colores, fecha — idempotente;
-  // cubre pestañas creadas por versiones viejas), luego el espejo al wiki (captura los cambios
-  // de estado con historial, incluido el paso a Hecha) y después el archivado a Archivo.
-  try { ensureTareasSheet_(sheetId, config); } catch (e) {
-    if (typeof Logger !== 'undefined') Logger.log('briefing: ensure de Tareas falló (%s).', e);
-  }
-  try { sincronizarTareasWiki_(sheetId, config, today); } catch (e) {
-    if (typeof Logger !== 'undefined') Logger.log('briefing: sync de tareas al wiki falló (%s).', e);
-  }
-  try { archivarHechas_(sheetId, config, today); } catch (e) {
-    if (typeof Logger !== 'undefined') Logger.log('briefing: archivado falló (%s).', e);
-  }
+  // La higiene diaria de la hoja Tareas (ensure + espejo wiki + archivado) YA NO vive aquí:
+  // corre en el dispatcher (runTareasHygiene_, 1×/día) para que un líder sin briefing también
+  // archive y espeje. El dispatcher pasa antes de cualquier hora de briefing razonable.
 
   var b = config.briefing || {};
   var datos = datosBriefing_(sheetId, config, now, today);
@@ -138,9 +129,12 @@ function enviarBriefing_(sheetId, config, now, today) {
   var conFoco = secciones.some(function (s) { return s.id === 'foco'; });
   var conUrgente = secciones.some(function (s) { return s.id === 'urgente'; });
 
+  // Foco manual (Mi seguimiento): si el líder escribió el suyo, manda — y no se le pide al LLM.
+  var focoManual = str_(b.focoManual);
+
   // Un solo call Flash para lo narrativo (foco + urgente); lo factual lo pinta el código.
   var ia = { foco: '', urgente: '' };
-  if (conFoco || (conUrgente && datos.urgentes.length)) {
+  if ((conFoco && !focoManual) || (conUrgente && datos.urgentes.length)) {
     try {
       var raw = callGemini_(config.models.perRow, briefingSystem_(b.prompt),
         briefingUser_(today, datos), { responseSchema: BRIEFING_SCHEMA_ });
@@ -149,6 +143,7 @@ function enviarBriefing_(sheetId, config, now, today) {
       if (typeof Logger !== 'undefined') Logger.log('briefing: narrativa IA falló, va sin ella (%s).', e);
     }
   }
+  if (focoManual) ia.foco = focoManual;   // un solo foco manda; el del LLM es el fallback
 
   var asunto = '☀️ Tu día — ' + fechaLegible_(today);
   var cuerpo = cuerpoPlanoBriefing_(secciones, datos, ia);

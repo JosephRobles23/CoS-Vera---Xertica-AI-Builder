@@ -113,6 +113,19 @@ function runDispatcher(sheetId, config, nowOverride) {
     marcarEnviado_(sheetId, 'brain-scan', 'higiene', today);
   }
 
+  // --- 3a-bis) Higiene diaria de la hoja Tareas: ensure (formato idempotente) + espejo al wiki
+  // (historial de cambios) + archivado de Hechas. Antes vivía dentro del envío del briefing:
+  // un líder sin briefing no archivaba ni espejaba jamás. Sin gate de brain (el sync ya es no-op
+  // sin brain; el archivado aplica igual).
+  if (!yaEnviado_(sheetId, 'brain-scan', 'tareas-hig', today)) {
+    try {
+      runTareasHygiene_(sheetId, config, today);
+    } catch (e) {
+      if (typeof Logger !== 'undefined') Logger.log('tareas: higiene diaria falló (%s).', e);
+    }
+    marcarEnviado_(sheetId, 'brain-scan', 'tareas-hig', today);
+  }
+
   // --- 3b) Purga del raw/ por retención (gobernanza): 1×/día, junto al scan ---
   if (config.brain && config.brain.enabled &&
       !yaEnviado_(sheetId, 'brain-scan', 'purga-raw', today)) {

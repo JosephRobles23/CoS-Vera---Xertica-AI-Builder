@@ -42,6 +42,7 @@ const RUNTIME_FILES = [
   'tasks-runtime.js',
   'briefing-runtime.js',
   'seguimiento-runtime.js',
+  'miseguimiento-runtime.js',
   'webapp-runtime.js',
   'ui-runtime.js'
 ];

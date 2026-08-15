@@ -149,8 +149,8 @@ test('pendientes: solo los de la ventana, y la gramática de sufijos separa abie
 
   const chart = data.charts.pendientes;
   assert.equal(chart.find((x) => x.nombre === 'Julio Toloza').abiertos, 1);
-  const lider = chart.find((x) => x.lider);
-  assert.equal(lider.abiertos, 1, 'las tareas activas del líder entran al chart');
+  // Separación (R1 de Mi seguimiento): el chart es SOLO del equipo — el líder ya no aparece.
+  assert.ok(!chart.some((x) => x.lider), 'la fila del líder salió del chart');
 });
 
 test('blockers con edad, ordenados del más viejo al más nuevo', () => {
@@ -186,6 +186,28 @@ test('la timeline agrega people + projects, en ventana, orden descendente y con 
   assert.equal(data.actividad[2].quien, 'Proyecto Alpha');
   assert.equal(data.actividad[1].cerrado, true, 'el pendiente resuelto viene marcado');
   assert.ok(!data.actividad.some((i) => /Prehistoria/.test(i.texto)), 'fuera de ventana');
+});
+
+test('separación: las viñetas de proyecto con autor exponen mio/autor y el sufijo no se pinta', () => {
+  const h = segHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.escribirArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), 'alpha.md',
+    h.api.componerPagina_({ page_type: 'project', name: 'Alpha', last_updated: HOY },
+      '## Pendientes\n' +
+      '- [' + HOY + '] Coordinar comité · por Líder A\n' +          // del líder → mio
+      '- [' + HOY + '] Validar Classroom · por Julio Toloza\n' +    // del equipo
+      '- [' + isoDiasAtras(1) + '] Viñeta vieja sin autor\n'));     // histórico inatribuible
+
+  const items = cargar(h, 7).actividad;
+  const [mia, deJulio, vieja] = [
+    items.find((i) => /Coordinar comité/.test(i.texto)),
+    items.find((i) => /Validar Classroom/.test(i.texto)),
+    items.find((i) => /Viñeta vieja/.test(i.texto))
+  ];
+  assert.deepEqual([mia.mio, mia.autor, mia.texto], [true, 'Líder A', 'Coordinar comité'], 'sufijo despintado');
+  assert.deepEqual([deJulio.mio, deJulio.autor], [false, 'Julio Toloza']);
+  assert.deepEqual([vieja.mio, vieja.autor], [false, ''], 'lo histórico sin autor jamás se marca mío');
 });
 
 test('los externos quedan fuera de personas y de la timeline', () => {

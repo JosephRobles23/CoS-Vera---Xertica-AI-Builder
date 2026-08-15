@@ -178,7 +178,7 @@
 
     /* ---- Estado + carga ---- */
     var state = { dias: 7, data: null, tab: 'personas', expandida: null,
-      filtroPersona: '', filtroTipo: '', ultimaCarga: 0 };
+      filtroPersona: '', filtroTipo: '', incluirMios: false, ultimaCarga: 0 };
     var TIPOS = ['avance', 'blocker', 'riesgo', 'decision', 'pendiente'];
     var TIPO_LBL = { avance: 'AVANCE', blocker: 'BLOCKER', riesgo: 'RIESGO', decision: 'DECISIÓN', pendiente: 'PENDIENTE', contradiccion: 'CONTRADICCIÓN' };
 
@@ -294,6 +294,7 @@
         }).join('');
 
       var items = d.actividad.filter(function (it) {
+        if (!state.incluirMios && it.mio) return false;   // separación: lo del líder vive en Mi seguimiento
         if (state.filtroTipo && it.tipo !== state.filtroTipo) return false;
         if (state.filtroPersona && it.quien !== state.filtroPersona) return false;
         return true;
@@ -301,15 +302,20 @@
       var tl = items.length ? '<div class="tl">' + items.map(function (it) {
         return '<div class="tl-item ' + it.tipo + '">' +
           '<span class="tl-tipo t-' + it.tipo + '">' + (TIPO_LBL[it.tipo] || it.tipo.toUpperCase()) + '</span>' +
-          '<b>' + escHtml(it.quien) + '</b> · ' + escHtml(it.texto) + (it.cerrado ? ' <span class="badge">cerrado</span>' : '') +
+          '<b>' + escHtml(it.quien) + '</b> · ' + escHtml(it.texto) +
+          (it.autor ? ' <small>· por ' + escHtml(it.autor) + '</small>' : '') +
+          (it.cerrado ? ' <span class="badge">cerrado</span>' : '') +
           ' <small>· ' + escHtml(it.fecha) + '</small></div>';
       }).join('') + '</div>' : '<p class="hint">Sin actividad en esta ventana con esos filtros.</p>';
 
       g('vActividad').innerHTML =
-        '<div class="filtros"><select onchange="fPersona(this.value)">' + opts + '</select>' + chips + '</div>' + tl;
+        '<div class="filtros"><select onchange="fPersona(this.value)">' + opts + '</select>' + chips +
+        '<label class="hint" style="margin-left:auto;cursor:pointer"><input type="checkbox"' +
+        (state.incluirMios ? ' checked' : '') + ' onchange="fMios(this.checked)"> incluir mis eventos</label></div>' + tl;
     }
     function fPersona(v) { state.filtroPersona = v; pintarActividad(); }
     function fTipo(v) { state.filtroTipo = v; pintarActividad(); }
+    function fMios(v) { state.incluirMios = !!v; pintarActividad(); }
 
     /* ---- Tab Dashboards: Google Charts con fallback CSS ---- */
     var chartsListo = false;

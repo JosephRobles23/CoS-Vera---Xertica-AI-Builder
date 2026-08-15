@@ -129,14 +129,15 @@ test('Vence acepta la fecha como Date del picker y el briefing la interpreta bie
   assert.equal(ts[0].hoy, true);
 });
 
-test('una hoja Tareas heredada (sin formato) gana los colores al correr el briefing', () => {
+test('una hoja Tareas heredada (sin formato) gana los colores en la higiene diaria del dispatcher', () => {
   // La pestaña existe con datos pero fue creada por una versión vieja: cero reglas de color.
+  // La higiene ya NO vive en el briefing: corre en el dispatcher (runTareasHygiene_).
   const h = brHarness({ tareas: [['Vieja', '', '', 'Media', 'Pendiente', '', 'idV']] });
   const config = h.api.construirConfig('SID', CONFIG);
   const sh = h.getSpreadsheet('SID').getSheetByName('Tareas');
   assert.equal(sh.getConditionalFormatRules().length, 0, 'precondición: sin formato');
 
-  h.api.enviarBriefingPrueba('SID', config);
+  h.api.runTareasHygiene_('SID', config, HOY);
   assert.equal(sh.getConditionalFormatRules().length, 7, 'la pasada re-aseguró colores');
   assert.ok(sh._validations.some((v) => v.col === 3 && v.rule._date), 'y el date-picker de Vence');
 });
@@ -288,7 +289,7 @@ test('con foco apagado y sin urgentes, el briefing no gasta ninguna llamada a Ge
   assert.equal(h.fetchCalls.length, 0, 'cero llamadas LLM');
 });
 
-test('enviarBriefingPrueba ignora hora/día y de paso archiva las Hechas', () => {
+test('enviarBriefingPrueba ignora hora/día; el archivado es de la higiene diaria, no del briefing', () => {
   const h = brHarness({
     ajustes: [['briefing.dias', '1']],   // hoy NO toca…
     tareas: [['Terminada', '', '', 'Baja', 'Hecha', '', 'idH']]
@@ -298,7 +299,10 @@ test('enviarBriefingPrueba ignora hora/día y de paso archiva las Hechas', () =>
 
   assert.equal(res.enviado, true);
   assert.equal(briefings(h).length, 1);
-  assert.ok(h.getSpreadsheet('SID').getSheetByName('Archivo'), 'las Hechas se archivaron');
+  assert.ok(!h.getSpreadsheet('SID').getSheetByName('Archivo'), 'el briefing ya no archiva');
+
+  h.api.runTareasHygiene_('SID', config, HOY);
+  assert.ok(h.getSpreadsheet('SID').getSheetByName('Archivo'), 'la higiene diaria sí archiva');
 });
 
 // --- Config del modal ---
