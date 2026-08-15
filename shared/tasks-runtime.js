@@ -13,7 +13,10 @@
  * "Hecha" a la pestaña "Archivo". Sin import/export: runtime de Apps Script.
  */
 
-var TAREAS_HEADERS_ = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id'];
+// R3: 'Espera de' (de quién depende), 'Link' (doc/PR) y 'EventId' (Calendar, ligadas exactas).
+// La migración de hojas existentes es idempotente por encabezado (migrarHeadersTareas_).
+var TAREAS_HEADERS_ = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
+var ANCHOS_TAREAS_ = [320, 140, 100, 90, 110, 220, 120, 110, 180, 120];
 var ESTADOS_TAREA_ = ['Pendiente', 'En curso', 'Bloqueada', 'Hecha'];
 var PRIORIDADES_TAREA_ = ['Alta', 'Media', 'Baja'];
 
@@ -42,17 +45,36 @@ function ensureTareasSheet_(sheetId, config) {
   if (!sh) sh = ss.insertSheet(nombre);
   if (sh.getLastRow() < 1) {
     sh.getRange(1, 1, 1, TAREAS_HEADERS_.length).setValues([TAREAS_HEADERS_]);
-    estilizarTabla_(sh, TAREAS_HEADERS_.length, [320, 140, 100, 90, 110, 220, 120]);
+    estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
+  } else {
+    migrarHeadersTareas_(sh);
   }
-  aplicarDropdownsTareas_(sh);
+  var roster = [];
+  try { roster = getRoster_(sheetId, config.sheets.roster).map(function (p) { return p.nombre || p.correo; }); } catch (e) { roster = []; }
+  aplicarDropdownsTareas_(sh, roster);
   return sh;
+}
+
+/**
+ * Migración R3 idempotente por nombre de encabezado: si la fila 1 no coincide con el contrato
+ * (hoja creada por una versión vieja de 7 columnas), reescribe SOLO los encabezados — los datos
+ * quedan intactos y las columnas nuevas nacen vacías. Corre en cada ensure (higiene diaria).
+ */
+function migrarHeadersTareas_(sh) {
+  var actuales = sh.getRange(1, 1, 1, TAREAS_HEADERS_.length).getValues()[0]
+    .map(function (v) { return String(v == null ? '' : v).trim(); });
+  var iguales = TAREAS_HEADERS_.every(function (hdr, i) { return actuales[i] === hdr; });
+  if (iguales) return false;
+  sh.getRange(1, 1, 1, TAREAS_HEADERS_.length).setValues([TAREAS_HEADERS_]);
+  estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
+  return true;
 }
 
 /**
  * Dropdowns (Estado/Prioridad), fecha en Vence (con picker de calendario al editar) y los chips
  * de color por formato condicional. Best-effort: cosmético, nunca rompe.
  */
-function aplicarDropdownsTareas_(sh) {
+function aplicarDropdownsTareas_(sh, rosterNombres) {
   var filas = 500;
   try {
     sh.getRange(2, 5, filas, 1).setDataValidation(
@@ -63,6 +85,12 @@ function aplicarDropdownsTareas_(sh) {
     sh.getRange(2, 3, filas, 1)
       .setDataValidation(SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build())
       .setNumberFormat('yyyy-mm-dd');
+    // R3 · Espera de: dropdown con el roster pero PERMISIVO (allowInvalid) — un externo o un
+    // área ("Finanzas") también son esperas legítimas.
+    if (rosterNombres && rosterNombres.length) {
+      sh.getRange(2, 8, filas, 1).setDataValidation(
+        SpreadsheetApp.newDataValidation().requireValueInList(rosterNombres, true).setAllowInvalid(true).build());
+    }
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo aplicar la validación (%s).', e);
   }
@@ -82,6 +110,21 @@ function aplicarDropdownsTareas_(sh) {
     sh.setConditionalFormatRules(reglas);
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo aplicar el color (%s).', e);
+  }
+}
+
+/** Asegura/migra el encabezado de Archivo (contrato Tareas + 'Archivada el'). Idempotente. */
+function migrarHeadersArchivo_(arch) {
+  var headers = TAREAS_HEADERS_.concat(['Archivada el']);
+  if (arch.getLastRow() < 1) {
+    arch.getRange(1, 1, 1, headers.length).setValues([headers]);
+    estilizarTabla_(arch, headers.length, ANCHOS_TAREAS_.concat([110]));
+    return;
+  }
+  var actuales = arch.getRange(1, 1, 1, headers.length).getValues()[0]
+    .map(function (v) { return String(v == null ? '' : v).trim(); });
+  if (!headers.every(function (h, i) { return actuales[i] === h; })) {
+    arch.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
 }
 
@@ -107,7 +150,8 @@ function agregarTarea_(sheetId, config, t) {
   }
   sh.getRange(sh.getLastRow() + 1, 1, 1, TAREAS_HEADERS_.length).setValues([[
     String(t.texto || '').trim(), t.proyecto || '', t.vence || '',
-    t.prioridad || 'Media', t.estado || 'Pendiente', t.origen || '✍️ Manual', id
+    t.prioridad || 'Media', t.estado || 'Pendiente', t.origen || '✍️ Manual', id,
+    t.espera || '', t.link || '', t.eventId || ''
   ]]);
   return true;
 }
@@ -141,6 +185,8 @@ function actualizarTarea_(sheetId, config, id, campos) {
   if (campos.vence != null) { t.vence = String(campos.vence); sh.getRange(t.fila, 3).setValue(t.vence); }
   if (campos.prioridad != null) { t.prioridad = campos.prioridad; sh.getRange(t.fila, 4).setValue(t.prioridad); }
   if (campos.estado != null) { t.estado = campos.estado; sh.getRange(t.fila, 5).setValue(t.estado); }
+  if (campos.espera != null) { t.espera = String(campos.espera).trim(); sh.getRange(t.fila, 8).setValue(t.espera); }
+  if (campos.link != null) { t.link = String(campos.link).trim(); sh.getRange(t.fila, 9).setValue(t.link); }
   return t;
 }
 
@@ -162,10 +208,7 @@ function archivarTarea_(sheetId, config, id, todayISO) {
 
   var arch = ss.getSheetByName(nombreHojaArchivo_(config));
   if (!arch) arch = ss.insertSheet(nombreHojaArchivo_(config));
-  if (arch.getLastRow() < 1) {
-    arch.getRange(1, 1, 1, TAREAS_HEADERS_.length + 1).setValues([TAREAS_HEADERS_.concat(['Archivada el'])]);
-    estilizarTabla_(arch, TAREAS_HEADERS_.length + 1, [320, 140, 100, 90, 110, 220, 120, 110]);
-  }
+  migrarHeadersArchivo_(arch);
   arch.getRange(arch.getLastRow() + 1, 1, 1, TAREAS_HEADERS_.length + 1).setValues([row.concat([todayISO])]);
   marcarTareaArchivadaWiki_(sheetId, config, row, todayISO);
 
@@ -174,7 +217,7 @@ function archivarTarea_(sheetId, config, id, todayISO) {
   sh.clearContents();
   var values = [TAREAS_HEADERS_].concat(vivas);
   sh.getRange(1, 1, values.length, TAREAS_HEADERS_.length).setValues(values);
-  estilizarTabla_(sh, TAREAS_HEADERS_.length, [320, 140, 100, 90, 110, 220, 120]);
+  estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
   aplicarDropdownsTareas_(sh);
   return true;
 }
@@ -194,7 +237,10 @@ function listarTareas_(sheetId, config) {
       prioridad: String(r[3] == null ? '' : r[3]).trim() || 'Media',
       estado: String(r[4] == null ? '' : r[4]).trim() || 'Pendiente',
       origen: String(r[5] == null ? '' : r[5]).trim(),
-      id: String(r[6] == null ? '' : r[6]).trim()
+      id: String(r[6] == null ? '' : r[6]).trim(),
+      espera: String(r[7] == null ? '' : r[7]).trim(),
+      link: String(r[8] == null ? '' : r[8]).trim(),
+      eventId: String(r[9] == null ? '' : r[9]).trim()
     };
   }).filter(function (t) { return t.texto; });
 }
@@ -239,6 +285,81 @@ function runTareasHygiene_(sheetId, config, todayISO) {
   archivarHechas_(sheetId, config, todayISO);
 }
 
+// --- Índice _tasks.json (R2): agregados de Tendencia en 1 lectura de Drive ---
+//
+// Índice CRUDO por tarea (decisión del grill: campos mínimos, las series se agregan al cargar):
+//   id → { proyecto, prioridad, origen, estado, vence, created, hecha, archivada, posp }
+// Se actualiza en el sync diario, en cada mutación del modal y al archivar. Si falta o se
+// corrompe, se reconstruye desde las páginas de wiki/tasks (N lecturas, una sola vez).
+
+function cargarIndiceTareas_(root) {
+  var raw = leerArchivoBrain_(carpetaBrain_(root, ['wiki', 'tasks']), '_tasks.json');
+  if (!raw) return null;
+  try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; }
+}
+
+function guardarIndiceTareas_(root, mapa) {
+  escribirArchivoBrain_(carpetaBrain_(root, ['wiki', 'tasks']), '_tasks.json', JSON.stringify(mapa, null, 2));
+}
+
+/** Upsert de N tareas en el índice (carga 1 vez, aplica todas, guarda 1 vez). */
+function indexarTareas_(root, tareas, todayISO) {
+  var mapa = cargarIndiceTareas_(root) || {};
+  (tareas || []).forEach(function (t) {
+    var e = mapa[t.id];
+    if (!e) e = mapa[t.id] = { created: todayISO, hecha: '', archivada: '', posp: 0, vence: '', estado: '' };
+    if (e.vence && t.vence !== e.vence) e.posp++;                       // re-fecha = pospuesta
+    if (t.estado === 'Hecha' && e.estado !== 'Hecha') e.hecha = todayISO;
+    if (t.estado !== 'Hecha' && e.estado === 'Hecha') e.hecha = '';     // reabierta
+    e.proyecto = t.proyecto; e.prioridad = t.prioridad; e.origen = t.origen;
+    e.estado = t.estado; e.vence = t.vence;
+  });
+  guardarIndiceTareas_(root, mapa);
+}
+
+/** Marca la fecha de archivado (la tarea sale de "abiertas" en las series desde ese día). */
+function indexarArchivada_(root, id, todayISO) {
+  var mapa = cargarIndiceTareas_(root) || {};
+  var e = mapa[String(id)];
+  if (!e) return;
+  e.archivada = todayISO;
+  if (e.estado === 'Hecha' && !e.hecha) e.hecha = todayISO;
+  guardarIndiceTareas_(root, mapa);
+}
+
+/**
+ * Reconstruye el índice desde las páginas de wiki/tasks (fallback: _tasks.json ausente o roto).
+ * created/estado/etc. salen del frontmatter; posp y la fecha de Hecha, del ## Historial.
+ * @return {Object} el mapa reconstruido (ya persistido)
+ */
+function reconstruirIndiceTareas_(root) {
+  var mapa = {};
+  listarArchivosBrain_(carpetaBrain_(root, ['wiki', 'tasks']), '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var page = parsearPagina_(a.content);
+    var fm = page.frontmatter || {};
+    var id = a.name.replace(/\.md$/, '');
+    var hecha = '', archivada = '', posp = 0;
+    parseBodySections_(page.body).sections.forEach(function (s) {
+      if (s.name !== 'Historial') return;
+      s.lines.forEach(function (l) {
+        var f = /^-\s*\[(\d{4}-\d{2}-\d{2})\]\s*(.*)$/.exec(l.trim());
+        if (!f) return;
+        if (/^vence:/.test(f[2])) posp++;
+        if (/→\s*Hecha/.test(f[2])) hecha = f[1];
+        if (/^archivada/.test(f[2])) archivada = f[1];
+      });
+    });
+    mapa[id] = {
+      proyecto: str_(fm.project), prioridad: str_(fm.priority) || 'Media',
+      origen: str_(fm.origin), estado: str_(fm.status) || 'Pendiente', vence: str_(fm.due),
+      created: str_(fm.created), hecha: hecha, archivada: archivada, posp: posp
+    };
+  });
+  guardarIndiceTareas_(root, mapa);
+  return mapa;
+}
+
 // --- Espejo en el brain: wiki/tasks/ (trazabilidad de las tareas del líder) ---
 
 /**
@@ -255,9 +376,15 @@ function sincronizarTareasWiki_(sheetId, config, todayISO) {
   var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
 
   var cambios = 0;
-  listarTareas_(sheetId, config).forEach(function (t) {
+  var tareas = listarTareas_(sheetId, config);
+  tareas.forEach(function (t) {
     if (upsertTareaWiki_(carpeta, t, todayISO)) cambios++;
   });
+  // Índice de Tendencia (R2): 1 carga + 1 escritura por pasada, pase lo que pase con `cambios`
+  // (las tareas nuevas necesitan su entrada aunque su página también sea nueva).
+  try { indexarTareas_(root, tareas, todayISO); } catch (e) {
+    if (typeof Logger !== 'undefined') Logger.log('tareas: índice _tasks.json falló (%s).', e);
+  }
   if (cambios) regenerarIndexBrain_(root, todayISO);
   return cambios;
 }
@@ -271,10 +398,12 @@ function upsertTareaWiki_(carpeta, t, todayISO) {
     var fm = {
       page_type: 'task', name: t.texto, project: t.proyecto, due: t.vence,
       priority: t.prioridad, status: t.estado, origin: t.origen,
+      waiting_on: t.espera || '', link: t.link || '', event_id: t.eventId || '',
       created: todayISO, last_updated: todayISO
     };
     var body = '# ' + t.texto + '\n\n## Historial\n- [' + todayISO + '] creada (' + t.estado +
-      (t.vence ? ', vence ' + t.vence : '') + ')\n';
+      (t.vence ? ', vence ' + t.vence : '') + ')\n' +
+      (t.espera ? '- [' + todayISO + '] espera de: ' + t.espera + '\n' : '');
     escribirArchivoBrain_(carpeta, name, componerPagina_(fm, body));
     return true;
   }
@@ -285,10 +414,13 @@ function upsertTareaWiki_(carpeta, t, todayISO) {
   if (str_(f.status) !== t.estado) lineas.push('estado: ' + (str_(f.status) || '?') + ' → ' + t.estado);
   if (str_(f.due) !== t.vence) lineas.push('vence: ' + (str_(f.due) || '—') + ' → ' + (t.vence || '—'));
   if (str_(f.priority) !== t.prioridad) lineas.push('prioridad: ' + (str_(f.priority) || '?') + ' → ' + t.prioridad);
+  // R3 · Espera de: la línea del historial es la fuente de los días del pill "⏳ · Nd".
+  if (str_(f.waiting_on) !== (t.espera || '')) lineas.push('espera de: ' + (t.espera || '—'));
   if (!lineas.length) return false;
 
   var fm2 = mergeFrontmatter_(f, {
-    status: t.estado, due: t.vence, priority: t.prioridad, project: t.proyecto, last_updated: todayISO
+    status: t.estado, due: t.vence, priority: t.prioridad, project: t.proyecto,
+    waiting_on: t.espera || '', link: t.link || '', last_updated: todayISO
   });
   var body2 = page.body + lineas.map(function (l) { return '- [' + todayISO + '] ' + l + '\n'; }).join('');
   escribirArchivoBrain_(carpeta, name, componerPagina_(fm2, body2));
@@ -308,6 +440,7 @@ function marcarTareaArchivadaWiki_(sheetId, config, fila, todayISO) {
     var fm = mergeFrontmatter_(page.frontmatter, { status: 'Hecha', archived: true, last_updated: todayISO });
     escribirArchivoBrain_(carpeta, name,
       componerPagina_(fm, page.body + '- [' + todayISO + '] archivada\n'));
+    indexarArchivada_(root, String(fila[6] || ''), todayISO);   // Tendencia: sale de "abiertas"
     regenerarIndexBrain_(root, todayISO);   // la tarea sale de "activas" en el índice
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('tareas: no se pudo marcar el archivo en el wiki (%s).', e);
@@ -334,10 +467,7 @@ function archivarHechas_(sheetId, config, todayISO) {
 
   var arch = ss.getSheetByName(nombreHojaArchivo_(config));
   if (!arch) arch = ss.insertSheet(nombreHojaArchivo_(config));
-  if (arch.getLastRow() < 1) {
-    arch.getRange(1, 1, 1, TAREAS_HEADERS_.length + 1).setValues([TAREAS_HEADERS_.concat(['Archivada el'])]);
-    estilizarTabla_(arch, TAREAS_HEADERS_.length + 1, [320, 140, 100, 90, 110, 220, 120, 110]);
-  }
+  migrarHeadersArchivo_(arch);
   var destino = hechas.map(function (r) { return r.concat([todayISO]); });
   arch.getRange(arch.getLastRow() + 1, 1, 1 * destino.length, TAREAS_HEADERS_.length + 1).setValues(destino);
   hechas.forEach(function (r) { marcarTareaArchivadaWiki_(sheetId, config, r, todayISO); });
@@ -346,7 +476,7 @@ function archivarHechas_(sheetId, config, todayISO) {
   sh.clearContents();
   var values = [TAREAS_HEADERS_].concat(vivas);
   sh.getRange(1, 1, values.length, TAREAS_HEADERS_.length).setValues(values);
-  estilizarTabla_(sh, TAREAS_HEADERS_.length, [320, 140, 100, 90, 110, 220, 120]);
+  estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
   aplicarDropdownsTareas_(sh);
   return hechas.length;
 }

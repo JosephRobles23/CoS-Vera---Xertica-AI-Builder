@@ -8,9 +8,9 @@ como única fuente de verdad**. Maqueta aprobada: `Docs/html/mi-seguimiento-mock
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| **R1** | Modal Hoy/Tareas/Tablero + creación híbrida + mutadores + Nivel 0 + separación del modal de equipo + higiene en dispatcher + foco manual | **Implementado** (`miseguimiento-runtime.js`, `DialogMiSeguimiento.html`) |
-| **R2** | Tab Tendencia (línea carga abierta, creadas vs completadas, donut por origen, barras por proyecto, heatmap) **junto con** el índice `_tasks.json` (N2) | Backlog |
-| **R3** | Columnas N1: `Espera de` (+ pill ⏳ + follow-up simple), `Link` (📎), `EventId` (ligadas exactas de la agenda) con migración idempotente por nombre de columna | Backlog |
+| **R1** | Modal Hoy/Tareas/Tablero + creación híbrida + mutadores + Nivel 0 + separación del modal de equipo + higiene en dispatcher + foco manual | **Implementado** (`miseguimiento-runtime.js`, `DialogMiSeguimiento.html`) — CoSLib **v27** |
+| **R2** | Tab Tendencia (línea carga abierta, creadas vs completadas, donut por origen, barras por proyecto, heatmap) **junto con** el índice `_tasks.json` (N2: se actualiza en sync diario + mutación + archivado; reconstrucción de emergencia desde las páginas; filtros y series 100 % en el cliente) | **Implementado** |
+| **R3** | Columnas N1: `Espera de` (pill ⏳ con días del historial + follow-up mailto simple), `Link` (📎), `EventId` (ligadas exactas de la agenda desde la ingesta de Meet), con migración idempotente por encabezado (Tareas y Archivo) | **Implementado** |
 
 ## Decisiones del grill (con su porqué)
 

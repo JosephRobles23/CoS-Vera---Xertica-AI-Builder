@@ -164,6 +164,7 @@ var DISPATCH_ = {
   actualizarTarea:         function (sid, cfg, a) { return actualizarTarea(sid, cfg, a[0], a[1]); },
   archivarTarea:           function (sid, cfg, a) { return archivarTarea(sid, cfg, a[0]); },
   guardarFoco:             function (sid, cfg, a) { return guardarFoco(sid, cfg, a[0]); },
+  cargarTendencia:         function (sid, cfg, a) { return cargarTendencia(sid, cfg); },
   // Backfill del histórico al brain (job reanudable; lo avanza el dispatcher).
   iniciarBackfill:         function (sid, cfg) { return iniciarBackfill(sid, cfg); },
   estadoBackfill:          function (sid, cfg) { return estadoBackfill(sid, cfg); },

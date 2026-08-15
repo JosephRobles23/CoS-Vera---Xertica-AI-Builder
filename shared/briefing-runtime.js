@@ -178,6 +178,7 @@ function reunionesDeHoy_(config, now) {
   return eventos.map(function (ev) {
     var inicio = ev.getStartTime();
     return {
+      id: ev.getId(),   // R3: las tareas con EventId se "ligan" a su reunión en Mi seguimiento
       hora: inicio ? Utilities.formatDate(inicio, tz, 'HH:mm') : '',
       titulo: ev.getTitle() || '(sin título)',
       asistentes: (ev.getGuestList() || []).length,

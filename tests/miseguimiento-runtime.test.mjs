@@ -28,7 +28,7 @@ const AYER = iso(new Date(Date.now() - 86400000));
 const MANANA = iso(new Date(Date.now() + 86400000));
 const HACE = (dias) => iso(new Date(Date.now() - dias * 86400000));
 
-const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id'];
+const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
 
 function msHarness(opts = {}) {
   const h = makeHarness({
@@ -238,6 +238,99 @@ test('runDispatcher corre la higiene de Tareas 1×/día: archiva Hechas aunque e
   const filas = h.getSpreadsheet('SID').getSheetByName('Archivo').getLastRow();
   h.api.runDispatcher('SID', config, new Date());
   assert.equal(h.getSpreadsheet('SID').getSheetByName('Archivo').getLastRow(), filas, 'anti-dup 1×/día');
+});
+
+// --- R3: columnas nuevas (Espera de / Link / EventId) ---
+
+test('migración R3: una hoja vieja de 7 columnas gana los encabezados nuevos sin tocar datos', () => {
+  const h = makeHarness({
+    scriptProperties: { GEMINI_API_KEY: 'K' },
+    spreadsheets: { SID: {
+      Ajustes: [['key', 'value'], ['leader.email', 'lider@x.com']],
+      Equipo: [['Nombre', 'Correo', 'Rol'], ['Ada', 'ada@x.com', 'Dev']],
+      // Contrato VIEJO: solo 7 encabezados (copia pre-R3)
+      Tareas: [
+        ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id'],
+        ['Vieja', 'Alpha', '', 'Media', 'Pendiente', '', 'idV']
+      ]
+    } }
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const sh = h.api.ensureTareasSheet_('SID', config);
+
+  assert.deepEqual(plain(sh.getRange(1, 1, 1, T_HDR.length).getValues())[0], T_HDR, 'encabezados migrados');
+  const t = h.api.listarTareas_('SID', config)[0];
+  assert.equal(t.texto, 'Vieja');
+  assert.deepEqual([t.espera, t.link, t.eventId], ['', '', ''], 'columnas nuevas vacías, datos intactos');
+  assert.equal(h.api.migrarHeadersTareas_(sh), false, 'segunda pasada: idempotente, no toca nada');
+});
+
+test('espera/link viajan por crear → hoja → wiki (waiting_on + línea de historial) → esperaDias', () => {
+  const h = msHarness({ tareas: [] });
+  const config = cfg(h);
+  const res = plain(h.api.crearTarea('SID', config, { texto: 'Validar presupuesto', espera: 'Ada', link: 'https://doc' }));
+
+  const t0 = h.api.listarTareas_('SID', config)[0];
+  assert.equal(t0.espera, 'Ada');
+  assert.equal(t0.link, 'https://doc');
+
+  const root = h.api.ensureBrainFolder_('SID', config);
+  const pg = h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), res.id + '.md');
+  assert.match(pg, /waiting_on: Ada/);
+  assert.match(pg, /espera de: Ada/, 'línea del historial: la fuente de los días del pill');
+
+  const t = tareaDe(cargar(h), res.id);
+  assert.equal(t.esperaDias, 0, 'esperando desde hoy');
+
+  // soltar la espera via actualizarTarea también se anota
+  h.api.actualizarTarea('SID', config, res.id, { espera: '' });
+  assert.match(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), res.id + '.md'),
+    /espera de: —/);
+});
+
+// --- R2: índice _tasks.json (Tendencia) ---
+
+test('el índice nace con el sync/mutaciones: created, hecha al completar y posp al re-fechar', () => {
+  const h = msHarness({ tareas: [['Tarea X', 'Alpha', MANANA, 'Alta', 'Pendiente', '🎥 Comité', 'idT']] });
+  const config = cfg(h);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.sincronizarTareasWiki_('SID', config, HOY);
+
+  let e = h.api.cargarIndiceTareas_(root).idT;
+  assert.equal(e.created, HOY);
+  assert.deepEqual([e.hecha, e.archivada, e.posp], ['', '', 0]);
+  assert.equal(e.origen, '🎥 Comité');
+
+  h.api.actualizarTarea('SID', config, 'idT', { vence: HOY });        // re-fecha → posp
+  h.api.actualizarTarea('SID', config, 'idT', { estado: 'Hecha' });   // completar → hecha
+  e = h.api.cargarIndiceTareas_(root).idT;
+  assert.equal(e.posp, 1);
+  assert.equal(e.hecha, HOY);
+
+  h.api.archivarTarea('SID', config, 'idT');                          // archivar → archivada
+  e = h.api.cargarIndiceTareas_(root).idT;
+  assert.equal(e.archivada, HOY, 'sale de "abiertas" desde hoy');
+});
+
+test('cargarTendencia devuelve el índice como array y lo RECONSTRUYE si _tasks.json falta', () => {
+  const h = msHarness({ tareas: [['Reconstruible', 'Alpha', '', 'Media', 'Pendiente', '', 'idR']] });
+  const config = cfg(h);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.sincronizarTareasWiki_('SID', config, AYER);
+  h.api.actualizarTarea('SID', config, 'idR', { vence: MANANA });   // deja una re-fecha en el historial
+
+  // simular _tasks.json perdido: la reconstrucción sale de las páginas (frontmatter + historial)
+  h.api.escribirArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), '_tasks.json', 'no soy json');
+  const d = plain(h.api.cargarTendencia('SID', config));
+  assert.equal(d.brainEnabled, true);
+  const e = d.indice.find((x) => x.id === 'idR');
+  assert.equal(e.created, AYER);
+  assert.equal(e.posp, 1, 'posp reconstruida del historial');
+  assert.ok(h.api.cargarIndiceTareas_(root), 'el índice reconstruido quedó persistido');
+
+  // sin brain: honesto y vacío
+  const h2 = msHarness({ brain: false });
+  assert.deepEqual(plain(h2.api.cargarTendencia('SID', cfg(h2))), { hoy: HOY, brainEnabled: false, indice: [] });
 });
 
 // --- Ruteo ---

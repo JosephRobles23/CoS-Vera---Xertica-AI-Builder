@@ -24,7 +24,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
 const NOW = new Date(2026, 7, 13, 7, 30);
 const HOY = '2026-08-13';
 
-const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id'];
+const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
 const IA = { foco: '1) Cierra Alpha con legal. 2) Destraba la carga masiva.', urgente: 'El blocker legal de Alpha ya urge.' };
 
 function brHarness(opts = {}) {
@@ -58,7 +58,7 @@ test('ensureTareasSheet_ crea la pestaña con encabezados y dropdowns de Estado/
   const config = h.api.construirConfig('SID', CONFIG);
   const sh = h.api.ensureTareasSheet_('SID', config);
 
-  assert.deepEqual(plain(sh.getRange(1, 1, 1, 7).getValues())[0], T_HDR);
+  assert.deepEqual(plain(sh.getRange(1, 1, 1, T_HDR.length).getValues())[0], T_HDR);
   const listas = sh._validations.map((v) => v.rule._list);
   assert.ok(listas.some((l) => l && l.join() === 'Pendiente,En curso,Bloqueada,Hecha'), 'dropdown de Estado');
   assert.ok(listas.some((l) => l && l.join() === 'Alta,Media,Baja'), 'dropdown de Prioridad');
@@ -99,9 +99,9 @@ test('archivarHechas_ mueve las Hecha a la pestaña Archivo con fecha y limpia T
   assert.deepEqual(tareasDe(h).map((t) => t.texto), ['Viva']);
 
   const arch = h.getSpreadsheet('SID').getSheetByName('Archivo');
-  const fila = plain(arch.getRange(2, 1, 1, 8).getValues())[0];
+  const fila = plain(arch.getRange(2, 1, 1, T_HDR.length + 1).getValues())[0];
   assert.equal(fila[0], 'Terminada');
-  assert.equal(fila[7], HOY, 'lleva la fecha de archivado');
+  assert.equal(fila[T_HDR.length], HOY, 'lleva la fecha de archivado (tras las columnas R3)');
 });
 
 test('la hoja lleva chips de color (formato condicional) y Vence con fecha + picker', () => {
@@ -230,6 +230,7 @@ test('una acción del líder en notas de Meet crea fila en Tareas y NO le crea p
   assert.equal(ts.length, 1);
   assert.equal(ts[0].texto, 'Aprobar presupuesto Q4');
   assert.match(ts[0].origen, /🎥 Comité/);
+  assert.equal(ts[0].eventId, 'ev1', 'R3: guarda el eventId de Calendar (ligadas exactas)');
   assert.equal(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'people']), 'lider-x-com.md'), null,
     'el líder no lleva página de persona');
 });

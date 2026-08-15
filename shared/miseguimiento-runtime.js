@@ -32,7 +32,7 @@ function cargarMiSeguimiento(sheetId, config) {
     t.hoy = !!t.vence && t.vence === hoy;
     t.atrasada = !!t.vence && t.vence < hoy && t.estado !== 'Hecha';
     t.bloqueada = t.estado === 'Bloqueada';
-    t.edad = null; t.posp = 0; t.hist = [];
+    t.edad = null; t.posp = 0; t.hist = []; t.esperaDias = null;
     return t;
   });
 
@@ -46,6 +46,13 @@ function cargarMiSeguimiento(sheetId, config) {
     tareas.forEach(function (t) { enriquecerDesdeWiki_(carpeta, t, hoy); });
   }
 
+  var roster = [];
+  try {
+    roster = getRoster_(sheetId, config.sheets.roster).map(function (p) {
+      return { nombre: p.nombre || p.correo, correo: p.correo };
+    });
+  } catch (e) { roster = []; }
+
   return {
     hoy: hoy,
     brainEnabled: brainOn,
@@ -54,6 +61,7 @@ function cargarMiSeguimiento(sheetId, config) {
     // Catálogo canónico para los chips de creación (misma fuente que el enum de ingesta);
     // null = sin brain → la UI degrada a campo de texto libre.
     proyectos: root ? nombresProyectosCanonicos_(root) : null,
+    roster: roster,   // R3: dropdown "Espera de" + correo del follow-up
     tareas: tareas
   };
 }
@@ -74,7 +82,8 @@ function crearTarea(sheetId, config, data) {
 
   var agregada = agregarTarea_(sheetId, config, {
     texto: texto, proyecto: str_(data.proyecto), vence: str_(data.vence),
-    prioridad: data.prioridad || 'Media', origen: '✍️ Manual'
+    prioridad: data.prioridad || 'Media', origen: '✍️ Manual',
+    espera: str_(data.espera), link: str_(data.link)
   });
   if (!agregada) throw new Error('Ya existe una tarea igual (mismo texto y origen).');
 
@@ -126,6 +135,14 @@ function enriquecerDesdeWiki_(carpeta, t, hoy) {
   t.hist = lineas.slice(-MISEG_HIST_MAX_);
   // "Pospuesta ×N" = re-fechas del historial (líneas de cambio 'vence: a → b', no la de creación).
   t.posp = lineas.filter(function (l) { return /\]\s*vence:/.test(l); }).length;
+  // R3 · "⏳ espera de X · Nd": los días salen de la ÚLTIMA línea 'espera de:' del historial.
+  // Columna editada a mano sin línea (o wiki apagado) → pill sin días (degradación honesta).
+  if (t.espera) {
+    for (var i = lineas.length - 1; i >= 0; i--) {
+      var m = /^\[(\d{4}-\d{2}-\d{2})\]\s*espera de:/.exec(lineas[i]);
+      if (m) { t.esperaDias = Math.max(0, Math.round((isoAUTC_(hoy) - isoAUTC_(m[1])) / 86400000)); break; }
+    }
+  }
 }
 
 /** Nombres canónicos del catálogo de proyectos (para los chips del panel de creación). */
@@ -144,9 +161,40 @@ function espejarTareaInmediato_(sheetId, config, id) {
     var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
     var tareas = listarTareas_(sheetId, config);
     for (var i = 0; i < tareas.length; i++) {
-      if (tareas[i].id === String(id)) { upsertTareaWiki_(carpeta, tareas[i], hoyISO_(config)); return; }
+      if (tareas[i].id === String(id)) {
+        upsertTareaWiki_(carpeta, tareas[i], hoyISO_(config));
+        indexarTareas_(root, [tareas[i]], hoyISO_(config));   // Tendencia al minuto (R2)
+        return;
+      }
     }
   } catch (e) {
     if (typeof Logger !== 'undefined') Logger.log('miseguimiento: espejo inmediato falló (%s).', e);
   }
+}
+
+// --- Tendencia (R2): el índice viaja entero; los filtros recalculan en el cliente ---
+
+/**
+ * Índice crudo para el tab Tendencia. Con _tasks.json ausente/roto lo reconstruye desde las
+ * páginas (una sola vez, N lecturas). @return {{hoy, brainEnabled, indice:Array}}
+ */
+function cargarTendencia(sheetId, config) {
+  var hoy = hoyISO_(config);
+  if (!(config.brain && config.brain.enabled)) return { hoy: hoy, brainEnabled: false, indice: [] };
+
+  var root;
+  try { root = ensureBrainFolder_(sheetId, config); } catch (e) {
+    return { hoy: hoy, brainEnabled: false, indice: [] };
+  }
+  var mapa = cargarIndiceTareas_(root);
+  if (!mapa) mapa = reconstruirIndiceTareas_(root);
+
+  var indice = Object.keys(mapa).map(function (id) {
+    var e = mapa[id];
+    return { id: id, proyecto: e.proyecto || '', prioridad: e.prioridad || 'Media',
+      origen: e.origen || '', estado: e.estado || '', vence: e.vence || '',
+      created: e.created || '', hecha: e.hecha || '', archivada: e.archivada || '',
+      posp: e.posp || 0 };
+  });
+  return { hoy: hoy, brainEnabled: true, indice: indice };
 }

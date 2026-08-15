@@ -418,7 +418,8 @@ function ingestarNotaMeet_(sheetId, config, root, cand, texto, today) {
       try {
         agregarTarea_(sheetId, config, {
           texto: ev.texto, proyecto: ev._proyectoName || '',
-          origen: '🎥 ' + titulo + ' · ' + fecha
+          origen: '🎥 ' + titulo + ' · ' + fecha,
+          eventId: cand.eventId || ''   // R3: ligadas exactas tarea↔reunión en la agenda
         });
       } catch (e) {
         if (typeof Logger !== 'undefined') Logger.log('meet: no se pudo crear la tarea (%s).', e);

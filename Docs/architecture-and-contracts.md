@@ -114,8 +114,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | HTML del modal Morning Briefing (config + vista previa en vivo) | `shared/DialogBriefing.html` | Implemented |
 | Seguimiento del equipo (salud/timeline/dashboards deterministas + cierre de pendientes; solo EQUIPO — el líder vive en Mi seguimiento) | `shared/seguimiento-runtime.js` | Implemented |
 | HTML del modal Seguimiento (3 tabs, Google Charts con fallback CSS, toggle "incluir mis eventos") | `shared/DialogSeguimiento.html` | Implemented |
-| Mi seguimiento — tareas del líder (Hoy/Tareas/Tablero, mutadores por Id, creación híbrida, foco manual, Nivel 0 desde wiki/tasks) | `shared/miseguimiento-runtime.js` | Implemented (R1; R2 Tendencia y R3 columnas en `Docs/workflows/MI-SEGUIMIENTO.md`) |
-| HTML del modal Mi seguimiento (3 tabs + panel ➕ Nueva + popover posponer) | `shared/DialogMiSeguimiento.html` | Implemented |
+| Mi seguimiento — tareas del líder (Hoy/Tareas/Tablero/Tendencia, mutadores por Id, creación híbrida, foco manual, Nivel 0 desde wiki/tasks, índice `_tasks.json`, columnas Espera de/Link/EventId con migración idempotente) | `shared/miseguimiento-runtime.js` (+ índice y migración en `shared/tasks-runtime.js`) | Implemented (R1-R3; diseño en `Docs/workflows/MI-SEGUIMIENTO.md`) |
+| HTML del modal Mi seguimiento (4 tabs + panel ➕ Nueva + popover posponer + charts SVG cliente) | `shared/DialogMiSeguimiento.html` | Implemented |
 | Web App de follow-up (tokens un-solo-uso, GET nunca muta, 4 acciones + deshacer, higiene) | `shared/webapp-runtime.js` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
@@ -132,7 +132,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (17 tests) |
 | Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
 | Tests del Seguimiento del equipo | `tests/seguimiento-runtime.test.mjs` | Implemented (14 tests) |
-| Tests de Mi seguimiento (carga, Nivel 0, mutadores, foco, higiene, ruteo) | `tests/miseguimiento-runtime.test.mjs` | Implemented (11 tests) |
+| Tests de Mi seguimiento (carga, Nivel 0, mutadores, foco, higiene, migración R3, índice R2, ruteo) | `tests/miseguimiento-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de la Web App de follow-up | `tests/webapp-runtime.test.mjs` | Implemented (14 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 
