@@ -329,6 +329,17 @@
       <div><label>Destino</label><select id="m_destino"></select></div>
     </div>
     <button class="btn btn-outline" onclick="fusionarProyectos()"><i data-lucide="git-merge"></i> Fusionar proyectos</button>
+
+    <div class="divider"></div>
+    <h3>Salud del wiki</h3>
+    <p class="hint">Para wikis creados por versiones anteriores: reconcilia páginas de personas con el
+    roster (email/slug/externas mal marcadas), cataloga proyectos y regenera índices. La reparación
+    fusiona con dedup — no borra contenido.</p>
+    <div id="wikiDiag" class="hint" style="margin:6px 0"></div>
+    <div class="row" style="gap:8px">
+      <button class="btn btn-outline" onclick="diagnosticarWikiUI()"><i data-lucide="stethoscope"></i> Diagnosticar</button>
+      <button class="btn btn-outline" onclick="repararWikiUI()"><i data-lucide="wrench"></i> Reparar wiki</button>
+    </div>
   </div>
 
   <div id="toast"></div>
@@ -765,6 +776,26 @@
       if (!confirm('¿Olvidar el proyecto «' + name + '»? Borra su página del wiki y su entrada del catálogo (las menciones en páginas de personas y actas quedan). No se puede deshacer.')) return;
       runB('olvidarProyecto')(file).then(function () {
         toast('Proyecto olvidado'); cargarWiki();
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function diagnosticarWikiUI() {
+      var el = g('wikiDiag'); el.textContent = 'Analizando…';
+      runB('diagnosticarWiki')().then(function (d) {
+        el.innerHTML =
+          '👥 Personas: <b>' + d.personas.paginas + '</b> página(s) · <b>' + d.personas.matchean + '</b> matchean el roster · ' +
+          d.personas.sinEmail + ' sin email · ' + d.personas.externas + ' externas · ' +
+          '<b>' + d.personas.fusionables + '</b> reparable(s)<br>' +
+          '📁 Proyectos: ' + d.proyectos.paginas + ' página(s) · ' + d.proyectos.catalogados + ' catalogado(s) · ' +
+          'catálogos: people ' + (d.catalogos.people ? '✓' : '—') + ' · projects ' + (d.catalogos.projects ? '✓' : '—') +
+          ' · tasks ' + (d.catalogos.tasks ? '✓' : '—');
+      }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
+    }
+    function repararWikiUI() {
+      if (!confirm('¿Reparar el wiki? Fusiona páginas de personas hacia su correo del roster (con dedup), corrige frontmatter, cataloga proyectos y regenera índices. No borra contenido. Puede correrse varias veces.')) return;
+      runB('repararWiki')().then(function (r) {
+        toast('🔧 ' + r.personasFusionadas + ' fusionada(s) · ' + r.personasCorregidas + ' corregida(s) · ' +
+          r.proyectosCatalogados + ' proyecto(s) catalogado(s) · ' + r.huerfanosPurgados + ' huérfano(s)');
+        diagnosticarWikiUI(); cargarWiki();
       }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function llenarSelectsMerge(ps) {

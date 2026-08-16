@@ -158,6 +158,8 @@ var DISPATCH_ = {
   olvidarPersona:          function (sid, cfg, a) { return olvidarPersona(sid, cfg, a[0]); },
   olvidarProyecto:         function (sid, cfg, a) { return olvidarProyecto(sid, cfg, a[0]); },
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
+  diagnosticarWiki:        function (sid, cfg, a) { return diagnosticarWiki(sid, cfg); },
+  repararWiki:             function (sid, cfg, a) { return repararWiki(sid, cfg); },
   // Mi seguimiento (modal del líder): lectura + mutadores de la hoja Tareas + foco manual.
   cargarMiSeguimiento:     function (sid, cfg, a) { return cargarMiSeguimiento(sid, cfg); },
   crearTarea:              function (sid, cfg, a) { return crearTarea(sid, cfg, a[0]); },

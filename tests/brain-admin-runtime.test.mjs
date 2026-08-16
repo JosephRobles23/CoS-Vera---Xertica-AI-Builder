@@ -263,6 +263,118 @@ test('olvidarProyecto falla claro si el proyecto no existe y no toca el raw/', (
   assert.deepEqual(rawNames(h, root), ['2026-08-01_ada_daily_r2.md'], 'el raw es verdad histórica: intacto');
 });
 
+// --- Reparación del wiki (wikis de versiones viejas vs contrato actual) ---
+
+function wikiViejoHarness() {
+  const h = makeHarness({
+    scriptProperties: { GEMINI_API_KEY: 'K' },
+    spreadsheets: { SID: {
+      Ajustes: [['key', 'value'], ['brain.enabled', 'true'], ['leader.email', 'lider@x.com'], ['leader.name', 'Líder A']],
+      Equipo: [['Nombre', 'Correo', 'Rol'], ['Elisa Duarte', 'elisa@x.com', 'HR'], ['Marce Gil', 'marce@x.com', 'HR']]
+    } }
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  return { h, config, root };
+}
+
+test('repararWiki: página externa con nombre del roster se fusiona a la canónica por correo', () => {
+  const { h, config, root } = wikiViejoHarness();
+  // El matching débil de Meet creó a "Elisa" como EXTERNA con slug de nombre y sin email.
+  ponerWiki(h, root, 'people', 'elisa.md',
+    { page_type: 'person', name: 'Elisa', external: true, last_updated: '2026-08-12' },
+    '## Avances\n- [2026-08-12] Cerró performance\n\n## Pendientes\n- [2026-08-10] Enviar cronograma\n');
+  h.api.guardarPersonasExt_(root, { elisa: { name: 'Elisa', aliases: [] } });
+
+  const antes = plain(h.api.diagnosticarWiki('SID', config));
+  assert.equal(antes.personas.fusionables, 1, 'el diagnóstico la ve reparable');
+
+  const r = plain(h.api.repararWiki('SID', config));
+  assert.equal(r.personasFusionadas, 1);
+
+  const people = h.api.carpetaBrain_(root, ['wiki', 'people']);
+  assert.equal(h.api.leerArchivoBrain_(people, 'elisa.md'), null, 'la página vieja se fue');
+  const canon = h.api.parsearPagina_(h.api.leerArchivoBrain_(people, 'elisa-x-com.md'));
+  assert.equal(canon.frontmatter.email, 'elisa@x.com');
+  assert.equal(canon.frontmatter.external, undefined, 'ya no es externa');
+  assert.match(canon.body, /Cerró performance/);
+  assert.match(canon.body, /Enviar cronograma/, 'los pendientes viajaron (alimentan el Flujo)');
+  assert.deepEqual(plain(h.api.cargarPersonasExt_(root)), {}, 'salió de _people.json');
+  assert.match(logDe(h, root), /🔧 reparación del wiki · 1 fusionada/);
+});
+
+test('repararWiki fusiona con dedup sobre una canónica existente y corrige la mal marcada', () => {
+  const { h, config, root } = wikiViejoHarness();
+  // Canónica ya existe (reportes daily) + duplicado por nombre (notas de Meet) con una línea repetida.
+  ponerWiki(h, root, 'people', 'elisa-x-com.md',
+    { page_type: 'person', name: 'Elisa Duarte', email: 'elisa@x.com' },
+    '## Avances\n- [2026-08-12] Cerró performance\n');
+  ponerWiki(h, root, 'people', 'elisa-duarte.md',
+    { page_type: 'person', name: 'Elisa Duarte', external: true },
+    '## Avances\n- [2026-08-12] Cerró performance\n- [2026-08-11] Onboarding finanzas\n');
+  // Y Marce con archivo canónico pero marcada externa por error.
+  ponerWiki(h, root, 'people', 'marce-x-com.md',
+    { page_type: 'person', name: 'Marce Gil', email: 'marce@x.com', external: true }, '## Avances\n- [2026-08-12] X\n');
+
+  const r = plain(h.api.repararWiki('SID', config));
+  assert.equal(r.personasFusionadas, 1);
+  assert.equal(r.personasCorregidas, 1);
+
+  const people = h.api.carpetaBrain_(root, ['wiki', 'people']);
+  const canon = h.api.leerArchivoBrain_(people, 'elisa-x-com.md');
+  assert.equal((canon.match(/Cerró performance/g) || []).length, 1, 'dedup exacto en el merge');
+  assert.match(canon, /Onboarding finanzas/);
+  const marce = h.api.parsearPagina_(h.api.leerArchivoBrain_(people, 'marce-x-com.md'));
+  assert.equal(marce.frontmatter.external, undefined);
+
+  // Idempotencia: la segunda corrida no toca nada.
+  const r2 = plain(h.api.repararWiki('SID', config));
+  assert.deepEqual([r2.personasFusionadas, r2.personasCorregidas], [0, 0], 'segunda corrida en ceros');
+});
+
+test('repararWiki: nombre ambiguo NO se fusiona, externa real queda intacta y catalogada', () => {
+  const { h, config, root } = wikiViejoHarness();
+  h.getSpreadsheet('SID').getSheetByName('Equipo').getRange(4, 1, 1, 3).setValues([['Elisa Prado', 'eprado@x.com', 'Fin']]);
+  ponerWiki(h, root, 'people', 'elisa.md', { page_type: 'person', name: 'Elisa', external: true }, '## Avances\n- [2026-08-12] x\n');
+  ponerWiki(h, root, 'people', 'carol-torres.md', { page_type: 'person', name: 'Carol Torres', external: true }, '## Avances\n- [2026-08-12] y\n');
+
+  const r = plain(h.api.repararWiki('SID', config));
+  assert.equal(r.personasFusionadas, 0, '"Elisa" matchea a 2 miembros → ambigua → no se toca');
+
+  const people = h.api.carpetaBrain_(root, ['wiki', 'people']);
+  assert.ok(h.api.leerArchivoBrain_(people, 'elisa.md'), 'ambigua intacta');
+  assert.ok(h.api.leerArchivoBrain_(people, 'carol-torres.md'), 'externa real intacta');
+  const ext = plain(h.api.cargarPersonasExt_(root));
+  assert.ok(ext['carol-torres'], 'la externa real quedó catalogada en _people.json');
+});
+
+test('repararWiki cataloga proyectos sin entrada y purga entradas huérfanas (aliases intactos)', () => {
+  const { h, config, root } = wikiViejoHarness();
+  ponerWiki(h, root, 'projects', 'bamboo-hr.md', { page_type: 'project', name: 'Bamboo HR' }, '# B');
+  ponerWiki(h, root, 'projects', 'performance.md', { page_type: 'project', name: 'Performance' }, '# P');
+  h.api.guardarProyectos_(root, {
+    performance: { name: 'Performance', aliases: ['perf'] },
+    fantasma: { name: 'Fantasma', aliases: [] }   // entrada sin página
+  });
+
+  const r = plain(h.api.repararWiki('SID', config));
+  assert.equal(r.proyectosCatalogados, 1, 'bamboo-hr entró al catálogo');
+  assert.equal(r.huerfanosPurgados, 1, 'fantasma salió');
+
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.deepEqual(Object.keys(mapa).sort(), ['bamboo-hr', 'performance']);
+  assert.deepEqual(mapa.performance.aliases, ['perf'], 'aliases preservados');
+});
+
+test('dispatch enruta diagnosticarWiki y repararWiki', () => {
+  const { h, config, root } = wikiViejoHarness();
+  ponerWiki(h, root, 'people', 'elisa.md', { page_type: 'person', name: 'Elisa Duarte', external: true }, '## Avances\n- [2026-08-12] x\n');
+  const d = plain(h.api.dispatch('diagnosticarWiki', [], 'SID', config));
+  assert.equal(d.personas.fusionables, 1);
+  const r = plain(h.api.dispatch('repararWiki', [], 'SID', config));
+  assert.equal(r.personasFusionadas, 1);
+});
+
 test('dispatch enruta olvidarProyecto', () => {
   const h = adminHarness();
   const config = h.api.construirConfig('SID', CONFIG);

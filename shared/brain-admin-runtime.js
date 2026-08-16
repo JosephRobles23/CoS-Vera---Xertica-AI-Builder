@@ -228,6 +228,194 @@ function olvidarProyecto(sheetId, config, file) {
   return { ok: true, name: str_(fm.name) || slug };
 }
 
+// --- Reparación del wiki (gobernanza): reconciliar estructuras viejas con el contrato actual ---
+//
+// Wikis creados por versiones anteriores pueden tener páginas de persona sin `email:` en el
+// frontmatter, con slug de NOMBRE en vez de correo, o marcadas `external: true` por el matching
+// débil de nombres de las notas de Meet — y entonces el Seguimiento no las atribuye al roster
+// (Personas "sin datos", Flujo en ceros, Actividad solo con proyectos). Estas dos rutinas son el
+// botón de update: `diagnosticarWiki` (solo lectura) y `repararWiki` (reconciliación idempotente
+// y NO destructiva: fusiona con dedup, corrige frontmatter, regenera catálogos e índices).
+
+/**
+ * Radiografía del wiki vs el roster, solo lectura. Público (sidebar).
+ * @return {{personas:{paginas,matchean,sinEmail,externas,fusionables}, proyectos:{paginas,catalogados}, catalogos:{people,projects,tasks}}}
+ */
+function diagnosticarWiki(sheetId, config) {
+  var root = ensureBrainFolder_(sheetId, config);
+  var roster = [];
+  try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
+
+  var out = {
+    personas: { paginas: 0, matchean: 0, sinEmail: 0, externas: 0, fusionables: 0 },
+    proyectos: { paginas: 0, catalogados: 0 },
+    catalogos: {
+      people: leerArchivoBrain_(carpetaBrain_(root, ['wiki', 'people']), '_people.json') != null,
+      projects: leerArchivoBrain_(carpetaBrain_(root, ['wiki', 'projects']), '_projects.json') != null,
+      tasks: leerArchivoBrain_(carpetaBrain_(root, ['wiki', 'tasks']), '_tasks.json') != null
+    }
+  };
+  var correos = {};
+  roster.forEach(function (p) { correos[String(p.correo).toLowerCase()] = true; });
+
+  listarArchivosBrain_(carpetaBrain_(root, ['wiki', 'people']), '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    out.personas.paginas++;
+    var fm = parsearPagina_(a.content).frontmatter || {};
+    var email = str_(fm.email).toLowerCase();
+    var externa = String(fm.external) === 'true';
+    if (externa) out.personas.externas++;
+    if (!email) out.personas.sinEmail++;
+    if (email && correos[email] && !externa && a.name === slugBrain_(email) + '.md') out.personas.matchean++;
+    else if (rosterDePagina_(roster, fm, a.name)) out.personas.fusionables++;
+  });
+
+  var mapaP = cargarProyectos_(root);
+  listarArchivosBrain_(carpetaBrain_(root, ['wiki', 'projects']), '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    out.proyectos.paginas++;
+    if (mapaP[a.name.replace(/\.md$/, '')]) out.proyectos.catalogados++;
+  });
+  return out;
+}
+
+/**
+ * Repara el wiki contra el contrato actual. Idempotente (una segunda corrida no toca nada).
+ * 1) Personas: páginas que corresponden a alguien del roster (por email, o por nombre con match
+ *    ÚNICO) se fusionan en la página canónica por correo, con frontmatter corregido.
+ * 2) Catálogos: _projects.json gana las páginas no catalogadas y purga huérfanos (aliases se
+ *    preservan); _people.json queda solo con las externas reales.
+ * 3) Índices: _tasks.json reconstruido + index.md regenerado. Deja rastro en log.md. Público.
+ * @return {{personasFusionadas, personasCorregidas, proyectosCatalogados, huerfanosPurgados}}
+ */
+function repararWiki(sheetId, config) {
+  var root = ensureBrainFolder_(sheetId, config);
+  var hoy = hoyISO_(config);
+  var roster = [];
+  try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
+  var people = carpetaBrain_(root, ['wiki', 'people']);
+  var informe = { personasFusionadas: 0, personasCorregidas: 0, proyectosCatalogados: 0, huerfanosPurgados: 0 };
+
+  // 1) Personas → canónicas por correo del roster.
+  listarArchivosBrain_(people, '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var page = parsearPagina_(a.content);
+    var fm = page.frontmatter || {};
+    var miembro = rosterDePagina_(roster, fm, a.name);
+    if (!miembro) return;   // externa real o ex-miembro: no se toca
+
+    var canonName = slugBrain_(miembro.correo) + '.md';
+    if (a.name === canonName) {
+      // Archivo correcto: solo corregir frontmatter si está mal marcado.
+      if (String(fm.external) === 'true' || str_(fm.email).toLowerCase() !== String(miembro.correo).toLowerCase()) {
+        var fm1 = mergeFrontmatter_(fm, { email: miembro.correo, name: miembro.nombre || fm.name, last_updated: hoy });
+        delete fm1.external;
+        escribirArchivoBrain_(people, a.name, componerPagina_(fm1, page.body));
+        informe.personasCorregidas++;
+      }
+      return;
+    }
+    // Archivo con slug viejo (nombre) → fusionar en la canónica y borrar el origen.
+    fusionarPaginaEn_(people, a, canonName, {
+      page_type: 'person', name: miembro.nombre || str_(fm.name), email: miembro.correo, last_updated: hoy
+    });
+    purgarDePersonasExt_(root, a.name.replace(/\.md$/, ''));
+    informe.personasFusionadas++;
+  });
+
+  // 2) Catálogo de proyectos: páginas sin entrada → se catalogan; entradas sin página → fuera.
+  var mapaP = cargarProyectos_(root);
+  var slugsConPagina = {};
+  listarArchivosBrain_(carpetaBrain_(root, ['wiki', 'projects']), '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var slug = a.name.replace(/\.md$/, '');
+    slugsConPagina[slug] = true;
+    if (!mapaP[slug]) {
+      var nombre = str_((parsearPagina_(a.content).frontmatter || {}).name) || slug;
+      mapaP[slug] = { name: nombre, aliases: [] };
+      informe.proyectosCatalogados++;
+    }
+  });
+  Object.keys(mapaP).forEach(function (slug) {
+    if (!slugsConPagina[slug]) { delete mapaP[slug]; informe.huerfanosPurgados++; }
+  });
+  guardarProyectos_(root, mapaP);
+
+  // 2b) _people.json: solo externas reales que siguen teniendo página (aliases preservados).
+  var mapaExt = cargarPersonasExt_(root);
+  var extConPagina = {};
+  listarArchivosBrain_(people, '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var fm = parsearPagina_(a.content).frontmatter || {};
+    if (String(fm.external) === 'true') extConPagina[a.name.replace(/\.md$/, '')] = str_(fm.name) || a.name.replace(/\.md$/, '');
+  });
+  var mapaExt2 = {};
+  Object.keys(extConPagina).forEach(function (slug) {
+    mapaExt2[slug] = mapaExt[slug] || { name: extConPagina[slug], aliases: [] };
+  });
+  guardarPersonasExt_(root, mapaExt2);
+
+  // 3) Índices + rastro.
+  try { reconstruirIndiceTareas_(root); } catch (e) { /* sin tareas todavía */ }
+  regenerarIndexBrain_(root, hoy);
+  appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
+    '- ' + hoy + ' · 🔧 reparación del wiki · ' + informe.personasFusionadas + ' fusionada(s) · ' +
+    informe.personasCorregidas + ' corregida(s) · ' + informe.proyectosCatalogados + ' proyecto(s) catalogado(s) · ' +
+    informe.huerfanosPurgados + ' huérfano(s)\n');
+  return informe;
+}
+
+/**
+ * ¿A qué miembro del roster corresponde una página de persona? Por email exacto; si no hay
+ * email, por nombre normalizado igual o contención de tokens con match ÚNICO (ambiguo = null:
+ * mejor no fusionar que fusionar mal). @return miembro del roster o null
+ */
+function rosterDePagina_(roster, fm, fileName) {
+  var email = str_(fm.email).toLowerCase();
+  for (var i = 0; i < roster.length; i++) {
+    if (email && String(roster[i].correo).toLowerCase() === email) return roster[i];
+  }
+  var slugPagina = slugBrain_(str_(fm.name) || fileName.replace(/\.md$/, ''));
+  var candidatos = roster.filter(function (p) {
+    var slugNombre = slugBrain_(p.nombre || '');
+    return slugNombre && (slugNombre === slugPagina || slugContenido_(slugNombre, slugPagina));
+  });
+  return candidatos.length === 1 ? candidatos[0] : null;
+}
+
+/** Fusiona la página `origen` dentro de `destinoName` (merge de secciones con dedup) y la borra. */
+function fusionarPaginaEn_(carpeta, origen, destinoName, fmUpdates) {
+  var o = parsearPagina_(origen.content);
+  var dRaw = leerArchivoBrain_(carpeta, destinoName);
+  var d = dRaw ? parsearPagina_(dRaw) : { frontmatter: {}, body: '' };
+
+  var fm = mergeFrontmatter_(d.frontmatter, {
+    sources: Array.isArray(o.frontmatter.sources) ? o.frontmatter.sources : [],
+    open_blockers: Array.isArray(o.frontmatter.open_blockers) ? o.frontmatter.open_blockers : []
+  });
+  fm = mergeFrontmatter_(fm, fmUpdates);
+  delete fm.external;
+
+  var parsed = parseBodySections_(d.body);
+  parseBodySections_(o.body).sections.forEach(function (s) {
+    s.lines.forEach(function (l) { if (l.trim()) upsertLineaSeccion_(parsed, s.name, l.trim()); });
+  });
+  escribirArchivoBrain_(carpeta, destinoName, componerPagina_(fm, renderBodySections_(parsed)));
+  borrarArchivoBrain_(carpeta, origen.name);
+}
+
+/** Saca un slug de _people.json (canónico o alias) tras fusionarlo al roster. */
+function purgarDePersonasExt_(root, slug) {
+  var mapa = cargarPersonasExt_(root);
+  var cambio = false;
+  if (mapa[slug]) { delete mapa[slug]; cambio = true; }
+  Object.keys(mapa).forEach(function (c) {
+    var al = mapa[c].aliases || [];
+    if (al.indexOf(slug) > -1) { mapa[c].aliases = al.filter(function (x) { return x !== slug; }); cambio = true; }
+  });
+  if (cambio) guardarPersonasExt_(root, mapa);
+}
+
 // --- Gobernanza: purga del raw/ por retención (dispatcher) ---
 
 /**
