@@ -153,6 +153,29 @@ test('pendientes: solo los de la ventana, y la gramática de sufijos separa abie
   assert.ok(!chart.some((x) => x.lider), 'la fila del líder salió del chart');
 });
 
+test('fase 1: expone cola Hoy, flujo de 30d, edades y heatmap sin inventar fuentes Meet', () => {
+  const h = segHarness({ daily: [[dateDe(isoDiasAtras(1)), 'ada@x.com', 'ok']] });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerPersona(h, root, 'ada-x-com.md',
+    { page_type: 'person', name: 'Ada Lovelace', email: 'ada@x.com', last_updated: isoDiasAtras(8) },
+    '## Pendientes\n- [' + isoDiasAtras(10) + '] Revisar arquitectura\n');
+  ponerPersona(h, root, 'julio-x-com.md',
+    { page_type: 'person', name: 'Julio Toloza', email: 'julio@x.com', last_updated: HOY, open_blockers: ['Acceso de infraestructura'] },
+    '## Pendientes\n- [' + isoDiasAtras(2) + '] Validar entorno ✓ [resuelto ' + isoDiasAtras(1) + ' · Líder A]\n');
+
+  const data = cargar(h, 7);
+  assert.deepEqual(data.hoyControl.prioridades.map((x) => x.tipo), ['silencio', 'blocker', 'pendiente']);
+  assert.equal(data.hoyControl.prioridades.length, 3);
+  assert.equal(data.hoyControl.prioridades[2].edad, 10, 'Hoy inspecciona pendientes antiguos, no solo la ventana UI');
+  assert.equal(data.hoyControl.prioridades[2].fuente, 'Second Brain');
+  assert.equal(data.flujo.dias, 30);
+  assert.equal(data.flujo.semanas.reduce((n, s) => n + s.abiertos, 0), 2, 'ambos compromisos fueron creados en los últimos 30 días');
+  assert.equal(data.flujo.semanas.reduce((n, s) => n + s.cerrados, 0), 1);
+  assert.equal(Object.values(data.flujo.edades).reduce((n, v) => n + v, 0), 1);
+  assert.ok(data.tendencias.dailyHeatmap.some((x) => x.correo === 'ada@x.com' && x.n === 1));
+});
+
 test('blockers con edad, ordenados del más viejo al más nuevo', () => {
   const h = segHarness();
   const config = h.api.construirConfig('SID', CONFIG);

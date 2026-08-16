@@ -19,6 +19,7 @@
  */
 
 var SEG_SUFIJO_RE_ = /\s*[✓✖]\s*\[[^\]]*\]\s*$/;   // sufijo de cierre al final de una viñeta
+var SEG_CIERRE_FECHA_RE_ = /\s*[✓✖]\s*\[(?:resuelto|descartado)\s+(\d{4}-\d{2}-\d{2})\s*·[^\]]*\]\s*$/;
 var SEG_VINETA_RE_ = /^-\s*\[(\d{4}-\d{2}-\d{2})\]\s*(.*)$/;   // "- [fecha] texto"
 var SEG_LOG_TAIL_ = 500;   // líneas de la cola de log.md que se parsean (el log crece por años)
 
@@ -60,12 +61,17 @@ function cargarSeguimiento(sheetId, config, dias) {
   var pesoDe = function (s) { return (s in peso) ? peso[s] : 9; };   // ojo: peso.bad es 0 (falsy)
   personas.sort(function (a, b) { return pesoDe(a.salud) - pesoDe(b.salud); });
 
+  var desdeFlujoUTC = isoAUTC_(hoy) - 29 * 86400000;
+  var flujo = flujoPendientes_(personas, hoy, desdeFlujoUTC);
   return {
     brainEnabled: !!root,
     dias: n,
     hoy: hoy,
     personas: personas,
     actividad: root ? actividadWiki_(root, desdeUTC, (config.leader && config.leader.name) || '') : [],
+    hoyControl: { prioridades: root ? prioridadHoy_(personas, hoy) : [] },
+    flujo: flujo,
+    tendencias: { dailyHeatmap: heatmapDaily_(cumpl, roster, desdeFlujoUTC), backlog: flujo.backlog },
     charts: {
       cumplimiento: personas.map(function (p) {
         return { nombre: p.nombre, pct: p.cumplimiento, salud: p.salud };
@@ -153,7 +159,7 @@ function armarPersona_(p, pagina, cumpl, config, hoy, desdeUTC) {
     file: pagina ? pagina.file : '',
     salud: 'sin-datos', diasSinReporte: null,
     ultimoReporte: '', racha: 0, cumplimiento: null,
-    blockers: [], pendientes: [], ultimoAvance: null, avances7d: 0
+    blockers: [], pendientes: [], pendientesHistoricos: [], ultimoAvance: null, avances7d: 0
   };
 
   if (cumpl) {
@@ -183,8 +189,13 @@ function armarPersona_(p, pagina, cumpl, config, hoy, desdeUTC) {
         var m = SEG_VINETA_RE_.exec(l.trim());
         if (!m) return;
         var enVentana = isoAUTC_(m[1]) >= desdeUTC;
-        if (s.name === 'Pendientes' && enVentana) {
-          out.pendientes.push({ linea: l.trim(), fecha: m[1], texto: m[2].replace(SEG_SUFIJO_RE_, ''), abierto: esPendienteAbierto_(l) });
+        if (s.name === 'Pendientes') {
+          var cierre = SEG_CIERRE_FECHA_RE_.exec(l.trim());
+          var pendiente = { linea: l.trim(), fecha: m[1], texto: m[2].replace(SEG_SUFIJO_RE_, ''),
+            abierto: esPendienteAbierto_(l), file: out.file, fuente: 'Second Brain',
+            cierre: cierre ? cierre[1] : '' };
+          out.pendientesHistoricos.push(pendiente);
+          if (enVentana) out.pendientes.push(pendiente);
         }
         if (s.name === 'Avances') {
           if (enVentana) out.avances7d++;
@@ -255,6 +266,64 @@ function esHabilUTC_(utcMs) {
 
 function isoDeUTC_(utcMs) {
   return new Date(utcMs).toISOString().slice(0, 10);
+}
+
+function isoSemana_(fecha, desdeUTC) {
+  return Math.min(4, Math.floor((isoAUTC_(fecha) - desdeUTC) / (7 * 86400000)) + 1);
+}
+
+/** Cola fija: silencio crítico → blocker → pendiente abierto de 7+ días. */
+function prioridadHoy_(personas, hoy) {
+  var candidatos = [];
+  var silencios = personas.filter(function (p) { return p.salud === 'bad'; })
+    .sort(function (a, b) { return (b.diasSinReporte || 0) - (a.diasSinReporte || 0); });
+  if (silencios.length) candidatos.push({ tipo: 'silencio', nombre: silencios[0].nombre, correo: silencios[0].correo,
+    texto: 'Sin reporte durante ' + silencios[0].diasSinReporte + ' días', fecha: silencios[0].ultimoReporte || '',
+    edad: silencios[0].diasSinReporte || 0, file: silencios[0].file, linea: '', fuente: 'Second Brain' });
+  var blockers = blockersConEdad_(personas);
+  if (blockers.length) {
+    var pBloq = personas.find(function (p) { return p.nombre === blockers[0].etiqueta.split(' · ')[0]; });
+    candidatos.push({ tipo: 'blocker', nombre: pBloq ? pBloq.nombre : '', correo: pBloq ? pBloq.correo : '',
+      texto: blockers[0].etiqueta.replace(/^.*? · /, ''), fecha: '', edad: blockers[0].dias,
+      file: pBloq ? pBloq.file : '', linea: '', fuente: 'Second Brain' });
+  }
+  var pendientes = [];
+  personas.forEach(function (p) { (p.pendientesHistoricos || []).forEach(function (x) {
+    if (x.abierto && diasEntreISO_(x.fecha, hoy) >= 7) pendientes.push({ p: p, x: x });
+  }); });
+  pendientes.sort(function (a, b) { return diasEntreISO_(b.x.fecha, hoy) - diasEntreISO_(a.x.fecha, hoy); });
+  if (pendientes.length) {
+    var top = pendientes[0];
+    candidatos.push({ tipo: 'pendiente', nombre: top.p.nombre, correo: top.p.correo, texto: top.x.texto,
+      fecha: top.x.fecha, edad: diasEntreISO_(top.x.fecha, hoy), file: top.x.file, linea: top.x.linea, fuente: top.x.fuente });
+  }
+  return candidatos.slice(0, 3);
+}
+
+function flujoPendientes_(personas, hoy, desdeUTC) {
+  var semanas = [1, 2, 3, 4, 5].map(function (n) { return { semana: 'S' + n, abiertos: 0, cerrados: 0 }; });
+  var edades = { '0-3': 0, '4-7': 0, '8-14': 0, '15+': 0 };
+  var backlog = [];
+  personas.forEach(function (p) { (p.pendientesHistoricos || []).forEach(function (x) {
+    if (isoAUTC_(x.fecha) >= desdeUTC && isoAUTC_(x.fecha) <= isoAUTC_(hoy)) semanas[isoSemana_(x.fecha, desdeUTC) - 1].abiertos++;
+    if (x.cierre && isoAUTC_(x.cierre) >= desdeUTC && isoAUTC_(x.cierre) <= isoAUTC_(hoy)) semanas[isoSemana_(x.cierre, desdeUTC) - 1].cerrados++;
+    if (!x.abierto) return;
+    var edad = diasEntreISO_(x.fecha, hoy);
+    edades[edad <= 3 ? '0-3' : edad <= 7 ? '4-7' : edad <= 14 ? '8-14' : '15+']++;
+  }); });
+  var neto = 0;
+  semanas.forEach(function (s) { neto += s.abiertos - s.cerrados; backlog.push({ semana: s.semana, abiertos: neto }); });
+  return { dias: 30, semanas: semanas, edades: edades, backlog: backlog };
+}
+
+function heatmapDaily_(cumpl, roster, desdeUTC) {
+  var nombrePorCorreo = {};
+  roster.forEach(function (p) { nombrePorCorreo[String(p.correo).toLowerCase()] = p.nombre || p.correo; });
+  var out = [];
+  Object.keys(cumpl).forEach(function (correo) { Object.keys(cumpl[correo].fechas || {}).forEach(function (fecha) {
+    if (isoAUTC_(fecha) >= desdeUTC) out.push({ correo: correo, nombre: nombrePorCorreo[correo] || correo, fecha: fecha, n: 1 });
+  }); });
+  return out;
 }
 
 // --- Actividad (timeline agregada del wiki) ---

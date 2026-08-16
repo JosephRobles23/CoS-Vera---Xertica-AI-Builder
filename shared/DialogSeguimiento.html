@@ -31,9 +31,9 @@
     .modal-h b { font-size: 14px; letter-spacing: -0.01em; }
     .modal-h small { color: var(--muted-foreground); font-size: 10.5px; }
 
-    .tabs { display: flex; gap: 2px; background: var(--muted); padding: 3px; border-radius: var(--radius); margin-bottom: 12px; width: fit-content; }
-    .tabs span { padding: 6px 14px; border-radius: var(--radius-sm); color: var(--muted-foreground); font-size: 12px; font-weight: 500; cursor: pointer; }
-    .tabs span.on { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
+    .tabs { display: flex; gap: 2px; background: var(--muted); padding: 3px; border-radius: var(--radius); margin-bottom: 12px; width: fit-content; max-width: 100%; overflow-x: auto; }
+    .tabs button { border: 0; background: transparent; padding: 7px 14px; border-radius: var(--radius-sm); color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .tabs button.on { background: var(--background); color: var(--foreground); box-shadow: var(--shadow); }
 
     select {
       padding: 6px 9px; font: inherit; font-size: 12px; color: var(--foreground);
@@ -116,6 +116,16 @@
     .hb .fill { height: 10px; border-radius: 999px; }
     .hb small { flex: 0 0 46px; text-align: right; color: var(--muted-foreground); }
 
+    .oper-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+    .oper-card { border:1px solid var(--border); border-radius:var(--radius); padding:11px; background:var(--background); }
+    .oper-card h5 { font-size:11px; margin-bottom:4px; } .oper-card p { font-size:12px; margin:5px 0; }
+    .oper-card small { color:var(--muted-foreground); display:block; margin-bottom:8px; }
+    .metric { font-size:22px; font-weight:700; line-height:1.1; margin:4px 0; }
+    .drawer { position:fixed; top:0; right:0; bottom:0; width:min(390px,92vw); background:var(--background); box-shadow:var(--shadow-md); z-index:70; padding:16px; transform:translateX(105%); transition:transform .18s ease; overflow:auto; }
+    .drawer.on { transform:translateX(0); }
+    .drawer h3 { margin:14px 0 4px; } .drawer .detalle-meta { color:var(--muted-foreground); font-size:11px; margin-bottom:10px; }
+    @media (max-width:760px) { body { padding:12px; } .modal-h { align-items:flex-start; gap:8px; } .modal-h small { display:flex; flex-direction:column; gap:4px; text-align:right; } .grid2,.oper-grid { grid-template-columns:1fr; } .drawer { width:100vw; max-width:none; } .btn { min-height:44px; } }
+
     #toast {
       position: fixed; left: 16px; right: 16px; bottom: 14px; background: var(--popover); color: var(--popover-foreground);
       border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
@@ -128,15 +138,21 @@
     <b>👥 Seguimiento del equipo</b>
     <small><span id="reloj">cargando…</span> · <select id="selDias" onchange="cambiarVentana()"><option value="7">Últimos 7 días</option><option value="30">Últimos 30 días</option></select></small>
   </div>
-  <div class="tabs">
-    <span id="tabPersonas" class="on" onclick="verTab('personas')">Personas</span>
-    <span id="tabActividad" onclick="verTab('actividad')">Actividad</span>
-    <span id="tabDashboards" onclick="verTab('dashboards')">Dashboards</span>
+  <div class="tabs" role="tablist" aria-label="Seguimiento del equipo">
+    <button id="tabHoy" class="on" onclick="verTab('hoy')" role="tab">Hoy</button>
+    <button id="tabCompromisos" onclick="verTab('compromisos')" role="tab">Compromisos</button>
+    <button id="tabFlujo" onclick="verTab('flujo')" role="tab">Flujo</button>
+    <button id="tabTendencias" onclick="verTab('tendencias')" role="tab">Tendencias</button>
+    <button id="tabMas" onclick="verTab('mas')" role="tab">Más ▾</button>
   </div>
 
-  <div id="vPersonas"><p class="hint">Cargando…</p></div>
-  <div id="vActividad" style="display:none"></div>
+  <div id="vHoy" class="view"><p class="hint">Cargando…</p></div>
+  <div id="vCompromisos" class="view" style="display:none"></div>
+  <div id="vFlujo" class="view" style="display:none"></div>
+  <div id="vTendencias" class="view" style="display:none"></div>
+  <div id="vMas" class="view" style="display:none"><div class="filtros"><button class="btn btn-outline" onclick="verLegacy('personas')">Personas</button><button class="btn btn-outline" onclick="verLegacy('actividad')">Actividad</button></div><div id="vPersonas"></div><div id="vActividad" style="display:none"></div></div>
   <div id="vDashboards" style="display:none"></div>
+  <aside id="drawer" class="drawer" aria-label="Detalle" aria-hidden="true"><button class="btn btn-outline" onclick="cerrarDetalle()">Cerrar</button><div id="drawerContenido"></div></aside>
 
   <div id="toast"></div>
 
@@ -177,8 +193,8 @@
     }
 
     /* ---- Estado + carga ---- */
-    var state = { dias: 7, data: null, tab: 'personas', expandida: null,
-      filtroPersona: '', filtroTipo: '', incluirMios: false, ultimaCarga: 0 };
+    var state = { dias: 7, data: null, tab: 'hoy', expandida: null,
+      filtroPersona: '', filtroTipo: '', filtroCompromiso: 'todos', incluirMios: false, ultimaCarga: 0 };
     var TIPOS = ['avance', 'blocker', 'riesgo', 'decision', 'pendiente'];
     var TIPO_LBL = { avance: 'AVANCE', blocker: 'BLOCKER', riesgo: 'RIESGO', decision: 'DECISIÓN', pendiente: 'PENDIENTE', contradiccion: 'CONTRADICCIÓN' };
 
@@ -200,13 +216,34 @@
 
     function verTab(tab) {
       state.tab = tab;
-      ['personas', 'actividad', 'dashboards'].forEach(function (t) {
+      ['hoy', 'compromisos', 'flujo', 'tendencias', 'mas'].forEach(function (t) {
         g('v' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === tab) ? '' : 'none';
         g('tab' + t.charAt(0).toUpperCase() + t.slice(1)).className = (t === tab) ? 'on' : '';
       });
-      if (tab === 'dashboards') pintarDashboards();
+      if (state.data) pintarTodo();
     }
-    function pintarTodo() { pintarPersonas(); pintarActividad(); if (state.tab === 'dashboards') pintarDashboards(); }
+    function verLegacy(tab) { g('vPersonas').style.display = tab === 'personas' ? '' : 'none'; g('vActividad').style.display = tab === 'actividad' ? '' : 'none'; }
+    function pintarTodo() { pintarHoy(); pintarCompromisos(); pintarFlujo(); pintarTendencias(); pintarPersonas(); pintarActividad(); }
+
+    function abrirDetalle(p, t) {
+      g('drawerContenido').innerHTML = '<h3>' + escHtml(p.nombre) + '</h3><p class="detalle-meta">' + escHtml(t.fecha || 'Sin fecha') + ' · ' + escHtml(t.fuente || 'Contexto no disponible') + '</p><p>' + escHtml(t.texto) + '</p>' + (t.linea ? pendienteAcciones(p, t) : '<p class="hint">Revisa el contexto y envía un follow-up si corresponde.</p>');
+      g('drawer').className = 'drawer on'; g('drawer').setAttribute('aria-hidden', 'false');
+    }
+    function cerrarDetalle() { g('drawer').className = 'drawer'; g('drawer').setAttribute('aria-hidden', 'true'); }
+    function followup(correo, nombre, texto) { window.location.href = 'mailto:' + encodeURIComponent(correo) + '?subject=' + encodeURIComponent('Seguimiento · ' + texto) + '&body=' + encodeURIComponent('Hola ' + nombre + ',\n\n¿Podrías actualizar el estado de este compromiso?\n\n' + texto + '\n\nGracias.'); }
+    function pendienteAcciones(p, t) { return '<div class="filtros"><button class="btn btn-outline" onclick="followup(\'' + escAttr(p.correo) + '\',\'' + escAttr(p.nombre) + '\',\'' + escAttr(t.texto) + '\')">Seguimiento</button>' + (t.abierto ? '<button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'resolver\',\'' + escAttr(t.texto) + '\')">✓ Resolver</button><button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'descartar\',\'' + escAttr(t.texto) + '\')">Descartar</button>' : '<button class="btn btn-outline" onclick="accionPend(\'' + escAttr(p.file) + '\',\'' + escAttr(t.linea) + '\',\'reabrir\',\'' + escAttr(t.texto) + '\')">↩ Reabrir</button>') + '</div>'; }
+    function personaPorCorreo(correo) { return state.data.personas.find(function (p) { return p.correo === correo; }); }
+    function pintarHoy() {
+      var items = (state.data.hoyControl && state.data.hoyControl.prioridades) || [];
+      g('vHoy').innerHTML = '<p class="hint">Requiere tu atención · máximo tres acciones</p><div class="oper-grid">' + (items.length ? items.map(function (x) { return '<article class="oper-card"><h5>' + escHtml(x.tipo.toUpperCase()) + '</h5><b>' + escHtml(x.nombre) + '</b><p>' + escHtml(x.texto) + '</p><small>' + escHtml(x.fecha || x.edad + ' días') + ' · ' + escHtml(x.fuente || 'Contexto no disponible') + '</small><button class="btn btn-outline" onclick="abrirDetalle(personaPorCorreo(\'' + escAttr(x.correo) + '\'),' + JSON.stringify(x).replace(/"/g, '&quot;') + ')">Ver contexto</button></article>'; }).join('') : '<div class="aviso">No hay alertas prioritarias hoy.</div>') + '</div>';
+    }
+    function pintarCompromisos() {
+      var todos = []; state.data.personas.forEach(function (p) { (p.pendientesHistoricos || []).forEach(function (x) { todos.push({ p:p, x:x }); }); });
+      var items = todos.filter(function (it) { var edad = Math.round((Date.parse(state.data.hoy) - Date.parse(it.x.fecha)) / 86400000); return state.filtroCompromiso === 'todos' || (state.filtroCompromiso === 'envejecidos' && it.x.abierto && edad >= 7) || (state.filtroCompromiso === 'abiertos' && it.x.abierto); });
+      g('vCompromisos').innerHTML = '<div class="filtros">' + ['todos','abiertos','envejecidos'].map(function (f) { return '<button class="chipf' + (state.filtroCompromiso === f ? ' on' : '') + '" onclick="state.filtroCompromiso=\'' + f + '\';pintarCompromisos()">' + (f === 'todos' ? 'Todos' : f === 'abiertos' ? 'Abiertos' : 'Envejecidos') + '</button>'; }).join('') + '</div>' + (items.length ? items.map(function (it) { return '<div class="pend-item"><div class="txt"><b>' + escHtml(it.p.nombre) + '</b> · ' + escHtml(it.x.texto) + '<small>' + escHtml(it.x.fecha) + ' · ' + escHtml(it.x.fuente || 'Contexto no disponible') + '</small></div><button class="btn btn-outline" onclick="abrirDetalle(personaPorCorreo(\'' + escAttr(it.p.correo) + '\'),' + JSON.stringify(it.x).replace(/"/g, '&quot;') + ')">Ver</button></div>'; }).join('') : '<p class="hint">Sin compromisos para este filtro.</p>');
+    }
+    function pintarFlujo() { var f = state.data.flujo; g('vFlujo').innerHTML = '<div class="grid2"><div class="chart"><h6>Entradas vs. cierres <span class="sub">· 30 días</span></h6><div id="flowChart" class="gc"></div></div><div class="chart"><h6>Antigüedad de pendientes</h6><div id="ageChart" class="gc"></div></div></div>'; cssBarras('flowChart', f.semanas.map(function (x) { return { lbl:x.semana, v:x.abiertos, c:PAL.azul, suf:' abiertos · ' + x.cerrados + ' cerrados' }; })); cssBarras('ageChart', Object.keys(f.edades).map(function (k) { return { lbl:k + ' días', v:f.edades[k], c:PAL.warn }; })); }
+    function pintarTendencias() { var t = state.data.tendencias; var nombres = {}; (t.dailyHeatmap || []).forEach(function (x) { nombres[x.nombre] = (nombres[x.nombre] || 0) + x.n; }); g('vTendencias').innerHTML = '<div class="grid2"><div class="chart"><h6>Backlog neto <span class="sub">· 30 días</span></h6><div id="backlogChart" class="gc"></div></div><div class="chart"><h6>Cadencia Daily <span class="sub">· registros 30d</span></h6><div id="heatChart" class="gc"></div></div></div>'; cssBarras('backlogChart', (t.backlog || []).map(function (x) { return { lbl:x.semana, v:x.abiertos, c:PAL.lila }; })); cssBarras('heatChart', Object.keys(nombres).map(function (n) { return { lbl:n, v:nombres[n], c:PAL.ok }; })); }
 
     /* ---- Tab Personas ---- */
     var SALUD_LBL = { ok: 'AL DÍA', warn: '', bad: '', 'sin-datos': 'SIN DATOS' };

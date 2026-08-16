@@ -112,8 +112,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Hoja Tareas del líder (dropdowns con chips de color, Vence con date-picker, archivado a Archivo, espejo en wiki/tasks) | `shared/tasks-runtime.js` | Implemented |
 | Morning Briefing (agenda + pendientes + urgente + foco; hora/días/secciones configurables) | `shared/briefing-runtime.js` | Implemented |
 | HTML del modal Morning Briefing (config + vista previa en vivo) | `shared/DialogBriefing.html` | Implemented |
-| Seguimiento del equipo (salud/timeline/dashboards deterministas + cierre de pendientes; solo EQUIPO — el líder vive en Mi seguimiento) | `shared/seguimiento-runtime.js` | Implemented |
-| HTML del modal Seguimiento (3 tabs, Google Charts con fallback CSS, toggle "incluir mis eventos") | `shared/DialogSeguimiento.html` | Implemented |
+| Seguimiento del equipo — control determinista: cola Hoy, compromisos, flujo 30d, tendencias Daily y cierre de pendientes; Personas/Actividad se conservan en Más | `shared/seguimiento-runtime.js` | Implemented |
+| HTML del modal Seguimiento — tabs Hoy/Compromisos/Flujo/Tendencias, Más, drawer responsive y fallback CSS | `shared/DialogSeguimiento.html` | Implemented |
 | Mi seguimiento — tareas del líder (Hoy/Tareas/Tablero/Tendencia, mutadores por Id, creación híbrida, foco manual, Nivel 0 desde wiki/tasks, índice `_tasks.json`, columnas Espera de/Link/EventId con migración idempotente) | `shared/miseguimiento-runtime.js` (+ índice y migración en `shared/tasks-runtime.js`) | Implemented (R1-R3; diseño en `Docs/workflows/MI-SEGUIMIENTO.md`) |
 | HTML del modal Mi seguimiento (4 tabs + panel ➕ Nueva + popover posponer + charts SVG cliente) | `shared/DialogMiSeguimiento.html` | Implemented |
 | Web App de follow-up (tokens un-solo-uso, GET nunca muta, 4 acciones + deshacer, higiene) | `shared/webapp-runtime.js` | Implemented |
