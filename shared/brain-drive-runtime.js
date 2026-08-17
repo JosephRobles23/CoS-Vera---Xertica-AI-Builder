@@ -202,7 +202,7 @@ function regenerarIndexBrain_(root, fecha) {
     };
 
     var people = listar('people');
-    var projects = listar('projects');
+    var projects = listar('projects').filter(function (p) { return p.status !== 'merged'; });
     var meetings = listar('meetings');
     var tasks = listar('tasks').filter(function (p) { return !p.archived; });
     var topMeetings = meetings.slice(0, 15);

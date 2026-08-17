@@ -76,7 +76,7 @@ test('leerWikiPagina devuelve frontmatter+body y rechaza nombres inseguros', () 
 
 // --- Merge de proyectos ---
 
-test('mergearProyectos une body+frontmatter, borra el origen y registra el alias', () => {
+test('mergearProyectos une body+frontmatter, archiva el origen y registra el alias', () => {
   const h = adminHarness();
   const config = h.api.construirConfig('SID', CONFIG);
   const root = h.api.ensureBrainFolder_('SID', config);
@@ -90,10 +90,14 @@ test('mergearProyectos une body+frontmatter, borra el origen y registra el alias
   const res = plain(h.api.mergearProyectos('SID', config, 'proyecto-alpha.md', 'alpha.md'));
   assert.equal(res.ok, true);
 
-  // origen a la papelera
+  // el origen conserva una página histórica recuperable, marcada como fusionada.
   const files = h.api.listarArchivosBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), '.md').map((a) => a.name);
-  assert.ok(!files.includes('proyecto-alpha.md'));
+  assert.ok(files.includes('proyecto-alpha.md'));
   assert.ok(files.includes('alpha.md'));
+  const origen = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), 'proyecto-alpha.md'));
+  assert.equal(origen.frontmatter.status, 'merged');
+  assert.equal(origen.frontmatter.merged_into, 'alpha');
+  assert.ok(origen.frontmatter.merged_on, 'la fecha de merge queda auditada');
 
   // destino conserva ambas viñetas y une los arrays de frontmatter
   const d = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), 'alpha.md'));
@@ -114,6 +118,31 @@ test('mergearProyectos falla si origen y destino coinciden', () => {
   const config = h.api.construirConfig('SID', CONFIG);
   h.api.ensureBrainFolder_('SID', config);
   assert.throws(() => h.api.mergearProyectos('SID', config, 'x.md', 'x.md'), /mismo proyecto/);
+});
+
+test('mergearProyectos migra tareas y conserva aliases del slug y nombre histórico', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'legacy-code.md',
+    { page_type: 'project', name: 'Legacy Alpha', aliases: ['alias-en-pagina'] }, '# Legacy\n\n## Avances\n- kickoff');
+  ponerWiki(h, root, 'projects', 'target.md',
+    { page_type: 'project', name: 'Proyecto Destino' }, '# Destino');
+  h.api.guardarProyectos_(root, {
+    'legacy-code': { name: 'Legacy Alpha', aliases: ['alpha-anterior'] },
+    target: { name: 'Proyecto Destino', aliases: ['destino-viejo'] }
+  });
+  h.getSpreadsheet('SID').getSheetByName('Tareas').getRange(2, 2).setValue('Legacy Alpha');
+  ponerWiki(h, root, 'tasks', 't1.md', { task_id: 't1', project: 'Legacy Alpha', status: 'Pendiente' }, '## Historial\n- creada');
+
+  const r = plain(h.api.mergearProyectos('SID', config, 'legacy-code.md', 'target.md'));
+  assert.equal(r.tareas, 1);
+  assert.deepEqual(plain(h.api.listarTareas_('SID', config)).find((t) => t.id === 't1').proyecto, 'Proyecto Destino');
+  const task = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), 't1.md'));
+  assert.equal(task.frontmatter.project, 'Proyecto Destino');
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.deepEqual(mapa['legacy-code'], undefined);
+  ['legacy-code', 'legacy-alpha', 'alpha-anterior', 'destino-viejo'].forEach((alias) => {
+    assert.ok(mapa.target.aliases.includes(alias), 'preserva alias ' + alias);
+  });
 });
 
 // --- Flags ---
@@ -526,4 +555,23 @@ test('dispatch enruta renombrarProyecto y cerrarProyecto', () => {
   assert.equal(cr.cerrado, true);
   const rn = plain(h.api.dispatch('renombrarProyecto', ['alpha.md', 'Alpha 2'], 'SID', config));
   assert.equal(rn.name, 'Alpha 2');
+});
+
+// --- Límite de seguridad: solo páginas Markdown públicas, nunca catálogos internos ---
+
+test('endpoints de páginas rechazan archivos internos o nombres no canónicos sin corromper catálogos', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  const projects = h.api.carpetaBrain_(root, ['wiki', 'projects']);
+  h.api.escribirArchivoBrain_(projects, '_projects.json', JSON.stringify({ alpha: { name: 'Alpha', aliases: [] } }));
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha' }, '# Alpha');
+  const catalogoAntes = h.api.leerArchivoBrain_(projects, '_projects.json');
+
+  ['_projects.json', 'sin-extension', "x').md"].forEach((file) => {
+    assert.throws(() => h.api.dispatch('leerWikiPagina', ['projects', file], 'SID', config), /página inválido|página inválida/);
+    assert.throws(() => h.api.dispatch('cerrarProyecto', [file, true], 'SID', config), /página inválido|página inválida/);
+    assert.throws(() => h.api.dispatch('olvidarProyecto', [file], 'SID', config), /página inválido|página inválida/);
+  });
+  assert.equal(h.api.leerArchivoBrain_(projects, '_projects.json'), catalogoAntes, 'el catálogo interno nunca se reescribe');
 });

@@ -24,6 +24,18 @@ function nombreArchivoSeguro_(name) {
   return s;
 }
 
+/**
+ * Valida una página pública de wiki expuesta por el bridge. Los catálogos e índices usan archivos
+ * internos (`_*.json`, `index.md`) y nunca pueden recibir operaciones de página desde el cliente.
+ */
+function nombreArchivoPaginaSeguro_(name) {
+  var s = nombreArchivoSeguro_(name);
+  if (!/^[a-z0-9][a-z0-9._-]*\.md$/i.test(s) || s.charAt(0) === '_') {
+    throw new Error('Nombre de página inválido: ' + s);
+  }
+  return s;
+}
+
 function carpetaWiki_(root, tipo) {
   if (!WIKI_TIPOS_[tipo]) throw new Error('Tipo de wiki desconocido: ' + tipo);
   return carpetaBrain_(root, ['wiki', tipo]);
@@ -63,7 +75,7 @@ function listarWikiPaginas(sheetId, config, tipo) {
 function leerWikiPagina(sheetId, config, tipo, file) {
   var root = ensureBrainFolder_(sheetId, config);
   var carpeta = carpetaWiki_(root, tipo);
-  var contenido = leerArchivoBrain_(carpeta, nombreArchivoSeguro_(file));
+  var contenido = leerArchivoBrain_(carpeta, nombreArchivoPaginaSeguro_(file));
   if (contenido == null) throw new Error('Página no encontrada: ' + file);
   var pg = parsearPagina_(contenido);
   return { file: file, tipo: tipo, frontmatter: pg.frontmatter, body: pg.body };
@@ -84,15 +96,15 @@ function primerParrafo_(body) {
 // --- Merge de proyectos duplicados (sidebar) ---
 
 /**
- * Fusiona la página de proyecto `origenFile` en `destinoFile`: une frontmatter (arrays) y las
- * secciones del body, manda `origen` a la papelera y registra el alias en _projects.json para que
- * las ingestas futuras del nombre viejo caigan en el proyecto destino. Público.
- * @return {{ok:boolean, destino:string, origen:string}}
+ * Fusiona dos proyectos preservando la página origen como archivo histórico `status: merged`.
+ * El destino absorbe contenido y referencias de tareas; los aliases permiten que futuras ingestas
+ * del nombre o slug anterior sigan resolviendo hacia el destino.
+ * @return {{ok:boolean, destino:string, origen:string, tareas:number, aliasesAdded:number}}
  */
 function mergearProyectos(sheetId, config, origenFile, destinoFile) {
   var root = ensureBrainFolder_(sheetId, config);
   var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
-  var oName = nombreArchivoSeguro_(origenFile), dName = nombreArchivoSeguro_(destinoFile);
+  var oName = nombreArchivoPaginaSeguro_(origenFile), dName = nombreArchivoPaginaSeguro_(destinoFile);
   if (oName === dName) throw new Error('Origen y destino son el mismo proyecto.');
 
   var oRaw = leerArchivoBrain_(carpeta, oName), dRaw = leerArchivoBrain_(carpeta, dName);
@@ -100,6 +112,10 @@ function mergearProyectos(sheetId, config, origenFile, destinoFile) {
   if (dRaw == null) throw new Error('Proyecto destino no encontrado: ' + dName);
 
   var o = parsearPagina_(oRaw), d = parsearPagina_(dRaw);
+  var oSlug = oName.replace(/\.md$/, ''), dSlug = dName.replace(/\.md$/, '');
+  var oldName = str_(o.frontmatter.name) || oSlug;
+  var destinationName = str_(d.frontmatter.name) || dSlug;
+  var hoy = hoyISO_(config);
 
   // Frontmatter: los arrays del origen se unen al destino; el name/last_updated del destino manda.
   var fm = mergeFrontmatter_(d.frontmatter, {
@@ -112,24 +128,34 @@ function mergearProyectos(sheetId, config, origenFile, destinoFile) {
     s.lines.forEach(function (l) { if (l.trim()) upsertLineaSeccion_(parsed, s.name, l.trim()); });
   });
   escribirArchivoBrain_(carpeta, dName, componerPagina_(fm, renderBodySections_(parsed)));
-  borrarArchivoBrain_(carpeta, oName);
 
-  // Registro de alias: el slug origen pasa a ser alias del destino (y deja de ser canónico).
-  var oSlug = oName.replace(/\.md$/, ''), dSlug = dName.replace(/\.md$/, '');
+  // La página origen queda disponible como evidencia, pero deja de ser proyecto activo/canónico.
+  var fmOrigen = mergeFrontmatter_(o.frontmatter, { status: 'merged', merged_into: dSlug, merged_on: hoy });
+  escribirArchivoBrain_(carpeta, oName, componerPagina_(fmOrigen, o.body));
+
+  // Registro de alias: slug de archivo, slug del nombre mostrado y aliases históricos del origen.
   var mapa = cargarProyectos_(root);
-  if (!mapa[dSlug]) mapa[dSlug] = { name: str_(fm.name) || dSlug, aliases: [] };
-  mapa[dSlug].aliases = (mapa[dSlug].aliases || []);
-  [oSlug].concat((mapa[oSlug] && mapa[oSlug].aliases) || []).forEach(function (al) {
-    if (al !== dSlug && mapa[dSlug].aliases.indexOf(al) === -1) mapa[dSlug].aliases.push(al);
+  if (!mapa[dSlug]) mapa[dSlug] = { name: destinationName, aliases: [] };
+  var aliases = (mapa[dSlug].aliases || []).slice();
+  var candidatos = [oSlug, slugBrain_(oldName)]
+    .concat((mapa[oSlug] && mapa[oSlug].aliases) || [])
+    .concat(Array.isArray(o.frontmatter.aliases) ? o.frontmatter.aliases : []);
+  candidatos.forEach(function (al) {
+    al = slugBrain_(al);
+    if (al && al !== dSlug && aliases.indexOf(al) === -1) aliases.push(al);
   });
   delete mapa[oSlug];
+  mapa[dSlug] = { name: destinationName, aliases: aliases };
   guardarProyectos_(root, mapa);
 
+  // Tareas existentes deben seguir el proyecto canónico, igual que durante un rename.
+  var tareas = renombrarProyectoEnTareas_(sheetId, config, root, oldName, destinationName);
+
   var wiki = carpetaBrain_(root, ['wiki']);
-  appendArchivoBrain_(wiki, 'log.md', '- ' + hoyISO_(config) + ' · merge de proyecto · ' + oSlug + ' → ' + dSlug + '\n');
-  regenerarIndexBrain_(root, hoyISO_(config));
-  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
-  return { ok: true, destino: dName, origen: oName };
+  appendArchivoBrain_(wiki, 'log.md', '- ' + hoy + ' · merge de proyecto · ' + oSlug + ' → ' + dSlug + ' · ' + tareas + ' tarea(s)\n');
+  regenerarIndexBrain_(root, hoy);
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_.concat(CACHE_MISEGUIMIENTO_));
+  return { ok: true, destino: dName, origen: oName, tareas: tareas, aliasesAdded: aliases.length };
 }
 
 // --- Feature flags (sidebar) ---
@@ -169,12 +195,12 @@ function guardarFlags(sheetId, config, flags) {
 function olvidarPersona(sheetId, config, file) {
   var root = ensureBrainFolder_(sheetId, config);
   var people = carpetaBrain_(root, ['wiki', 'people']);
-  var name = nombreArchivoSeguro_(file);
+  var name = nombreArchivoPaginaSeguro_(file);
 
   var contenido = leerArchivoBrain_(people, name);
   if (contenido == null) throw new Error('Persona no encontrada: ' + name);
   var fm = parsearPagina_(contenido).frontmatter || {};
-  var email = str_(fm.email);
+  var email = str_(fm.email).trim().toLowerCase();
 
   borrarArchivoBrain_(people, name);
 
@@ -183,7 +209,7 @@ function olvidarPersona(sheetId, config, file) {
   var borrados = 0;
   listarArchivosBrain_(raws, '.md').forEach(function (a) {
     var rfm = parsearPagina_(a.content).frontmatter || {};
-    if (email && str_(rfm.email) === email) borrados += borrarArchivoBrain_(raws, a.name);
+    if (email && str_(rfm.email).trim().toLowerCase() === email) borrados += borrarArchivoBrain_(raws, a.name);
   });
 
   var wiki = carpetaBrain_(root, ['wiki']);
@@ -207,7 +233,7 @@ function olvidarPersona(sheetId, config, file) {
 function olvidarProyecto(sheetId, config, file) {
   var root = ensureBrainFolder_(sheetId, config);
   var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
-  var name = nombreArchivoSeguro_(file);
+  var name = nombreArchivoPaginaSeguro_(file);
 
   var contenido = leerArchivoBrain_(carpeta, name);
   if (contenido == null) throw new Error('Proyecto no encontrado: ' + name);
@@ -249,7 +275,7 @@ function olvidarProyecto(sheetId, config, file) {
 function renombrarProyecto(sheetId, config, file, nuevoNombre) {
   var root = ensureBrainFolder_(sheetId, config);
   var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
-  var oldFile = nombreArchivoSeguro_(file);
+  var oldFile = nombreArchivoPaginaSeguro_(file);
   var nuevo = str_(nuevoNombre).trim();
   if (!nuevo) throw new Error('El nombre no puede quedar vacío.');
 
@@ -336,10 +362,13 @@ function renombrarProyectoEnTareas_(sheetId, config, root, oldName, newName) {
 function cerrarProyecto(sheetId, config, file, cerrado) {
   var root = ensureBrainFolder_(sheetId, config);
   var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
-  var name = nombreArchivoSeguro_(file);
+  var name = nombreArchivoPaginaSeguro_(file);
   var raw = leerArchivoBrain_(carpeta, name);
   if (raw == null) throw new Error('Proyecto no encontrado: ' + name);
   var page = parsearPagina_(raw);
+  if (str_(page.frontmatter.status) === 'merged') {
+    throw new Error('Un proyecto fusionado conserva solo su historial. Gestiona el proyecto destino.');
+  }
   var cerrar = bool_(cerrado);
 
   var fm;

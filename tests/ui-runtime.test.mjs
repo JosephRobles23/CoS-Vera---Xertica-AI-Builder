@@ -49,6 +49,20 @@ test('buildDialog(\'preguntas\') resuelve el modal desde el HTML de la librería
   assert.match(d.titulo, /Preguntas/);
 });
 
+test('Centro del Brain abre el diálogo modeless correcto y queda disponible vía dispatch', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: { Ajustes: [['key', 'value']] } } });
+  const d = h.api.buildDialog('braincentro');
+  assert.equal(d.html._file, 'DialogBrainCentro');
+  assert.equal(d.html._width, 860);
+  assert.equal(d.html._height, 680);
+
+  const res = h.api.dispatch('abrirBrainCentro', [], SID, config);
+  assert.deepEqual({ ...res }, { ok: true });
+  assert.equal(h.uiCalls.length, 1);
+  assert.equal(h.uiCalls[0].kind, 'modeless');
+  assert.equal(h.uiCalls[0].html._file, 'DialogBrainCentro');
+});
+
 test('buildDialog lanza en un nombre desconocido', () => {
   const { api } = makeHarness();
   assert.throws(() => api.buildDialog('inexistente'), /Diálogo desconocido/);

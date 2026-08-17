@@ -166,6 +166,7 @@ select:focus{border-color:var(--ring);box-shadow:0 0 0 3px oklch(0.708 0 0 / .25
       <p>Cura, fusiona y mantén sano tu segundo cerebro.</p>
       <span class="pill"><i></i>No bloquea tu hoja</span>
     </div>
+    <button class="x" type="button" aria-label="Cerrar Centro del Brain" onclick="cerrarDialogo()">×</button>
   </div>
 
   <div class="tabs" role="tablist">
@@ -257,8 +258,9 @@ select:focus{border-color:var(--ring);box-shadow:0 0 0 3px oklch(0.708 0 0 / .25
 var $=function(s){return document.querySelector(s)};
 var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function errorMessage(e){return e&&e.message?e.message:String(e||'Error desconocido');}
 function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(window._t);window._t=setTimeout(function(){t.classList.remove('show')},2800);}
-
+function cerrarDialogo(){if(window.google&&google.script&&google.script.host)google.script.host.close();}
 /* ---- Bridge cosRun (patrón estándar del CoS) ---- */
 var _btnActivo=null;
 document.addEventListener('click',function(e){
@@ -284,22 +286,28 @@ function run(method){
 /* ---------------- estado UI ---------------- */
 var tipo='projects', estado='activos';
 var CACHE={projects:null,people:null,meetings:null};   // páginas por tipo (null = sin cargar)
+var listRequestId=0, readerRequestId=0;
 
 function diasDesde(iso){
-  if(!iso)return 0;
-  var d=new Date(iso+'T00:00:00'); if(isNaN(d))return 0;
-  return Math.max(0,Math.floor((Date.now()-d.getTime())/86400000));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(iso||'')))return 0;
+  var d=Date.UTC(+iso.slice(0,4),+iso.slice(5,7)-1,+iso.slice(8,10));
+  return Math.max(0,Math.floor((Date.now()-d)/86400000));
 }
 
 /* ---------------- carga ---------------- */
 function cargar(force){
-  if(CACHE[tipo]&&!force){render();return Promise.resolve();}
+  var tipoSolicitado=tipo;
+  if(CACHE[tipoSolicitado]&&!force){render();return Promise.resolve();}
+  var requestId=++listRequestId;
   $('#lista').innerHTML='<div class="empty">Cargando…</div>';
-  return run('listarWikiPaginas')(tipo).then(function(ps){
-    CACHE[tipo]=ps||[];
-    if(tipo==='projects')fillMerge();
+  return run('listarWikiPaginas')(tipoSolicitado).then(function(ps){
+    CACHE[tipoSolicitado]=ps||[];
+    if(tipoSolicitado!==tipo||requestId!==listRequestId)return;
+    if(tipoSolicitado==='projects')fillMerge();
     render();
-  }).catch(function(e){$('#lista').innerHTML='<div class="empty">Error: '+esc(e.message)+'</div>';});
+  }).catch(function(e){
+    if(tipoSolicitado===tipo&&requestId===listRequestId)$('#lista').innerHTML='<div class="empty">Error: '+esc(errorMessage(e))+'</div>';
+  });
 }
 
 /* ---------------- render lista ---------------- */
@@ -308,8 +316,8 @@ function visibles(){
   var q=$('#q').value.trim().toLowerCase();
   if(q)arr=arr.filter(function(p){return String(p.name).toLowerCase().indexOf(q)>-1});
   if(tipo==='projects'){
-    if(estado==='activos')arr=arr.filter(function(p){return p.status!=='closed'});
-    else if(estado==='cerrados')arr=arr.filter(function(p){return p.status==='closed'});
+    if(estado==='activos')arr=arr.filter(function(p){return p.status!=='closed'&&p.status!=='merged'});
+    else if(estado==='cerrados')arr=arr.filter(function(p){return p.status==='closed'||p.status==='merged'});
   }
   return arr;
 }
@@ -319,36 +327,39 @@ function render(){
   $('#briefHint').style.display   = tipo==='projects' ? 'flex' : 'none';
   var all=CACHE[tipo]||[];
   if(tipo==='projects'){
-    $('#cAct').textContent='· '+all.filter(function(p){return p.status!=='closed'}).length;
-    $('#cCer').textContent='· '+all.filter(function(p){return p.status==='closed'}).length;
+    $('#cAct').textContent='· '+all.filter(function(p){return p.status!=='closed'&&p.status!=='merged'}).length;
+    $('#cCer').textContent='· '+all.filter(function(p){return p.status==='closed'||p.status==='merged'}).length;
   }
 
   var arr=visibles(), el=$('#lista');
   if(!arr.length){el.innerHTML='<div class="empty">Sin páginas para este filtro.</div>';return;}
 
   el.innerHTML=arr.map(function(p){
-    var closed=p.status==='closed';
+    var closed=p.status==='closed', merged=p.status==='merged', archived=closed||merged;
     var dias=diasDesde(p.last_updated);
     var nb=(p.open_blockers&&p.open_blockers.length)?p.open_blockers.length:0;
     var badges='';
     if(closed)badges+='<span class="badge green">✓ Cerrado</span>';
+    if(merged)badges+='<span class="badge gray">↳ Fusionado</span>';
     if(p.external)badges+='<span class="badge gray">Externo</span>';
     if(nb)badges+='<span class="badge red">'+nb+' blocker</span>';
-    if(!closed&&!p.external&&tipo!=='meetings'&&dias>=7)badges+='<span class="badge amber">'+dias+'d sin novedades</span>';
+    if(!archived&&!p.external&&tipo!=='meetings'&&dias>=7)badges+='<span class="badge amber">'+dias+'d sin novedades</span>';
 
     var f=esc(p.file), n=esc(p.name);
-    var acts='<button class="ib" title="Ver" onclick="verPagina(\''+f+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>';
+    var acts='<button class="ib" type="button" aria-label="Ver '+n+'" data-action="ver" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>';
     if(tipo==='projects'){
-      acts+='<button class="ib" title="Renombrar" onclick="renombrar(\''+f+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>';
-      acts+= closed
-        ? '<button class="ib" title="Reabrir" onclick="toggleClose(\''+f+'\',false)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>'
-        : '<button class="ib ok" title="Cerrar / archivar" onclick="toggleClose(\''+f+'\',true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>';
-      acts+='<button class="ib danger" title="Olvidar (borrar)" onclick="olvidar(\''+f+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
+      if(!merged){
+        acts+='<button class="ib" type="button" aria-label="Renombrar '+n+'" data-action="renombrar" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>';
+        acts+= closed
+          ? '<button class="ib" type="button" aria-label="Reabrir '+n+'" data-action="reabrir" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>'
+          : '<button class="ib ok" type="button" aria-label="Cerrar '+n+'" data-action="cerrar" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>';
+      }
+      acts+='<button class="ib danger" type="button" aria-label="Olvidar '+n+'" data-action="olvidar" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
     }else if(tipo==='people'){
-      acts+='<button class="ib danger" title="Olvidar persona (derecho al olvido)" onclick="olvidar(\''+f+'\')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
+      acts+='<button class="ib danger" type="button" aria-label="Olvidar '+n+'" data-action="olvidar" data-file="'+f+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
     }
 
-    return '<div class="item'+(closed?' closed':'')+'" data-file="'+f+'">'+
+    return '<div class="item'+(archived?' closed':'')+'" data-file="'+f+'">'+
       '<div class="meta"><div class="name">'+n+badges+'</div>'+
       '<div class="sub">'+(p.last_updated?'Actualizado '+esc(p.last_updated):'Sin fecha')+(p.resumen?' · '+esc(p.resumen):'')+'</div></div>'+
       '<div class="acts">'+acts+'</div></div>';
@@ -358,6 +369,7 @@ function render(){
 /* ---------------- lector ---------------- */
 function verPagina(file){
   var p=(CACHE[tipo]||[]).filter(function(x){return x.file===file})[0]||{name:file};
+  var requestId=++readerRequestId;
   $('#rName').textContent=p.name;
   var fm='';
   if(p.last_updated)fm+='<span class="badge">Actualizado '+esc(p.last_updated)+'</span>';
@@ -368,21 +380,26 @@ function verPagina(file){
   $('#rBody').innerHTML='<div class="diag-empty">Cargando…</div>';
   $('#reader').classList.add('open');$('#readerBack').classList.add('open');
   run('leerWikiPagina')(tipo,file).then(function(pg){
+    if(requestId!==readerRequestId)return;
     $('#rBody').innerHTML='<pre>'+esc((pg&&pg.body)||'(vacío)')+'</pre>';
-  }).catch(function(e){$('#rBody').innerHTML='<div class="diag-empty">Error: '+esc(e.message)+'</div>';});
+  }).catch(function(e){
+    if(requestId===readerRequestId)$('#rBody').innerHTML='<div class="diag-empty">Error: '+esc(errorMessage(e))+'</div>';
+  });
 }
-function closeReader(){$('#reader').classList.remove('open');$('#readerBack').classList.remove('open');}
+function closeReader(){readerRequestId++;$('#reader').classList.remove('open');$('#readerBack').classList.remove('open');}
 
 /* ---------------- renombrar (completo: name + slug + archivo + tareas) ---------------- */
 function renombrar(file){
   var p=(CACHE[tipo]||[]).filter(function(x){return x.file===file})[0];
   if(!p)return;
-  var item=$('#lista .item[data-file="'+file+'"]');
+  var item=$$('#lista .item').filter(function(el){return el.getAttribute('data-file')===file;})[0];
   if(!item)return;
   var meta=item.querySelector('.meta');
   meta.innerHTML='<div class="rename"><input id="renInput" value="'+esc(p.name)+'">'+
-    '<button class="btn btn-primary" style="padding:6px 10px" onclick="saveRename(\''+esc(file)+'\')">Guardar</button>'+
-    '<button class="btn btn-ghost" style="padding:6px 8px" onclick="render()">Cancelar</button></div>';
+    '<button class="btn btn-primary" type="button" style="padding:6px 10px" data-save-file="'+esc(file)+'">Guardar</button>'+
+    '<button class="btn btn-ghost" type="button" style="padding:6px 8px" data-cancel-rename="true">Cancelar</button></div>';
+  item.querySelector('[data-save-file]').addEventListener('click',function(){saveRename(file);});
+  item.querySelector('[data-cancel-rename]').addEventListener('click',render);
   var inp=$('#renInput');inp.focus();inp.select();
   inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveRename(file);if(e.key==='Escape')render();});
 }
@@ -419,7 +436,7 @@ function olvidar(file){
 
 /* ---------------- fusionar ---------------- */
 function fillMerge(){
-  var ps=(CACHE.projects||[]).filter(function(p){return p.status!=='closed'});
+  var ps=(CACHE.projects||[]).filter(function(p){return p.status!=='closed'&&p.status!=='merged'});
   var opts=ps.map(function(p){return '<option value="'+esc(p.file)+'">'+esc(p.name)+'</option>'}).join('');
   $('#mOrigen').innerHTML=opts;$('#mDestino').innerHTML=opts;
   if(ps.length>1)$('#mDestino').selectedIndex=1;
@@ -489,6 +506,16 @@ function reparar(){
 }
 
 /* ---------------- wiring ---------------- */
+$('#lista').addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-action]'):null;
+  if(!b)return;
+  var file=b.getAttribute('data-file'), action=b.getAttribute('data-action');
+  if(action==='ver')verPagina(file);
+  else if(action==='renombrar')renombrar(file);
+  else if(action==='cerrar')toggleClose(file,true);
+  else if(action==='reabrir')toggleClose(file,false);
+  else if(action==='olvidar')olvidar(file);
+});
 $$('.tab').forEach(function(b){b.addEventListener('click',function(){
   $$('.tab').forEach(function(x){x.setAttribute('aria-selected',x===b)});
   $$('.view').forEach(function(v){v.classList.toggle('active',v.id===b.dataset.tab)});
