@@ -371,6 +371,7 @@ export function makeHarness(opts = {}) {
       // MENU_ACTIONS_.cosMenu1 abre el modal de preguntas (showModalDialog desde la librería).
       getUi: () => ({
         showModalDialog: (html, titulo) => { state.uiCalls.push({ kind: 'modal', html, titulo }); },
+        showModelessDialog: (html, titulo) => { state.uiCalls.push({ kind: 'modeless', html, titulo }); },
         showSidebar: (html) => { state.uiCalls.push({ kind: 'sidebar', html }); }
       }),
       DestinationType: { SPREADSHEET: 'SPREADSHEET' },

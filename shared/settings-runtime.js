@@ -17,6 +17,8 @@ var AJUSTES_DEFAULTS_ = {
   'schedule.invitesWeekly': '16:00',
   'schedule.closeDaily': '18:00',
   'schedule.closeWeekly': '18:30',
+  'schedule.dailyDias': '1,2,3,4,5',   // días ISO (1=lun … 7=dom) de invitación+cierre Daily
+  'schedule.weeklyDias': '5',          // ídem Weekly (default: viernes)
   'timezone': 'America/Lima',
   'forms.dailyUrl': '',
   'forms.weeklyUrl': '',
@@ -58,6 +60,7 @@ var AJUSTES_DEFAULTS_ = {
   'briefing.secciones': '',          // JSON [{id,on}] ordenado; '' → BRIEFING_SECCIONES_DEFAULT_
   'briefing.prompt': '',             // instrucción personal del líder (tono, idioma, reglas)
   'briefing.focoManual': '',         // foco escrito por el líder (Mi seguimiento); con valor, manda sobre el foco del LLM
+  'asistente.hechos': '',            // Guía del CoS: ids de los pasos MANUALES ya marcados (CSV)
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -249,7 +252,9 @@ function getAjustes_(sheetId, settingsSheetName) {
       invitesDaily:  normHora_(flat['schedule.invitesDaily'], ss),
       invitesWeekly: normHora_(flat['schedule.invitesWeekly'], ss),
       closeDaily:    normHora_(flat['schedule.closeDaily'], ss),
-      closeWeekly:   normHora_(flat['schedule.closeWeekly'], ss)
+      closeWeekly:   normHora_(flat['schedule.closeWeekly'], ss),
+      dailyDias:     listaEnteros_(flat['schedule.dailyDias'], [1, 2, 3, 4, 5]),
+      weeklyDias:    listaEnteros_(flat['schedule.weeklyDias'], [5])
     },
     timezone: str_(flat['timezone']),
     forms: {
@@ -302,6 +307,9 @@ function getAjustes_(sheetId, settingsSheetName) {
       secciones: seccionesBriefing_(flat['briefing.secciones']),
       prompt:    str_(flat['briefing.prompt']),
       focoManual: str_(flat['briefing.focoManual'])
+    },
+    asistente: {
+      hechos: listaEnteros_(flat['asistente.hechos'], [])
     },
     meet: {
       enabled:      bool_(flat['meet.enabled']),
@@ -449,7 +457,7 @@ function guardarPrompts(sheetId, config, prompts) {
   return { ok: true };
 }
 
-/** Guarda los horarios (normaliza a HH:mm) en Ajustes. */
+/** Guarda los horarios (normaliza a HH:mm) y los días de Daily/Weekly en Ajustes. */
 function guardarHorarios(sheetId, config, horarios) {
   var updates = {
     'schedule.invitesDaily':  toHHMM_(horarios.invitesDaily)  || horarios.invitesDaily || '',
@@ -457,6 +465,18 @@ function guardarHorarios(sheetId, config, horarios) {
     'schedule.closeDaily':    toHHMM_(horarios.closeDaily)    || horarios.closeDaily || '',
     'schedule.closeWeekly':   toHHMM_(horarios.closeWeekly)   || horarios.closeWeekly || ''
   };
+  // Días ISO 1..7 elegibles por el líder (mismo selector que el Morning Briefing).
+  // Aplican a invitación Y cierre de cada tipo. Al menos un día por tipo.
+  ['dailyDias', 'weeklyDias'].forEach(function (campo) {
+    if (horarios[campo] == null) return;   // no vino: no tocar (stubs/paneles viejos)
+    var dias = (Array.isArray(horarios[campo]) ? horarios[campo] : [])
+      .map(function (d) { return parseInt(d, 10); })
+      .filter(function (d) { return d >= 1 && d <= 7; });
+    if (!dias.length) {
+      throw new Error(campo === 'dailyDias' ? 'El Daily necesita al menos un día.' : 'El Weekly necesita al menos un día.');
+    }
+    updates['schedule.' + campo] = dias.sort().join(',');
+  });
   if (horarios.timezone) updates['timezone'] = horarios.timezone;   // zona horaria por líder
   setAjustes_(sheetId, config.sheets.settings, updates);
   return { ok: true };

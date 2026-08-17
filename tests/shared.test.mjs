@@ -481,6 +481,71 @@ test('runDispatcher: consolidado Diario a closeDaily y Semanal a closeWeekly (vi
   assert.match(subjects, /Consolidado Semanal/);
 });
 
+test('días configurables: el Daily respeta schedule.dailyDias y el Weekly su día elegido', () => {
+  const equipo = [['Nombre', 'Correo', 'Rol'], ['Ana', 'ana@x.com', 'Dev']];
+  const config = {
+    sheets: { daily: 'Daily', weekly: 'Weekly', roster: 'Equipo', prompts: 'Prompts' },
+    forms: { dailyUrl: 'https://form/daily', weeklyUrl: 'https://form/weekly' },
+    leader: { email: 'm@x.com', name: 'M' },
+    schedule: { invitesDaily: '08:30', invitesWeekly: '08:30', closeDaily: '18:00', closeWeekly: '18:30',
+      dailyDias: [1, 3, 5], weeklyDias: [3] },   // Daily L-X-V · Weekly miércoles
+    models: { perRow: 'f', consolidated: 'p' },
+    timezone: 'America/Lima', dispatchWindowMin: 5, options: {}
+  };
+  const h = makeHarness({ spreadsheets: { SID: { Equipo: equipo } } });
+
+  h.api.runDispatcher('SID', config, new Date(2026, 6, 23, 8, 32));   // jueves: NO es día elegido
+  assert.equal(h.sentEmails.length, 0, 'jueves sin Daily ni Weekly');
+
+  h.api.runDispatcher('SID', config, new Date(2026, 6, 22, 8, 32));   // miércoles: Daily Y Weekly
+  assert.equal(h.sentEmails.length, 2);
+  const asuntos = h.sentEmails.map((e) => e.subject).join(' | ');
+  assert.match(asuntos, /Daily/);
+  assert.match(asuntos, /Weekly/);
+
+  h.api.runDispatcher('SID', config, new Date(2026, 6, 24, 8, 32));   // viernes: solo Daily
+  assert.equal(h.sentEmails.length, 3);
+});
+
+test('días configurables: legacy weeklyOnlyFriday=false sin claves nuevas = weekly cualquier día hábil', () => {
+  const equipo = [['Nombre', 'Correo', 'Rol'], ['Ana', 'ana@x.com', 'Dev']];
+  const config = {
+    sheets: { daily: 'Daily', weekly: 'Weekly', roster: 'Equipo', prompts: 'Prompts' },
+    forms: { dailyUrl: '', weeklyUrl: 'https://form/weekly' },
+    leader: { email: 'm@x.com', name: 'M' },
+    schedule: { invitesDaily: '08:30', invitesWeekly: '08:30', closeDaily: '18:00', closeWeekly: '18:30' },
+    models: { perRow: 'f', consolidated: 'p' },
+    timezone: 'America/Lima', dispatchWindowMin: 5,
+    options: { weeklyOnlyFriday: false }   // stub viejo, sin schedule.weeklyDias
+  };
+  const h = makeHarness({ spreadsheets: { SID: { Equipo: equipo } } });
+  h.api.runDispatcher('SID', config, new Date(2026, 6, 21, 8, 32));   // martes
+  assert.equal(h.sentEmails.length, 1, 'weekly en martes por el fallback legacy');
+  assert.match(h.sentEmails[0].subject, /Weekly/);
+});
+
+test('guardarHorarios persiste los días elegidos y exige al menos uno por tipo', () => {
+  const h = makeHarness({ spreadsheets: { SID: { Ajustes: [['key', 'value']] } } });
+  const config = h.api.construirConfig('SID', {
+    sheets: { daily: 'Daily', weekly: 'Weekly', roster: 'Equipo', prompts: 'Prompts', settings: 'Ajustes' },
+    models: { perRow: 'f', consolidated: 'p' }, timezone: 'America/Lima', dispatchWindowMin: 5, options: {}
+  });
+  h.api.guardarHorarios('SID', config, {
+    invitesDaily: '08:30', invitesWeekly: '16:00', closeDaily: '18:00', closeWeekly: '18:30',
+    dailyDias: [3, 1, 5, 9],   // el 9 se descarta; se persiste ordenado
+    weeklyDias: [4]
+  });
+  const aj = h.api.getAjustes_('SID', 'Ajustes');
+  assert.deepEqual(JSON.parse(JSON.stringify(aj.schedule.dailyDias)), [1, 3, 5]);
+  assert.deepEqual(JSON.parse(JSON.stringify(aj.schedule.weeklyDias)), [4]);
+
+  assert.throws(() => h.api.guardarHorarios('SID', config, { dailyDias: [] }), /al menos un día/);
+
+  // Panel viejo que no manda días: no toca lo guardado.
+  h.api.guardarHorarios('SID', config, { invitesDaily: '09:00' });
+  assert.deepEqual(JSON.parse(JSON.stringify(h.api.getAjustes_('SID', 'Ajustes').schedule.dailyDias)), [1, 3, 5]);
+});
+
 // --- Correo HTML (email-runtime) ---
 
 const emailH = () => makeHarness();

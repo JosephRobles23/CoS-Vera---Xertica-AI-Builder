@@ -64,8 +64,78 @@ var DIALOGOS_ = {
   // Seguimiento del equipo: salud por persona, timeline y dashboards (solo lectura + cierre de pendientes).
   seguimiento: { archivo: 'DialogSeguimiento', titulo: 'CoS — Seguimiento del equipo', ancho: 760, alto: 680 },
   // Mi seguimiento: las tareas del PROPIO líder (Hoy/Tareas/Tablero + creación) sobre la hoja Tareas.
-  miseguimiento: { archivo: 'DialogMiSeguimiento', titulo: 'CoS — Mi seguimiento', ancho: 760, alto: 680 }
+  miseguimiento: { archivo: 'DialogMiSeguimiento', titulo: 'CoS — Mi seguimiento', ancho: 760, alto: 680 },
+  // Guía del CoS: onboarding paso a paso, MODELESS (no bloquea la hoja). Se abre desde el sidebar.
+  asistente: { archivo: 'DialogAsistente', titulo: 'CoS — Guía del CoS', ancho: 460, alto: 640, modeless: true }
 };
+
+// --- Asistente (Guía del CoS): pasos auto-detectados + apertura de destinos ---
+
+// Pasos 1..8 (los textos viven en DialogAsistente.html). La mayoría se AUTO-detecta del estado
+// real de la copia; solo los pasos "de uso" (revisar Horarios, conocer los tableros) se marcan
+// a mano y se persisten en Ajustes.
+var ASISTENTE_PASOS_MANUALES_ = { 3: true, 8: true };
+
+/** Estado de la guía: qué pasos están hechos (auto-detección honesta contra la copia). Público. */
+function cargarAsistente(sheetId, config) {
+  var aj = getAjustes_(sheetId, config.sheets.settings);
+  var roster = [];
+  try { roster = getRoster_(sheetId, config.sheets.roster); } catch (e) { roster = []; }
+  var manuales = {};
+  (aj.asistente.hechos || []).forEach(function (n) { manuales[n] = true; });
+  var auto = {
+    1: roster.length > 0,                                     // equipo con al menos una persona
+    2: !!(aj.forms.dailyUrl && aj.forms.weeklyUrl),           // ambos formularios creados
+    4: !!(aj.leader && aj.leader.email),                      // líder con correo
+    5: aj.brain.enabled,                                      // memoria activada
+    6: aj.meet.enabled,                                       // notas de Meet activadas
+    7: aj.briefing.enabled                                    // briefing activado
+  };
+  var pasos = [];
+  for (var id = 1; id <= 8; id++) {
+    pasos.push({
+      id: id,
+      manual: !!ASISTENTE_PASOS_MANUALES_[id],
+      hecho: ASISTENTE_PASOS_MANUALES_[id] ? !!manuales[id] : !!auto[id]
+    });
+  }
+  return { pasos: pasos };
+}
+
+/** Marca/desmarca un paso MANUAL de la guía (los auto-detectados no se pueden fingir). Público. */
+function marcarPasoAsistente(sheetId, config, id, hecho) {
+  var n = parseInt(id, 10);
+  if (!ASISTENTE_PASOS_MANUALES_[n]) {
+    throw new Error('Ese paso se marca solo cuando lo completes de verdad.');
+  }
+  var aj = getAjustes_(sheetId, config.sheets.settings);
+  var set = {};
+  (aj.asistente.hechos || []).forEach(function (x) { set[x] = true; });
+  if (hecho) set[n] = true; else delete set[n];
+  setAjustes_(sheetId, config.sheets.settings, {
+    'asistente.hechos': Object.keys(set).map(Number).sort().join(',')
+  });
+  return { ok: true };
+}
+
+/** Abre la Guía como diálogo MODELESS: el líder puede seguir usando la hoja. Público. */
+function abrirGuia(sheetId, config) {
+  var d = buildDialog('asistente');
+  SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
+  return { ok: true };
+}
+
+/**
+ * "Llévame ahí" de la guía: abre el sidebar o un modal registrado. OJO: Sheets solo permite un
+ * diálogo a la vez — abrir un modal cierra la guía (el sidebar sí convive). Público.
+ */
+function abrirDesdeAsistente(sheetId, config, destino) {
+  var ui = SpreadsheetApp.getUi();
+  if (destino === 'sidebar') { ui.showSidebar(buildSidebar()); return { ok: true }; }
+  var d = buildDialog(destino);
+  ui.showModalDialog(d.html, d.titulo);
+  return { ok: true };
+}
 
 /**
  * Construye un diálogo modal por nombre. El stub lo muestra con showModalDialog.
@@ -160,6 +230,11 @@ var DISPATCH_ = {
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
   diagnosticarWiki:        function (sid, cfg, a) { return diagnosticarWiki(sid, cfg); },
   repararWiki:             function (sid, cfg, a) { return repararWiki(sid, cfg); },
+  // Guía del CoS (onboarding modeless)
+  cargarAsistente:         function (sid, cfg, a) { return cargarAsistente(sid, cfg); },
+  marcarPasoAsistente:     function (sid, cfg, a) { return marcarPasoAsistente(sid, cfg, a[0], a[1]); },
+  abrirGuia:               function (sid, cfg, a) { return abrirGuia(sid, cfg); },
+  abrirDesdeAsistente:     function (sid, cfg, a) { return abrirDesdeAsistente(sid, cfg, a[0]); },
   // Mi seguimiento (modal del líder): lectura + mutadores de la hoja Tareas + foco manual.
   cargarMiSeguimiento:     function (sid, cfg, a) { return cargarMiSeguimiento(sid, cfg); },
   crearTarea:              function (sid, cfg, a) { return crearTarea(sid, cfg, a[0]); },

@@ -211,6 +211,26 @@ test('la timeline agrega people + projects, en ventana, orden descendente y con 
   assert.ok(!data.actividad.some((i) => /Prehistoria/.test(i.texto)), 'fuera de ventana');
 });
 
+test('cumplimiento y racha respetan los días de Daily elegidos (schedule.dailyDias)', () => {
+  // Equipo que reporta SOLO lunes-miércoles-viernes: martes y jueves no pueden castigar.
+  const h = segHarness({
+    ajustes: [['schedule.dailyDias', '1,3,5']],
+    daily: (() => {
+      const filas = [];
+      for (let i = 13; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 86400000);
+        const dow = ((d.getDay() + 6) % 7) + 1;
+        if ([1, 3, 5].indexOf(dow) > -1) filas.push([d, 'ada@x.com', 'ok']);   // reporta TODOS sus días
+      }
+      return filas;
+    })()
+  });
+  const data = cargar(h, 7);
+  const ada = personaDe(data, 'Ada Lovelace');
+  assert.equal(ada.cumplimiento, 100, 'reportó todos sus días de Daily → 100% (los martes/jueves no restan)');
+  assert.ok(ada.racha >= 2, 'la racha tampoco se corta en los días sin Daily');
+});
+
 test('cargarSeguimiento cachea por ventana y resolverPendiente invalida', () => {
   const h = segHarness();
   const config = h.api.construirConfig('SID', CONFIG);

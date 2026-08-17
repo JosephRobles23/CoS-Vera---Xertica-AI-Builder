@@ -63,6 +63,62 @@ test('menuAction(\'cosMenu1\') abre el modal de preguntas con showModalDialog', 
   assert.match(h.uiCalls[0].titulo, /Preguntas/);
 });
 
+// --- Guía del CoS (asistente modeless) ---
+
+test('cargarAsistente auto-detecta los pasos contra el estado REAL de la copia', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: {
+    Ajustes: [['key', 'value'],
+      ['forms.dailyUrl', 'https://d'], ['forms.weeklyUrl', 'https://w'],
+      ['leader.email', 'lider@x.com'], ['brain.enabled', 'true']],
+    Equipo: [['Nombre', 'Correo', 'Rol'], ['Ada', 'ada@x.com', 'Dev']]
+  } } });
+  const d = JSON.parse(JSON.stringify(h.api.cargarAsistente(SID, config)));
+
+  const porId = {};
+  d.pasos.forEach((p) => { porId[p.id] = p; });
+  assert.equal(porId[1].hecho, true, 'equipo con gente');
+  assert.equal(porId[2].hecho, true, 'ambos forms creados');
+  assert.equal(porId[4].hecho, true, 'líder con correo');
+  assert.equal(porId[5].hecho, true, 'memoria activa');
+  assert.equal(porId[6].hecho, false, 'meet apagado');
+  assert.equal(porId[7].hecho, false, 'briefing apagado');
+  assert.deepEqual([porId[3].manual, porId[8].manual], [true, true], 'solo 3 y 8 son manuales');
+  assert.deepEqual([porId[3].hecho, porId[8].hecho], [false, false]);
+});
+
+test('marcarPasoAsistente persiste los manuales y rechaza fingir los automáticos', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: {
+    Ajustes: [['key', 'value']],
+    Equipo: [['Nombre', 'Correo', 'Rol']]
+  } } });
+  h.api.marcarPasoAsistente(SID, config, 3, true);
+  h.api.marcarPasoAsistente(SID, config, 8, true);
+  let d = JSON.parse(JSON.stringify(h.api.cargarAsistente(SID, config)));
+  assert.deepEqual(d.pasos.filter((p) => p.hecho).map((p) => p.id), [3, 8]);
+
+  h.api.marcarPasoAsistente(SID, config, 8, false);   // desmarcar también funciona
+  d = JSON.parse(JSON.stringify(h.api.cargarAsistente(SID, config)));
+  assert.deepEqual(d.pasos.filter((p) => p.hecho).map((p) => p.id), [3]);
+
+  assert.throws(() => h.api.marcarPasoAsistente(SID, config, 5, true), /se marca solo/);
+});
+
+test('abrirGuia usa diálogo MODELESS y abrirDesdeAsistente rutea sidebar/modales', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: { Ajustes: [['key', 'value']] } } });
+  h.api.abrirGuia(SID, config);
+  assert.equal(h.uiCalls[0].kind, 'modeless', 'la guía NO bloquea la hoja');
+  assert.equal(h.uiCalls[0].html._file, 'DialogAsistente');
+
+  h.api.abrirDesdeAsistente(SID, config, 'sidebar');
+  assert.equal(h.uiCalls[1].kind, 'sidebar');
+  h.api.abrirDesdeAsistente(SID, config, 'briefing');
+  assert.equal(h.uiCalls[2].kind, 'modal');
+  assert.equal(h.uiCalls[2].html._file, 'DialogBriefing');
+
+  const viaDispatch = JSON.parse(JSON.stringify(h.api.dispatch('cargarAsistente', [], SID, config)));
+  assert.equal(viaDispatch.pasos.length, 8, 'dispatch enruta la guía');
+});
+
 test('menuAction lanza si el slot no tiene acción asignada', () => {
   // cosMenu1..5 ya están todos asignados: un slot inexistente cae por el mismo camino.
   const { api } = makeHarness();

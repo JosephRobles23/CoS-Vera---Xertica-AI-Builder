@@ -102,6 +102,11 @@
     .row2 { display: flex; gap: 10px; align-items: flex-end; }
     .row2 > * { flex: 1; min-width: 0; }
     .chk { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .dias-sel { display: flex; gap: 4px; margin: 4px 0 6px; }
+    .dias-sel span { width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px;
+      display: grid; place-items: center; font-size: 11px; font-weight: 600;
+      color: var(--muted-foreground); cursor: pointer; user-select: none; }
+    .dias-sel span.on { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
     .chk input[type="checkbox"] { width: auto; margin: 0; flex: 0 0 auto; }
     .wiki-item { display: flex; align-items: center; gap: 6px; justify-content: space-between; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); margin: 6px 0; }
     .wiki-item .meta { min-width: 0; }
@@ -160,7 +165,9 @@
 <body>
   <div class="app-header">
     <div class="logo"><i data-lucide="briefcase"></i></div>
-    <div><h1>Chief of Staff</h1><p>Configuración CLEVEL-REPORTS</p></div>
+    <div style="flex:1"><h1>Chief of Staff</h1><p>Configuración CLEVEL-REPORTS</p></div>
+    <button class="btn btn-outline" style="flex:0 0 auto" title="Guía paso a paso (no bloquea la hoja)"
+      onclick="abrirGuiaUI()"><i data-lucide="compass"></i> Guía</button>
   </div>
 
   <nav>
@@ -210,28 +217,32 @@
       </optgroup>
     </select>
     <p class="hint">Las horas de abajo se interpretan en esta zona.</p>
-    <label>Invitación Daily (L–V)</label>
+    <label>Días del Daily</label>
+    <div class="dias-sel" id="diasDaily"></div>
+    <label>Invitación Daily</label>
     <div class="tp" id="tp_h_daily">
       <button type="button" class="tp-trigger" onclick="toggleTP(event,'h_daily')">
         <i class="tp-clock" data-lucide="clock"></i><span class="tp-val" id="tpv_h_daily">--:--</span><i class="tp-caret" data-lucide="chevron-down"></i>
       </button>
       <div class="tp-pop"><div class="tp-col"></div><div class="tp-col"></div></div>
     </div>
-    <label>Invitación Weekly (viernes)</label>
+    <label>Días del Weekly</label>
+    <div class="dias-sel" id="diasWeekly"></div>
+    <label>Invitación Weekly</label>
     <div class="tp" id="tp_h_weekly">
       <button type="button" class="tp-trigger" onclick="toggleTP(event,'h_weekly')">
         <i class="tp-clock" data-lucide="clock"></i><span class="tp-val" id="tpv_h_weekly">--:--</span><i class="tp-caret" data-lucide="chevron-down"></i>
       </button>
       <div class="tp-pop"><div class="tp-col"></div><div class="tp-col"></div></div>
     </div>
-    <label>Cierre Daily (L–V)</label>
+    <label>Cierre Daily (mismos días)</label>
     <div class="tp" id="tp_h_closeDaily">
       <button type="button" class="tp-trigger" onclick="toggleTP(event,'h_closeDaily')">
         <i class="tp-clock" data-lucide="clock"></i><span class="tp-val" id="tpv_h_closeDaily">--:--</span><i class="tp-caret" data-lucide="chevron-down"></i>
       </button>
       <div class="tp-pop"><div class="tp-col"></div><div class="tp-col"></div></div>
     </div>
-    <label>Cierre Weekly (viernes)</label>
+    <label>Cierre Weekly (mismos días)</label>
     <div class="tp" id="tp_h_closeWeekly">
       <button type="button" class="tp-trigger" onclick="toggleTP(event,'h_closeWeekly')">
         <i class="tp-clock" data-lucide="clock"></i><span class="tp-val" id="tpv_h_closeWeekly">--:--</span><i class="tp-caret" data-lucide="chevron-down"></i>
@@ -275,7 +286,7 @@
 
     <div class="divider"></div>
     <h3>Notas de Meet (Gemini)</h3>
-    <label class="chk"><input type="checkbox" id="f_meet"> Indexar mis Notas de Gemini al brain</label>
+    <label class="chk"><input type="checkbox" id="f_meet" onchange="avisoGuardar(this, FLAGS_.meet, 'Guardar notas de Meet')"> Indexar mis Notas de Gemini al brain</label>
     <p class="hint">Cada hora busca notas nuevas — tuyas y las que te compartan — y las cruza con tu memoria. Requiere el second brain activo.</p>
     <button class="btn btn-primary" onclick="salvarFlagsMeet()"><i data-lucide="save"></i> Guardar notas de Meet</button>
 
@@ -285,7 +296,7 @@
       <label>¿Desde hace cuántos días?</label>
       <input id="m_dias" type="number" min="1" max="365" value="30">
       <div id="meetEstado" class="hint"></div>
-      <button class="btn btn-outline" onclick="iniciarImportNotasUI()"><i data-lucide="history"></i> Importar notas</button>
+      <button class="btn btn-outline" id="btnImportMeet" onclick="iniciarImportNotasUI()"><i data-lucide="history"></i> Importar notas</button>
       <button class="btn btn-outline" id="btnRetryMeet" style="display:none" onclick="reintentarNotasUI()"><i data-lucide="rotate-ccw"></i> Reintentar errores</button>
       <button class="btn btn-ghost" id="btnCancelMeet" style="display:none" onclick="cancelarImportNotasUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
     </div>
@@ -294,7 +305,7 @@
   <!-- BRAIN (second brain + gobernanza) -->
   <div id="brain" class="panel">
     <h3>Second brain</h3>
-    <label class="chk"><input type="checkbox" id="f_brain"> Activar memoria (ingesta de reportes)</label>
+    <label class="chk"><input type="checkbox" id="f_brain" onchange="avisoGuardar(this, FLAGS_.brain, 'Guardar memoria')"> Activar memoria (ingesta de reportes)</label>
     <div class="row2">
       <div><label>Días para marcar silencio</label><input id="f_silence" type="number" min="1"></div>
       <div><label>Retención del raw (meses)</label><input id="f_ret" type="number" min="1"></div>
@@ -305,7 +316,7 @@
     <h3>Importar histórico</h3>
     <p class="hint">Ingesta al brain las respuestas ya guardadas en Daily/Weekly (dentro de la retención). Corre en segundo plano; puedes cerrar el sidebar y el progreso se actualiza solo.</p>
     <div id="backfillEstado" class="hint"></div>
-    <button class="btn btn-outline" onclick="iniciarBackfillUI()"><i data-lucide="history"></i> Importar</button>
+    <button class="btn btn-outline" id="btnBackfill" onclick="iniciarBackfillUI()"><i data-lucide="history"></i> Importar histórico</button>
     <button class="btn btn-ghost" id="btnCancelBackfill" style="display:none" onclick="cancelarBackfillUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
 
     <div class="divider"></div>
@@ -375,6 +386,36 @@
 
     var state = { equipo: [], promptDefaults: {} };
     var times = { h_daily: '', h_weekly: '', h_closeDaily: '', h_closeWeekly: '' };
+
+    // Días del Daily/Weekly (mismo selector que el Morning Briefing). ISO 1=lun … 7=dom.
+    var DIAS_LBL_ = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    var DIAS_SEL_ = { daily: [1, 2, 3, 4, 5], weekly: [5] };
+    function pintarDiasSel() {
+      ['daily', 'weekly'].forEach(function (tipo) {
+        var cont = g(tipo === 'daily' ? 'diasDaily' : 'diasWeekly');
+        if (!cont) return;
+        cont.innerHTML = DIAS_LBL_.map(function (lbl, i) {
+          var d = i + 1;
+          return '<span class="' + (DIAS_SEL_[tipo].indexOf(d) > -1 ? 'on' : '') +
+            '" onclick="toggleDiaSel(\'' + tipo + '\',' + d + ')">' + lbl + '</span>';
+        }).join('');
+      });
+    }
+    function toggleDiaSel(tipo, d) {
+      var arr = DIAS_SEL_[tipo];
+      var i = arr.indexOf(d);
+      if (i > -1) {
+        if (arr.length === 1) { toast('Deja al menos un día para el ' + (tipo === 'daily' ? 'Daily' : 'Weekly')); return; }
+        arr.splice(i, 1);
+      } else arr.push(d);
+      pintarDiasSel();
+    }
+
+    // Flags guardados (para el gating de los importadores) + recordatorio de guardar.
+    var FLAGS_ = { brain: false, meet: false };
+    function avisoGuardar(chk, guardado, boton) {
+      if (chk.checked && !guardado) toast('✨ Marcado. Presiona "' + boton + '" para activarlo.');
+    }
 
     function g(id) { return document.getElementById(id); }
     function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
@@ -464,6 +505,9 @@
       var h = cfg.horarios || {};
       setTime('h_daily', h.invitesDaily); setTime('h_weekly', h.invitesWeekly);
       setTime('h_closeDaily', h.closeDaily); setTime('h_closeWeekly', h.closeWeekly);
+      DIAS_SEL_.daily = (h.dailyDias && h.dailyDias.length) ? h.dailyDias.slice() : [1, 2, 3, 4, 5];
+      DIAS_SEL_.weekly = (h.weeklyDias && h.weeklyDias.length) ? h.weeklyDias.slice() : [5];
+      pintarDiasSel();
       setTZ(cfg.timezone);
       var l = cfg.leader || {};
       g('l_name').value = l.name || ''; g('l_email').value = l.email || '';
@@ -474,6 +518,8 @@
       g('f_deep').checked = !!fl.deepPrepEnabled;
       g('f_lead').value = fl.leadHours || 3;
       g('f_meet').checked = !!fl.meetEnabled;
+      FLAGS_.brain = !!fl.brainEnabled;
+      FLAGS_.meet = !!fl.meetEnabled;
       g('m_dias').value = fl.meetLookbackDays || 30;
       renderEquipo(); icons();
     }).catch(function (e) { toast('Error al cargar: ' + e.message, 'triangle-alert'); });
@@ -539,6 +585,7 @@
       var horarios = {
         invitesDaily: getTime('h_daily'), invitesWeekly: getTime('h_weekly'),
         closeDaily: getTime('h_closeDaily'), closeWeekly: getTime('h_closeWeekly'),
+        dailyDias: DIAS_SEL_.daily, weeklyDias: DIAS_SEL_.weekly,
         timezone: g('tz').value
       };
       var leader = { name: g('l_name').value, email: g('l_email').value };
@@ -593,23 +640,44 @@
     var _meetPoll = null;
     function salvarFlagsMeet() {
       runB('guardarFlags')({ 'meet.enabled': g('f_meet').checked, 'meet.lookbackDays': g('m_dias').value })
-        .then(function () { toast('Notas de Meet guardadas'); })
+        .then(function () {
+          FLAGS_.meet = g('f_meet').checked;
+          toast(FLAGS_.meet ? '🎥 Notas de Meet activadas — ya puedes importar las anteriores' : 'Notas de Meet guardadas');
+          refrescarMeet();
+        })
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
-    function pintarMeet(st) {
-      var el = g('meetEstado'), btnC = g('btnCancelMeet');
+    // Frases en lenguaje del líder, no del sistema ("guardé X notas en la memoria", no "X indexadas").
+    function fraseMeet(st) {
       if (st.status === 'running') {
-        el.textContent = 'Importando… ' + st.ok + '/' + st.total + ' notas · ' + st.sinAcceso +
-          ' sin acceso · ' + st.errores + ' errores.';
-        btnC.style.display = '';
-      } else if (st.status === 'done') {
-        el.textContent = 'Importación completa: ' + st.ok + ' indexadas · ' + st.sinAcceso +
-          ' sin acceso · ' + st.errores + ' errores. La pasada horaria sigue sola.';
-        btnC.style.display = 'none';
-      } else {
-        el.textContent = st.enabled ? 'Sin importación en curso.' : 'Activa y guarda el flag para poder importar.';
-        btnC.style.display = 'none';
+        return 'Estoy leyendo tus notas de reuniones… ' + st.ok + ' de ' + st.total + ' guardadas en la memoria. Puedes cerrar esta ventana: sigo solo.';
       }
+      if (st.status === 'done') {
+        var partes = ['Listo ✅ Guardé ' + st.ok + ' nota(s) de reuniones en la memoria.'];
+        if (parseInt(st.sinAcceso, 10) > 0) partes.push('A ' + st.sinAcceso + ' no pude entrar (pide que te compartan esos documentos y mañana lo reintento).');
+        if (parseInt(st.errores, 10) > 0) partes.push(st.errores + ' no se pudieron procesar — usa "Reintentar errores".');
+        partes.push('De aquí en adelante reviso yo cada hora, automáticamente.');
+        return partes.join(' ');
+      }
+      return 'Elige cuántos días hacia atrás quieres que mire y presiona "Importar notas".';
+    }
+    function pintarMeet(st) {
+      var el = g('meetEstado'), btnC = g('btnCancelMeet'), btnI = g('btnImportMeet');
+      // Gating: importar exige la memoria Y las notas de Meet activadas Y guardadas.
+      var puede = FLAGS_.brain && FLAGS_.meet && !!st.enabled;
+      btnI.disabled = !puede;
+      if (!puede) {
+        el.innerHTML = !FLAGS_.brain
+          ? 'Para importar, primero activa la <b>memoria</b> (arriba) y presiona "Guardar memoria".'
+          : 'Para importar, marca <b>"Indexar mis Notas de Gemini"</b> y presiona "Guardar notas de Meet".';
+        btnC.style.display = 'none';
+        g('btnRetryMeet').style.display = 'none';
+        if (_meetPoll) { clearInterval(_meetPoll); _meetPoll = null; }
+        icons();
+        return;
+      }
+      el.textContent = fraseMeet(st);
+      btnC.style.display = st.status === 'running' ? '' : 'none';
       // Reintento: solo cuando el import terminó dejando errores (limpia guardas meet y relanza).
       g('btnRetryMeet').style.display =
         (st.status === 'done' && parseInt(st.errores, 10) > 0) ? '' : 'none';
@@ -622,10 +690,10 @@
     }
     function reintentarNotasUI() {
       var dias = parseInt(g('m_dias').value, 10) || 30;
-      if (!confirm('Se limpiarán las marcas de las notas de Meet (fallidas y procesadas: la re-ingesta no duplica) y se relanzará la importación de los últimos ' + dias + ' días. ¿Continuar?')) return;
+      if (!confirm('Voy a reintentar las notas que no se pudieron procesar (los últimos ' + dias + ' días). No se duplica nada. ¿Continuar?')) return;
       runB('limpiarGuardasMeet')().then(function () {
         return runB('iniciarImportNotas')(dias);
-      }).then(function (r) { toast('Reintento iniciado'); pintarMeet(r); })
+      }).then(function (r) { toast('Reintentando las que fallaron…'); pintarMeet(r); })
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function refrescarMeet() {
@@ -637,9 +705,9 @@
       runB('estadoImportNotas')(dias).then(function (st) {
         if (st.status === 'running') { toast('La importación ya está corriendo'); pintarMeet(st); return; }
         var n = (st.plan && st.plan.pendientes) || 0;
-        if (!n) { toast('No hay notas nuevas en los últimos ' + dias + ' días', 'triangle-alert'); pintarMeet(st); return; }
-        if (!confirm('Se indexarán ~' + n + ' nota(s) de los últimos ' + dias + ' días. Corre en segundo plano. ¿Continuar?')) return;
-        runB('iniciarImportNotas')(dias).then(function (r) { toast('Importación iniciada'); pintarMeet(r); })
+        if (!n) { toast('No encontré notas de reuniones nuevas en los últimos ' + dias + ' días', 'triangle-alert'); pintarMeet(st); return; }
+        if (!confirm('Encontré ' + n + ' nota(s) de reuniones de los últimos ' + dias + ' días.\n\nVoy a leerlas y guardarlas en tu memoria del equipo. Tarda unos minutos y corre en segundo plano: puedes cerrar esta ventana.\n\n¿Empezamos?')) return;
+        runB('iniciarImportNotas')(dias).then(function (r) { toast('¡Voy en ello! Te muestro el avance aquí mismo'); pintarMeet(r); })
           .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
       }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
@@ -678,27 +746,40 @@
         'brain.enabled': g('f_brain').checked,
         'brain.silenceDays': g('f_silence').value,
         'brain.retentionMonths': g('f_ret').value
-      }).then(function () { toast('Memoria guardada'); })
-        .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+      }).then(function () {
+        FLAGS_.brain = g('f_brain').checked;
+        toast(FLAGS_.brain ? '🧠 Memoria activada — ya puedes importar tu histórico' : 'Memoria guardada');
+        refrescarBackfill(); refrescarMeet();
+      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     // --- Backfill del histórico (importar Daily/Weekly existentes al brain) ---
     // Mientras el job esté running, el panel se auto-refresca cada 45 s (el trabajo real lo hace
     // el dispatcher en el servidor; esto es solo el visor). El timer se apaga solo al terminar.
     var _bfPoll = null;
     function pintarBackfill(st) {
-      var el = g('backfillEstado'), btnC = g('btnCancelBackfill');
+      var el = g('backfillEstado'), btnC = g('btnCancelBackfill'), btnB = g('btnBackfill');
+      // Gating: el histórico solo se puede importar con la memoria activada y guardada.
+      btnB.disabled = !FLAGS_.brain;
+      if (!FLAGS_.brain) {
+        el.innerHTML = 'Para importar tus reportes antiguos, primero activa la <b>memoria</b> (arriba) y presiona "Guardar memoria".';
+        btnC.style.display = 'none';
+        if (_bfPoll) { clearInterval(_bfPoll); _bfPoll = null; }
+        icons();
+        return;
+      }
       if (st.status === 'running') {
-        el.textContent = 'Importando en segundo plano… ' + st.ok + '/' + st.total + ' filas · ' +
-          st.saltadas + ' saltadas · ' + st.errores + ' errores.';
+        el.textContent = 'Estoy guardando tus reportes antiguos en la memoria… ' + st.ok + ' de ' + st.total + '. Puedes cerrar esta ventana: sigo solo.';
         btnC.style.display = '';
       } else if (st.status === 'done') {
-        el.textContent = 'Importación completa: ' + st.ok + ' ingestadas · ' + st.saltadas +
-          ' saltadas · ' + st.errores + ' errores.';
+        var partes = ['Listo ✅ Guardé ' + st.ok + ' reporte(s) antiguos en la memoria.'];
+        if (parseInt(st.saltadas, 10) > 0) partes.push(st.saltadas + ' se saltaron (muy antiguos, de personas fuera del equipo o vacíos — es normal).');
+        if (parseInt(st.errores, 10) > 0) partes.push(st.errores + ' no se pudieron procesar.');
+        el.textContent = partes.join(' ');
         btnC.style.display = 'none';
       } else {
         el.textContent = (st.plan && st.plan.elegibles)
-          ? 'Histórico disponible: ' + st.plan.elegibles + ' filas dentro de la retención.'
-          : 'No hay histórico pendiente de importar.';
+          ? 'Tienes ' + st.plan.elegibles + ' reporte(s) antiguos listos para guardar en la memoria.'
+          : 'No hay reportes antiguos pendientes: la memoria ya está al día.';
         btnC.style.display = 'none';
       }
       if (st.status === 'running') {
@@ -718,11 +799,12 @@
         var p = st.plan || {};
         if (!p.elegibles) { toast('No hay filas para importar', 'triangle-alert'); pintarBackfill(st); return; }
         var saltadas = (p.fueraRetencion || 0) + (p.fueraRoster || 0) + (p.vacias || 0);
-        var msg = 'Se ingestarán ~' + p.elegibles + ' filas' +
-          (saltadas ? ' (' + saltadas + ' se saltarán: fuera de retención, fuera del equipo o vacías)' : '') +
-          '.\nCorre en segundo plano (~' + (Math.ceil(p.elegibles / 25) * 5) + ' min). ¿Continuar?';
+        var msg = 'Encontré ' + p.elegibles + ' reporte(s) antiguos de tu equipo' +
+          (saltadas ? ' (' + saltadas + ' se saltarán: muy antiguos, de personas fuera del equipo o vacíos)' : '') +
+          '.\n\nVoy a guardarlos en tu memoria para que el Seguimiento y los briefings tengan historia. Tarda ~' +
+          (Math.ceil(p.elegibles / 25) * 5) + ' min y corre en segundo plano.\n\n¿Empezamos?';
         if (!confirm(msg)) return;
-        runB('iniciarBackfill')().then(function (r) { toast('Importación iniciada'); pintarBackfill(r); })
+        runB('iniciarBackfill')().then(function (r) { toast('¡Voy en ello! Te muestro el avance aquí mismo'); pintarBackfill(r); })
           .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
       }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
@@ -777,6 +859,10 @@
       runB('olvidarProyecto')(file).then(function () {
         toast('Proyecto olvidado'); cargarWiki();
       }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    // Guía del CoS: diálogo MODELESS (la hoja y este sidebar siguen usables con la guía abierta).
+    function abrirGuiaUI() {
+      runB('abrirGuia')().catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
     function diagnosticarWikiUI() {
       var el = g('wikiDiag'); el.textContent = 'Analizando…';

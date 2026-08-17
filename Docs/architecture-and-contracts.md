@@ -86,8 +86,9 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 |---|---|---|
 | Config del workflow (estático) | `workflows/CLEVEL-REPORTS/config.js` | Implemented |
 | Bootloader del stub (delegación + puente `cosRun` + triggers) | `workflows/CLEVEL-REPORTS/stub.js` | Implemented |
-| UI de la librería (menú, sidebar, diálogos, `dispatch`) | `shared/ui-runtime.js` | Implemented |
-| HTML del sidebar (5 paneles: Prompts · Horarios · Equipo · Reuniones · Brain) | `shared/Sidebar.html` | Implemented |
+| UI de la librería (menú, sidebar, diálogos, `dispatch`, Guía del CoS con pasos auto-detectados) | `shared/ui-runtime.js` | Implemented |
+| HTML del sidebar (5 paneles + botón 🧭 Guía, días de Daily/Weekly, gating de importadores con copy no técnico) | `shared/Sidebar.html` | Implemented |
+| HTML de la Guía del CoS (onboarding MODELESS: checklist de 8 pasos, dependencias, auto-refresco 45s) | `shared/DialogAsistente.html` | Implemented |
 | HTML del modal de preguntas y formularios | `shared/DialogPreguntas.html` | Implemented |
 | Instalación de triggers | `workflows/CLEVEL-REPORTS/triggers.js` | Implemented |
 | Bridge único con Gemini (incl. `responseSchema`) | `shared/gemini-runtime.js` | Implemented |
@@ -119,10 +120,10 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Web App de follow-up (tokens un-solo-uso, GET nunca muta, 4 acciones + deshacer, higiene) | `shared/webapp-runtime.js` | Implemented |
 | HTML del modal Compartir reportes | `shared/DialogCompartir.html` | Implemented |
 | Mock harness de GAS para tests | `tests/gas-harness.mjs` | Implemented |
-| Tests de contrato compartido | `tests/shared.test.mjs` | Implemented (39 tests) |
+| Tests de contrato compartido (incluye días configurables de Daily/Weekly) | `tests/shared.test.mjs` | Implemented (42 tests) |
 | Tests del workflow (settings/forms/consolidado) | `tests/clevel-reports.test.mjs` | Implemented (33 tests) |
 | Tests de generación de preguntas por IA | `tests/forms-ai-runtime.test.mjs` | Implemented (13 tests) |
-| Tests de UI (menú, diálogos, `dispatch`) | `tests/ui-runtime.test.mjs` | Implemented (9 tests) |
+| Tests de UI (menú, diálogos, `dispatch`, Guía del CoS) | `tests/ui-runtime.test.mjs` | Implemented (12 tests) |
 | Tests del second brain — IO en Drive | `tests/brain-drive-runtime.test.mjs` | Implemented (16 tests) |
 | Tests del second brain — ingesta por fila (incluye compuerta + enum + dedup) | `tests/brain-ingest-runtime.test.mjs` | Implemented (20 tests) |
 | Tests del second brain — scan de silencios (dispatcher) | `tests/brain-silences-runtime.test.mjs` | Implemented (6 tests) |
@@ -131,7 +132,7 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (17 tests) |
 | Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
-| Tests del Seguimiento del equipo (incluye cache) | `tests/seguimiento-runtime.test.mjs` | Implemented (16 tests) |
+| Tests del Seguimiento del equipo (incluye cache y cumplimiento por días elegidos) | `tests/seguimiento-runtime.test.mjs` | Implemented (17 tests) |
 | Tests de Mi seguimiento (carga, Nivel 0, mutadores, foco, higiene, migración R3, índice R2, fecha real de creación, cache, ruteo) | `tests/miseguimiento-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de la Web App de follow-up | `tests/webapp-runtime.test.mjs` | Implemented (14 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |

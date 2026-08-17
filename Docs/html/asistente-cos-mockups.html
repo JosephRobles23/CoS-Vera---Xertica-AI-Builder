@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta del Asistente del CoS</title>
+<style>
+  /* ---- Design tokens del CoS (shadcn / Neutral, OKLCH) — tema claro FIJO como el producto ---- */
+  :root {
+    --background: oklch(1 0 0); --foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0); --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0); --primary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.97 0 0); --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0); --border: oklch(0.922 0 0); --ring: oklch(0.708 0 0);
+    --radius: 0.625rem; --radius-sm: calc(var(--radius) - 4px);
+    --shadow: 0 1px 2px 0 oklch(0 0 0 / 0.05); --shadow-md: 0 4px 16px -4px oklch(0 0 0 / 0.18);
+    --shadow-lg: 0 12px 40px -8px oklch(0 0 0 / 0.28);
+    --verde: #16A34A; --ambar: #D97706;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { background: #E8EAED; }
+  body { font-family: 'Inter', -apple-system, system-ui, sans-serif; color: var(--foreground);
+    font-size: 13px; line-height: 1.5; min-height: 100vh; overflow-x: hidden; }
+
+  /* ---- Fondo: una hoja de Sheets falsa, VIVA (el punto del modeless) ---- */
+  .sheet-fake { position: fixed; inset: 0; background: #fff; }
+  .sheet-fake .barra { height: 64px; background: #fff; border-bottom: 1px solid #E0E0E0; display: flex; align-items: center; padding: 0 16px; gap: 10px; }
+  .sheet-fake .barra b { font-size: 15px; color: #202124; }
+  .sheet-fake .menu { font-size: 12px; color: #444; display: flex; gap: 14px; }
+  .sheet-fake .grid { position: absolute; inset: 64px 0 0 0;
+    background-image: linear-gradient(#E8EAED 1px, transparent 1px), linear-gradient(90deg, #E8EAED 1px, transparent 1px);
+    background-size: 96px 24px; }
+  .sheet-fake .celda-viva { position: absolute; top: 112px; left: 97px; width: 190px; height: 24px;
+    border: 2px solid #1A73E8; background: #fff; font-size: 11px; padding: 2px 4px; color: #202124; }
+  .sheet-nota { position: fixed; left: 20px; bottom: 16px; background: var(--popover); border: 1px dashed var(--border);
+    border-radius: var(--radius); padding: 8px 12px; font-size: 11px; color: var(--muted-foreground); max-width: 380px; box-shadow: var(--shadow-md); }
+  .sheet-nota b { color: var(--foreground); }
+
+  /* ---- El Asistente (dialogo modeless flotante) ---- */
+  .asistente {
+    position: fixed; right: 26px; top: 84px; width: 420px; max-height: calc(100vh - 120px);
+    background: var(--background); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: var(--shadow-lg); display: flex; flex-direction: column; overflow: hidden;
+  }
+  .as-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+  .as-head .fila1 { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .as-head b { font-size: 15px; letter-spacing: -0.01em; }
+  .as-head p { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; max-width: 40ch; }
+  .cerrar { border: 1px solid var(--border); background: var(--background); color: var(--muted-foreground);
+    border-radius: var(--radius-sm); width: 26px; height: 26px; cursor: pointer; font-size: 13px; flex: 0 0 auto; }
+  .cerrar:hover { background: var(--accent); }
+
+  .progreso { margin-top: 12px; }
+  .progreso .track { height: 8px; background: var(--muted); border-radius: 999px; overflow: hidden; }
+  .progreso .fill { height: 8px; border-radius: 999px; background: var(--verde); transition: width .35s ease; }
+  .progreso small { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted-foreground); margin-top: 5px; }
+  .progreso small b { color: var(--foreground); font-variant-numeric: tabular-nums; }
+
+  .as-cuerpo { overflow-y: auto; padding: 10px 12px 12px; flex: 1; }
+
+  /* Paso (accordion) */
+  .paso { border: 1px solid var(--border); border-radius: var(--radius); margin: 6px 0; background: var(--background); overflow: hidden; }
+  .paso.hecho { background: color-mix(in oklab, #DCFCE7 26%, white); border-color: #BBF7D0; }
+  .paso.bloq { opacity: .72; }
+  .paso-h { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; user-select: none; }
+  .paso-h .num { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; background: var(--muted); color: var(--muted-foreground); }
+  .paso.hecho .paso-h .num { background: var(--verde); color: #fff; }
+  .paso-h .tit { flex: 1; min-width: 0; }
+  .paso-h .tit b { font-size: 12.5px; display: block; }
+  .paso-h .tit small { font-size: 10.5px; color: var(--muted-foreground); }
+  .paso-h .chev { color: var(--muted-foreground); transition: transform .15s; font-size: 12px; }
+  .paso.abierto .paso-h .chev { transform: rotate(90deg); }
+  .badge-estado { font-size: 9px; font-weight: 700; letter-spacing: .05em; border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+  .e-hecho { background: #DCFCE7; color: #166534; }
+  .e-pend { background: #FEF3C7; color: #92400E; }
+  .e-bloq { background: var(--muted); color: var(--muted-foreground); }
+
+  .paso-cuerpo { display: none; padding: 0 12px 12px 48px; }
+  .paso.abierto .paso-cuerpo { display: block; }
+  .paso-cuerpo p { font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px; }
+  .paso-cuerpo p b { color: var(--foreground); }
+  .quehacer { border-left: 2px solid var(--border); padding-left: 10px; margin: 8px 0; }
+  .quehacer li { font-size: 11.5px; color: var(--muted-foreground); margin: 4px 0 4px 14px; }
+  .paso-acts { display: flex; gap: 8px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: var(--radius-sm);
+    cursor: pointer; font: inherit; font-size: 11px; font-weight: 600; padding: 6px 12px; }
+  .btn-primary { background: var(--primary); color: var(--primary-foreground); }
+  .btn-outline { background: var(--background); color: var(--foreground); border: 1px solid var(--border); }
+  .btn-outline:hover { background: var(--accent); }
+  .hecho-chk { font-size: 10.5px; color: var(--muted-foreground); display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+
+  .as-foot { border-top: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--muted); }
+  .as-foot small { font-size: 10.5px; color: var(--muted-foreground); }
+  .as-foot label { font-size: 10.5px; color: var(--muted-foreground); display: flex; gap: 5px; align-items: center; cursor: pointer; }
+
+  .festejo { position: fixed; right: 40px; top: 70px; font-size: 26px; opacity: 0; pointer-events: none; transition: all .6s ease; }
+  .festejo.ver { opacity: 1; transform: translateY(14px); }
+
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; background: var(--popover);
+    border: 1px solid var(--border); box-shadow: var(--shadow-md); border-radius: var(--radius);
+    padding: 9px 16px; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 9; }
+  #toast.ver { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- Fondo: la hoja sigue VIVA (esto es lo que da showModelessDialog) -->
+<div class="sheet-fake">
+  <div class="barra"><span style="font-size:20px">📊</span><b>CoS — Mi copia</b>
+    <div class="menu"><span>Archivo</span><span>Editar</span><span>Ver</span><span>Insertar</span><span><b>CoS</b></span></div>
+  </div>
+  <div class="grid"></div>
+  <input class="celda-viva" value="← puedes seguir escribiendo aquí" onfocus="this.select()">
+</div>
+<div class="sheet-nota">💡 <b>El fondo no se bloquea</b>: este asistente usa un diálogo <i>modeless</i> —
+puedes editar la hoja, abrir el menú CoS y seguir la guía al mismo tiempo. Prueba a hacer clic en la celda azul.</div>
+
+<!-- ============ EL ASISTENTE ============ -->
+<div class="asistente" id="asistente">
+  <div class="as-head">
+    <div class="fila1">
+      <div>
+        <b>👋 ¡Hola! Soy tu asistente del CoS</b>
+        <p>Te acompaño paso a paso para dejar todo funcionando. Ve a tu ritmo — guardo tu avance y puedes cerrarme cuando quieras.</p>
+      </div>
+      <button class="cerrar" title="Cerrar (vuelve desde el menú CoS)" onclick="toast('Se cierra; se reabre desde el menú CoS → 🧭 Guía')">✕</button>
+    </div>
+    <div class="progreso">
+      <div class="track"><div class="fill" id="barra" style="width:0%"></div></div>
+      <small><span id="progTxt"></span><b id="progPct"></b></small>
+    </div>
+  </div>
+
+  <div class="as-cuerpo" id="pasos"></div>
+
+  <div class="as-foot">
+    <small>Puedes reabrirme cuando quieras:<br>menú <b>CoS → 🧭 Guía del CoS</b></small>
+    <label><input type="checkbox" onchange="toast(this.checked ? 'Ya no me abriré solo al inicio' : 'Volveré a saludarte al abrir la hoja')"> No abrir automáticamente</label>
+  </div>
+</div>
+<div class="festejo" id="festejo">🎉</div>
+<div id="toast" role="status"></div>
+
+<script>
+  // Estado mock: en producción cada paso se AUTO-DETECTA (equipo con filas, URLs de forms,
+  // correo del líder, flags guardados…) y el modal solo refleja la verdad — nada que marcar a mano
+  // salvo los pasos "de uso" (probar un modal). El check manual de la maqueta simula eso.
+  var PASOS = [
+    { icono: '👥', titulo: 'Cuéntame quién está en tu equipo', sub: 'Nombres y correos de quienes te reportan',
+      que: 'El CoS trabaja alrededor de tu equipo: a estas personas les llegarán los formularios de reporte y son a quienes verás en los tableros.',
+      hacer: ['Abre el menú <b>CoS → ⚙️ Configurar → Equipo</b>', 'Agrega a cada persona con su correo', 'Presiona "Guardar equipo"'],
+      destino: 'Configurar → Equipo', hecho: true },
+    { icono: '📝', titulo: 'Crea los formularios de reporte', sub: 'El daily y el semanal que responderá tu equipo',
+      que: 'Son las preguntas que tu equipo contesta en 2 minutos ("¿qué lograste?", "¿qué te bloquea?"). Con eso yo armo tus resúmenes — tú no lees formularios: lees mi resumen.',
+      hacer: ['Menú <b>CoS → 📝 Formularios</b>', 'Revisa las preguntas (o pídeme que las redacte por ti)', 'Presiona "Generar formularios"'],
+      destino: 'Formularios', hecho: true },
+    { icono: '🕒', titulo: 'Elige horarios y días', sub: '¿Qué días hay daily? ¿A qué hora llegan los resúmenes?',
+      que: 'Aquí decides el ritmo: qué días de la semana se pide el daily y el semanal, a qué hora se invita y a qué hora te llega el resumen consolidado. Todo en tu zona horaria.',
+      hacer: ['Menú <b>CoS → ⚙️ Configurar → Horarios</b>', 'Marca los días del Daily y del Weekly (L M X J V S D)', 'Ajusta las horas y presiona "Guardar horarios y líder"'],
+      destino: 'Configurar → Horarios', hecho: true },
+    { icono: '⭐', titulo: 'Dime quién eres tú', sub: 'Tu nombre y tu correo (ahí llegan los resúmenes)',
+      que: 'Los resúmenes del equipo, tu briefing de la mañana y las alertas llegan a este correo. Sin esto, trabajo mudo.',
+      hacer: ['En <b>Configurar → Horarios</b>, baja hasta "Líder"', 'Escribe tu nombre y correo', 'Guarda'],
+      destino: 'Configurar → Horarios', hecho: false },
+    { icono: '🧠', titulo: 'Enciende la memoria del equipo', sub: 'Recuerdo lo que pasa para que tú no tengas que hacerlo',
+      que: 'Con la memoria activa, cada reporte se guarda organizado por persona y por proyecto. Así puedo decirte "Carol lleva 9 días con este bloqueo" o armarte el contexto antes de una reunión. Sin memoria, cada día empieza de cero.',
+      hacer: ['Menú <b>CoS → ⚙️ Configurar → Brain</b>', 'Marca "Activar memoria" y presiona "Guardar memoria"', 'Luego usa "Importar histórico" para que recuerde lo que ya pasó'],
+      destino: 'Configurar → Brain', hecho: false },
+    { icono: '🎥', titulo: 'Conecta tus notas de reuniones', sub: 'Las notas que Gemini toma en tus Meet, directo a la memoria',
+      que: 'Si usas "Tomar notas con Gemini" en tus reuniones, yo las leo cada hora: los compromisos de tu equipo van a su seguimiento y los tuyos aparecen en tu lista de tareas. Cero copy-paste.',
+      hacer: ['En <b>Configurar → Brain</b>, marca "Indexar mis Notas de Gemini"', 'Presiona "Guardar notas de Meet"', 'Con "Importar notas" traigo también las reuniones pasadas'],
+      destino: 'Configurar → Brain', hecho: false, requiere: 4 },
+    { icono: '☀️', titulo: 'Activa tu resumen de la mañana', sub: 'Tu día en un correo: agenda, pendientes y lo urgente',
+      que: 'Cada mañana, antes de tu primera reunión, te mando un correo cortito: qué reuniones tienes, qué tareas vencen y qué está urgente en el equipo. Como un jefe de gabinete que llega antes que tú.',
+      hacer: ['Menú <b>CoS → ☀️ Morning Briefing</b>', 'Elige la hora y los días', 'Actívalo y guarda'],
+      destino: 'Morning Briefing', hecho: false },
+    { icono: '📊', titulo: 'Conoce tus dos tableros', sub: 'El del equipo y el tuyo personal',
+      que: '<b>👥 Seguimiento del equipo</b>: quién está al día, quién lleva días sin reportar, qué compromisos siguen abiertos. <b>🎯 Mi seguimiento</b>: TUS tareas (las que salen de tus reuniones y las que anotes), con tu agenda del día. Ábrelos una vez y quedan a un clic en el menú.',
+      hacer: ['Menú <b>CoS → 👥 Seguimiento del equipo</b>: mira la pestaña "Hoy"', 'Menú <b>CoS → 🎯 Mi seguimiento</b>: prueba "➕ Nueva" para anotar una tarea'],
+      destino: 'Seguimiento / Mi seguimiento', hecho: false }
+  ];
+  var abierto = 3;   // el primer pendiente arranca expandido
+
+  function esc(s) { return String(s); }   // el copy es nuestro (mock); en producción, escHtml
+  function toast(m) { var t = document.getElementById('toast'); t.textContent = m; t.classList.add('ver');
+    clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove('ver'); }, 2400); }
+
+  function bloqueado(p) { return p.requiere != null && !PASOS[p.requiere].hecho; }
+
+  function pintar() {
+    var hechos = PASOS.filter(function (p) { return p.hecho; }).length;
+    document.getElementById('barra').style.width = Math.round(hechos / PASOS.length * 100) + '%';
+    document.getElementById('progTxt').innerHTML = hechos === PASOS.length
+      ? '🎉 ¡Todo listo! Tu CoS está trabajando para ti.'
+      : '<b>' + hechos + '</b> de ' + PASOS.length + ' pasos listos';
+    document.getElementById('progPct').textContent = Math.round(hechos / PASOS.length * 100) + '%';
+
+    document.getElementById('pasos').innerHTML = PASOS.map(function (p, i) {
+      var bloq = bloqueado(p);
+      var badge = p.hecho ? '<span class="badge-estado e-hecho">Listo</span>'
+        : bloq ? '<span class="badge-estado e-bloq">🔒 Antes: paso ' + (p.requiere + 1) + '</span>'
+        : '<span class="badge-estado e-pend">Pendiente</span>';
+      return '<div class="paso' + (p.hecho ? ' hecho' : '') + (bloq ? ' bloq' : '') + (abierto === i ? ' abierto' : '') + '">' +
+        '<div class="paso-h" onclick="toggle(' + i + ')">' +
+          '<span class="num">' + (p.hecho ? '✓' : (i + 1)) + '</span>' +
+          '<span class="tit"><b>' + p.icono + ' ' + esc(p.titulo) + '</b><small>' + esc(p.sub) + '</small></span>' +
+          badge + '<span class="chev">▸</span>' +
+        '</div>' +
+        '<div class="paso-cuerpo">' +
+          '<p>' + p.que + '</p>' +
+          '<ul class="quehacer">' + p.hacer.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' +
+          '<div class="paso-acts">' +
+            (bloq ? '<button class="btn btn-outline" onclick="irA(' + p.requiere + ')">Ir al paso ' + (p.requiere + 1) + ' primero</button>'
+                  : '<button class="btn btn-primary" onclick="toast(\'Abriría: ' + esc(p.destino) + '\')">Llévame ahí →</button>') +
+            (!p.hecho && !bloq ? '<label class="hecho-chk"><input type="checkbox" onchange="marcar(' + i + ')"> ya lo hice</label>' : '') +
+          '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+  function toggle(i) { abierto = (abierto === i) ? -1 : i; pintar(); }
+  function irA(i) { abierto = i; pintar(); }
+  function marcar(i) {
+    PASOS[i].hecho = true;
+    // Avanza solo al siguiente pendiente no bloqueado (flujo guiado, sin buscar).
+    abierto = -1;
+    for (var j = 0; j < PASOS.length; j++) if (!PASOS[j].hecho && !bloqueado(PASOS[j])) { abierto = j; break; }
+    pintar();
+    var f = document.getElementById('festejo');
+    f.classList.add('ver'); setTimeout(function () { f.classList.remove('ver'); }, 900);
+    toast(PASOS.filter(function (p) { return !p.hecho; }).length
+      ? '¡Ese ya está! Vamos con el siguiente 💪'
+      : '🎉 ¡Configuración completa! Tu CoS ya trabaja para ti.');
+  }
+  pintar();
+</script>
+</body>
+</html>

@@ -242,22 +242,32 @@ function cumplimientoDaily_(sheetId, config, hoy, desdeUTC) {
     if (iso > out[correo].ultima) out[correo].ultima = iso;
   });
 
+  // "Día de Daily" según los días elegidos por el líder (tab Horarios) — si el equipo reporta
+  // L-X-V, el cumplimiento y la racha no pueden castigar los martes y jueves.
+  var diasDaily = {};
+  ((config.schedule && config.schedule.dailyDias && config.schedule.dailyDias.length)
+    ? config.schedule.dailyDias : [1, 2, 3, 4, 5]).forEach(function (d) { diasDaily[d] = true; });
+  var esDiaDailyUTC = function (u) {
+    var dowISO = ((new Date(u).getUTCDay() + 6) % 7) + 1;   // 1=lun … 7=dom
+    return !!diasDaily[dowISO];
+  };
+
   var hoyUTC = isoAUTC_(hoy);
   Object.keys(out).forEach(function (correo) {
     var d = out[correo];
-    // % sobre los días HÁBILES de la ventana, desde el primer reporte de la persona (prorrateo).
+    // % sobre los días DE DAILY de la ventana, desde el primer reporte de la persona (prorrateo).
     var iniUTC = Math.max(desdeUTC, isoAUTC_(d.primera));
     var habiles = 0, con = 0;
     for (var u = iniUTC; u <= hoyUTC; u += 86400000) {
-      if (!esHabilUTC_(u)) continue;
+      if (!esDiaDailyUTC(u)) continue;
       habiles++;
       if (d.fechas[isoDeUTC_(u)]) con++;
     }
     d.pct = habiles ? Math.round((con / habiles) * 100) : null;
-    // Racha: días hábiles consecutivos con Daily, contando hacia atrás desde hoy.
+    // Racha: días de Daily consecutivos con reporte, contando hacia atrás desde hoy.
     var racha = 0;
     for (var v = hoyUTC; v >= isoAUTC_(d.primera); v -= 86400000) {
-      if (!esHabilUTC_(v)) continue;
+      if (!esDiaDailyUTC(v)) continue;
       if (!d.fechas[isoDeUTC_(v)]) { if (v === hoyUTC) continue; break; }   // hoy aún sin reportar no corta
       racha++;
     }

@@ -28,24 +28,30 @@ function runDispatcher(sheetId, config, nowOverride) {
   var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd');
   var win   = config.dispatchWindowMin || 5;
 
-  var isWeekday = dow >= 1 && dow <= 5;
-  var isFriday  = dow === 5;
+  // Días elegibles por el líder (tab Horarios; mismo selector que el briefing). Aplican a
+  // invitación Y cierre. Fallbacks: Daily L–V; Weekly viernes — respetando el legacy
+  // options.weeklyOnlyFriday=false (weekly cualquier día hábil) de los stubs viejos.
   var weeklyOnlyFriday = !(config.options && config.options.weeklyOnlyFriday === false);
+  var sched = config.schedule || {};
+  var dailyDias = (sched.dailyDias && sched.dailyDias.length) ? sched.dailyDias : [1, 2, 3, 4, 5];
+  var weeklyDias = (sched.weeklyDias && sched.weeklyDias.length) ? sched.weeklyDias
+    : (weeklyOnlyFriday ? [5] : [1, 2, 3, 4, 5]);
+  var esDiaDaily = dailyDias.indexOf(dow) > -1;
+  var esDiaWeekly = weeklyDias.indexOf(dow) > -1;
 
   // --- 1) Invitaciones (por persona, con guarda anti-dup) ---
   var leaderName = (config.leader && config.leader.name) || 'tu líder';
   var forms = config.forms || {};
   getRoster_(sheetId, config.sheets.roster).forEach(function (p) {
-    // Daily: L–V
-    if (isWeekday && forms.dailyUrl &&
+    // Daily: en los días elegidos
+    if (esDiaDaily && forms.dailyUrl &&
         horaCoincide_(config.schedule.invitesDaily, hhmm, win) &&
         !yaEnviado_(sheetId, 'daily', p.correo, today)) {
       enviarInvitacion_('daily', p, leaderName, forms.dailyUrl, sheetId, config);
       marcarEnviado_(sheetId, 'daily', p.correo, today);
     }
-    // Weekly: viernes (o L–V si weeklyOnlyFriday=false)
-    var weeklyOK = weeklyOnlyFriday ? isFriday : isWeekday;
-    if (weeklyOK && forms.weeklyUrl &&
+    // Weekly: en los días elegidos
+    if (esDiaWeekly && forms.weeklyUrl &&
         horaCoincide_(config.schedule.invitesWeekly, hhmm, win) &&
         !yaEnviado_(sheetId, 'weekly', p.correo, today)) {
       enviarInvitacion_('weekly', p, leaderName, forms.weeklyUrl, sheetId, config);
@@ -53,15 +59,15 @@ function runDispatcher(sheetId, config, nowOverride) {
     }
   });
 
-  // --- 2) Consolidados con horas de cierre SEPARADAS (Daily L–V, Weekly viernes) ---
+  // --- 2) Consolidados con horas de cierre SEPARADAS (en los días elegidos de cada tipo) ---
   var leaderKey = (config.leader && config.leader.email) || 'lider';
 
-  if (isWeekday && horaCoincide_(config.schedule.closeDaily, hhmm, win) &&
+  if (esDiaDaily && horaCoincide_(config.schedule.closeDaily, hhmm, win) &&
       !yaEnviado_(sheetId, 'cons-daily', leaderKey, today)) {
     enviarConsolidado(sheetId, config, 'daily', today);
     marcarEnviado_(sheetId, 'cons-daily', leaderKey, today);
   }
-  if (isFriday && horaCoincide_(config.schedule.closeWeekly, hhmm, win) &&
+  if (esDiaWeekly && horaCoincide_(config.schedule.closeWeekly, hhmm, win) &&
       !yaEnviado_(sheetId, 'cons-weekly', leaderKey, today)) {
     enviarConsolidado(sheetId, config, 'weekly', today);
     marcarEnviado_(sheetId, 'cons-weekly', leaderKey, today);
@@ -69,11 +75,11 @@ function runDispatcher(sheetId, config, nowOverride) {
 
   // --- 2b) Reportes compartidos por persona (a la misma hora de cierre; anti-dup interno) ---
   // Best-effort: compartir no puede frenar el consolidado del líder.
-  if (isWeekday && horaCoincide_(config.schedule.closeDaily, hhmm, win)) {
+  if (esDiaDaily && horaCoincide_(config.schedule.closeDaily, hhmm, win)) {
     try { enviarCompartidos_(sheetId, config, 'daily', today); }
     catch (e) { if (typeof Logger !== 'undefined') Logger.log('compartir: pasada daily falló (%s).', e); }
   }
-  if (isFriday && horaCoincide_(config.schedule.closeWeekly, hhmm, win)) {
+  if (esDiaWeekly && horaCoincide_(config.schedule.closeWeekly, hhmm, win)) {
     try { enviarCompartidos_(sheetId, config, 'weekly', today); }
     catch (e) { if (typeof Logger !== 'undefined') Logger.log('compartir: pasada weekly falló (%s).', e); }
   }
