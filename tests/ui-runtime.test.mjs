@@ -4,10 +4,15 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { makeHarness } from './gas-harness.mjs';
 
 const SID = 'SHEET_1';
 const config = { sheets: { daily: 'Daily', weekly: 'Weekly', roster: 'Equipo', prompts: 'Prompts', settings: 'Ajustes' }, timezone: 'America/Lima' };
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const readShared = (name) => fs.readFileSync(path.join(ROOT, 'shared', name), 'utf8');
 
 /** Ui mock: registra los ítems agregados y a qué nombre de función apunta cada uno. */
 function makeUi() {
@@ -47,6 +52,40 @@ test('buildDialog(\'preguntas\') resuelve el modal desde el HTML de la librería
   assert.equal(d.html._width, 760);
   assert.equal(d.html._height, 660);
   assert.match(d.titulo, /Preguntas/);
+});
+
+test('Telegram abre un modal y sus acciones quedan registradas en el dispatcher', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: { Ajustes: [['key', 'value']] } } });
+  const d = h.api.buildDialog('telegram');
+  assert.equal(d.html._file, 'DialogTelegram');
+  assert.equal(d.html._width, 620);
+  assert.equal(d.html._height, 620);
+
+  const res = h.api.dispatch('abrirTelegram', [], SID, config);
+  assert.deepEqual({ ...res }, { ok: true });
+  assert.equal(h.uiCalls.length, 1);
+  assert.equal(h.uiCalls[0].kind, 'modal');
+  assert.equal(h.uiCalls[0].html._file, 'DialogTelegram');
+
+  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram'].forEach((name) => {
+    assert.equal(typeof h.api.DISPATCH_[name], 'function', name + ' debe estar permitido vía cosRun');
+  });
+});
+
+test('la UI de Telegram guarda secretos sin exponerlos y renderiza QR solo en el cliente', () => {
+  const dialog = readShared('DialogTelegram.html');
+  const sidebar = readShared('Sidebar.html');
+
+  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram'].forEach((name) => {
+    assert.match(dialog, new RegExp("run\\('" + name + "'\\)"), name + ' debe usar cosRun');
+  });
+  assert.match(dialog, /type="password"/);
+  assert.doesNotMatch(dialog, /innerHTML\s*=\s*[^;]*token/i, 'el token no puede renderizarse en HTML');
+  assert.doesNotMatch(dialog, /https?:\/\/[^'"\s]*(?:qr|qrcode|chart\.google)/i, 'el QR no puede usar servicios externos');
+  assert.match(dialog, /function renderQr\(/, 'el QR se genera localmente');
+  assert.match(dialog, /addEventListener\(['"]click['"]/, 'los controles dinámicos usan listeners, no handlers construidos');
+  assert.match(sidebar, /abrirTelegramUI/);
+  assert.match(sidebar, /runB\('abrirTelegram'\)/);
 });
 
 test('Centro del Brain abre el diálogo modeless correcto y queda disponible vía dispatch', () => {

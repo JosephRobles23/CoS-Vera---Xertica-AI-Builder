@@ -61,6 +61,12 @@ var AJUSTES_DEFAULTS_ = {
   'briefing.prompt': '',             // instrucción personal del líder (tono, idioma, reglas)
   'briefing.focoManual': '',         // foco escrito por el líder (Mi seguimiento); con valor, manda sobre el foco del LLM
   'asistente.hechos': '',            // Guía del CoS: ids de los pasos MANUALES ya marcados (CSV)
+  // --- Telegram Q&A: estado visible; tokens y allowlist viven en Script Properties ---
+  'telegram.enabled': 'false',
+  'telegram.botUsername': '',
+  'telegram.pairingStatus': 'idle',  // idle | ready | waiting | connected | revoked
+  'telegram.userLabel': '',          // nombre público, nunca el ID ni token
+  'telegram.lastConnected': '',
   // --- Backfill del histórico al brain (job reanudable; lo avanza el dispatcher) ---
   'brain.backfill.status': 'idle',   // idle | running | done
   'brain.backfill.cursorDaily': '2', // próxima fila 1-based a evaluar en la hoja Daily
@@ -311,6 +317,13 @@ function getAjustes_(sheetId, settingsSheetName) {
     asistente: {
       hechos: listaEnteros_(flat['asistente.hechos'], [])
     },
+    telegram: {
+      enabled: bool_(flat['telegram.enabled']),
+      botUsername: str_(flat['telegram.botUsername']),
+      pairingStatus: str_(flat['telegram.pairingStatus']) || 'idle',
+      userLabel: str_(flat['telegram.userLabel']),
+      lastConnected: str_(flat['telegram.lastConnected'])
+    },
     meet: {
       enabled:      bool_(flat['meet.enabled']),
       lookbackDays: int_(flat['meet.lookbackDays'], 30),
@@ -358,7 +371,8 @@ function construirConfig(sheetId, staticConfig) {
     consolidado: aj.consolidado,  // cc del consolidado completo (compartir reportes)
     meet: aj.meet,            // feature flag + import inicial de Notas de Gemini
     briefing: aj.briefing,    // Morning Briefing (flag, hora, días, secciones, prompt personal)
-    webapp: aj.webapp         // URL de la Web App de follow-up (override; vacío = auto)
+    webapp: aj.webapp,        // URL de la Web App de follow-up (override; vacío = auto)
+    telegram: aj.telegram
   };
 }
 

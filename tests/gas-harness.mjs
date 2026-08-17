@@ -44,6 +44,7 @@ const RUNTIME_FILES = [
   'seguimiento-runtime.js',
   'miseguimiento-runtime.js',
   'webapp-runtime.js',
+  'telegram-runtime.js',
   'ui-runtime.js'
 ];
 

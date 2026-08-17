@@ -68,7 +68,9 @@ var DIALOGOS_ = {
   // Guía del CoS: onboarding paso a paso, MODELESS (no bloquea la hoja). Se abre desde el sidebar.
   asistente: { archivo: 'DialogAsistente', titulo: 'CoS — Guía del CoS', ancho: 460, alto: 640, modeless: true },
   // Centro del Brain: curar wiki (renombrar/cerrar/olvidar), fusionar y salud. MODELESS (no bloquea la hoja).
-  braincentro: { archivo: 'DialogBrainCentro', titulo: 'CoS — Centro del Brain', ancho: 860, alto: 680, modeless: true }
+  braincentro: { archivo: 'DialogBrainCentro', titulo: 'CoS — Centro del Brain', ancho: 860, alto: 680, modeless: true },
+  // Telegram: el token queda en Script Properties; el modal nunca lo vuelve a mostrar.
+  telegram: { archivo: 'DialogTelegram', titulo: 'CoS — Conectar Telegram', ancho: 620, alto: 620 }
 };
 
 // --- Asistente (Guía del CoS): pasos auto-detectados + apertura de destinos ---
@@ -131,6 +133,13 @@ function abrirGuia(sheetId, config) {
 function abrirBrainCentro(sheetId, config) {
   var d = buildDialog('braincentro');
   SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
+  return { ok: true };
+}
+
+/** Abre el asistente de conexión de Telegram como modal. Público. */
+function abrirTelegram(sheetId, config) {
+  var d = buildDialog('telegram');
+  SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
   return { ok: true };
 }
 
@@ -239,6 +248,11 @@ var DISPATCH_ = {
   renombrarProyecto:       function (sid, cfg, a) { return renombrarProyecto(sid, cfg, a[0], a[1]); },
   cerrarProyecto:          function (sid, cfg, a) { return cerrarProyecto(sid, cfg, a[0], a[1]); },
   abrirBrainCentro:        function (sid, cfg, a) { return abrirBrainCentro(sid, cfg); },
+  abrirTelegram:           function (sid, cfg, a) { return abrirTelegram(sid, cfg); },
+  cargarTelegram:          function (sid, cfg, a) { return cargarTelegram(sid, cfg); },
+  guardarTokenTelegram:    function (sid, cfg, a) { return guardarTokenTelegram(sid, cfg, a[0]); },
+  iniciarPairingTelegram:  function (sid, cfg, a) { return iniciarPairingTelegram(sid, cfg); },
+  revocarTelegram:         function (sid, cfg, a) { return revocarTelegram(sid, cfg); },
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
   diagnosticarWiki:        function (sid, cfg, a) { return diagnosticarWiki(sid, cfg); },
   repararWiki:             function (sid, cfg, a) { return repararWiki(sid, cfg); },

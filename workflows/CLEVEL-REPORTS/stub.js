@@ -50,7 +50,10 @@ function cosMenu5() { return CoSLib.menuAction('cosMenu5', getSheetId_(), getCon
 // enlace") — ver Docs/deploy-terminal.md. Sin deployment, los correos salen sin botones (nada
 // se rompe). GET pinta la confirmación; solo el POST (Confirmar) muta — anti-escáneres.
 function doGet(e)  { return CoSLib.webAction('get', e, getSheetId_(), getConfig_()); }
-function doPost(e) { return CoSLib.webAction('post', e, getSheetId_(), getConfig_()); }
+function doPost(e) {
+  if (e && e.parameter && e.parameter.tg) return CoSLib.telegramWebhookAction(e, getSheetId_(), getConfig_());
+  return CoSLib.webAction('post', e, getSheetId_(), getConfig_());
+}
 
 // --- Activadores (instalados por setupTriggers; NO ejecutar onFormSubmit a mano) ---
 
