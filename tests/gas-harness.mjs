@@ -277,6 +277,7 @@ function makeBlob(content, mime, name) {
 export function makeHarness(opts = {}) {
   const state = {
     scriptProps: new Map(Object.entries(opts.scriptProperties || {})),
+    cache: new Map(),
     sentEmails: [],
     logs: [],
     fetchCalls: [],
@@ -300,6 +301,15 @@ export function makeHarness(opts = {}) {
         setProperty: (k, v) => { state.scriptProps.set(k, String(v)); },
         deleteProperty: (k) => { state.scriptProps.delete(k); },
         getProperties: () => Object.fromEntries(state.scriptProps)
+      })
+    },
+    // ScriptCache en memoria (TTL ignorado: los tests controlan la invalidación explícita).
+    CacheService: {
+      getScriptCache: () => ({
+        get: (k) => (state.cache.has(k) ? state.cache.get(k) : null),
+        put: (k, v, ttl) => { state.cache.set(k, String(v)); },
+        remove: (k) => { state.cache.delete(k); },
+        removeAll: (ks) => { (ks || []).forEach((k) => state.cache.delete(k)); }
       })
     },
     Utilities: {

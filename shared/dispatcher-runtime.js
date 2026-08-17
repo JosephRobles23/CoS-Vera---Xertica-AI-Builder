@@ -263,6 +263,40 @@ function marcarEnviado_(sheetId, tipo, id, fecha) {
  * Borra las guardas de un líder (para re-probar el flujo por hora el mismo día).
  * Público: lo llama el stub. @return {number} claves borradas.
  */
+// --- Cache de payloads de modales (CacheService, namespaced por sheetId como las guardas) ---
+//
+// Los modales repolean cada 60 s releyendo N páginas de Drive. El cache (TTL 55 s, justo bajo el
+// poll) hace los refrescos casi gratis; las mutaciones invalidan para que el usuario siempre vea
+// su propia escritura al instante. Best-effort: si CacheService falla, se recalcula y ya.
+
+var CACHE_TTL_SEG_ = 55;
+var CACHE_SEGUIMIENTO_ = ['seg:7', 'seg:30'];   // una entrada por ventana del modal de equipo
+var CACHE_MISEGUIMIENTO_ = ['miseg'];
+
+function cacheKey_(sheetId, nombre) { return 'cache:' + sheetId + ':' + nombre; }
+
+function cacheGetJson_(sheetId, nombre) {
+  try {
+    var raw = CacheService.getScriptCache().get(cacheKey_(sheetId, nombre));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+function cachePutJson_(sheetId, nombre, obj) {
+  try {
+    var raw = JSON.stringify(obj);
+    if (raw.length < 95000) {   // límite de CacheService: 100KB por clave
+      CacheService.getScriptCache().put(cacheKey_(sheetId, nombre), raw, CACHE_TTL_SEG_);
+    }
+  } catch (e) { /* best-effort */ }
+}
+
+function cacheInvalidar_(sheetId, nombres) {
+  try {
+    CacheService.getScriptCache().removeAll(nombres.map(function (n) { return cacheKey_(sheetId, n); }));
+  } catch (e) { /* best-effort */ }
+}
+
 /**
  * Borra SOLO las guardas de notas de Meet ('meet-doc' y 'meet-noaccess') de un líder, para
  * reintentar la ingesta de notas que fallaron (p.ej. tras corregir un bug). No toca las guardas

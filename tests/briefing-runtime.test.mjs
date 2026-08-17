@@ -24,7 +24,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
 const NOW = new Date(2026, 7, 13, 7, 30);
 const HOY = '2026-08-13';
 
-const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
+const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId', 'Creada el'];
 const IA = { foco: '1) Cierra Alpha con legal. 2) Destraba la carga masiva.', urgente: 'El blocker legal de Alpha ya urge.' };
 
 function brHarness(opts = {}) {

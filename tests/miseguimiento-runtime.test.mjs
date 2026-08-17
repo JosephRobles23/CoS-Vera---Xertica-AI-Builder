@@ -28,7 +28,7 @@ const AYER = iso(new Date(Date.now() - 86400000));
 const MANANA = iso(new Date(Date.now() + 86400000));
 const HACE = (dias) => iso(new Date(Date.now() - dias * 86400000));
 
-const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
+const T_HDR = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId', 'Creada el'];
 
 function msHarness(opts = {}) {
   const h = makeHarness({
@@ -331,6 +331,75 @@ test('cargarTendencia devuelve el índice como array y lo RECONSTRUYE si _tasks.
   // sin brain: honesto y vacío
   const h2 = msHarness({ brain: false });
   assert.deepEqual(plain(h2.api.cargarTendencia('SID', cfg(h2))), { hoy: HOY, brainEnabled: false, indice: [] });
+});
+
+// --- Fecha de creación real (parseo determinista del Origen, sin LLM) ---
+
+test('fechaDeOrigen_: solo el sufijo anclado "· YYYY-MM-DD" cuenta (fechas en el título no)', () => {
+  const h = msHarness({});
+  assert.equal(h.api.fechaDeOrigen_('🎥 RedPublica hack · 2026-07-31'), '2026-07-31');
+  assert.equal(h.api.fechaDeOrigen_('✍️ Manual'), '', 'sin sufijo → vacío');
+  assert.equal(h.api.fechaDeOrigen_('🎥 Daily - 2026/08/07 09:00 GMT-05:00 - Notas'), '',
+    'la fecha DENTRO del título (otro formato) no matchea: regex anclada al sufijo');
+  assert.equal(h.api.fechaDeOrigen_('🎥 Daily - 2026/08/07 · 2026-08-07'), '2026-08-07');
+});
+
+test("'Creada el': la tarea de Meet nace con la fecha de la reunión; la manual, con hoy", () => {
+  const h = msHarness({ tareas: [] });
+  const config = cfg(h);
+  h.api.agregarTarea_('SID', config, { texto: 'De la reunión', origen: '🎥 RedPublica hack · ' + HACE(16) });
+  h.api.crearTarea('SID', config, { texto: 'Manual de hoy' });
+
+  const ts = h.api.listarTareas_('SID', config);
+  assert.equal(ts[0].creada, HACE(16), 'fecha real de la reunión, no la del alta');
+  assert.equal(ts[1].creada, HOY);
+
+  // La edad y el wiki nacen coherentes con esa fecha (adiós disociación Origen vs "creada").
+  const t = tareaDe(cargar(h), ts[0].id);
+  assert.equal(t.edad, 16);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  h.api.sincronizarTareasWiki_('SID', config, HOY);
+  const pg = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), ts[0].id + '.md'));
+  assert.equal(pg.frontmatter.created, HACE(16));
+  assert.equal(h.api.cargarIndiceTareas_(root)[ts[0].id].created, HACE(16), 'el índice de Tendencia también');
+});
+
+test('autocuración: página e índice con created del primer sync se corrigen a la fecha del Origen', () => {
+  const h = msHarness({ tareas: [['Vieja de julio', '', '', 'Media', 'Pendiente', '🎥 AAP - Team · ' + HACE(20), 'idV']] });
+  const config = cfg(h);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  const dir = h.api.carpetaBrain_(root, ['wiki', 'tasks']);
+  // Página nacida "mal" (como las de wikis pre-fix): created = día del primer sync.
+  h.api.escribirArchivoBrain_(dir, 'idV.md', h.api.componerPagina_(
+    { page_type: 'task', name: 'Vieja de julio', status: 'Pendiente', origin: '🎥 AAP - Team · ' + HACE(20), created: AYER },
+    '# V\n\n## Historial\n- [' + AYER + '] creada (Pendiente)\n'));
+
+  h.api.sincronizarTareasWiki_('SID', config, HOY);   // el sync se autocura sin línea de historial
+  const pg = h.api.parsearPagina_(h.api.leerArchivoBrain_(dir, 'idV.md'));
+  assert.equal(pg.frontmatter.created, HACE(20));
+
+  // Y repararWiki hace el backfill completo: columna 'Creada el' + páginas (activas y archivadas).
+  const r = plain(h.api.repararWiki('SID', config));
+  assert.ok(r.fechasCorregidas >= 1, 'el informe cuenta las fechas corregidas');
+  assert.equal(h.api.listarTareas_('SID', config)[0].creada, HACE(20), "la columna 'Creada el' quedó llena");
+});
+
+// --- Cache de payloads (CacheService) ---
+
+test('cargarMiSeguimiento cachea (TTL) y los mutadores invalidan: siempre ves tu escritura', () => {
+  const h = msHarness({ tareas: [['Única', '', '', 'Media', 'Pendiente', '', 'idC']] });
+  const config = cfg(h);
+  cargar(h);   // llena el cache
+
+  // Edición DIRECTA en la hoja (sin pasar por mutadores): dentro del TTL se ve la foto cacheada…
+  h.getSpreadsheet('SID').getSheetByName('Tareas').getRange(2, 1).setValue('Editada a mano');
+  assert.equal(cargar(h).tareas[0].texto, 'Única', 'hit de cache dentro del TTL');
+
+  // …pero cualquier mutación del modal invalida y la próxima carga es fresca.
+  h.api.actualizarTarea('SID', config, 'idC', { estado: 'En curso' });
+  const d = cargar(h);
+  assert.equal(d.tareas[0].texto, 'Editada a mano', 'invalidado: datos frescos');
+  assert.equal(d.tareas[0].estado, 'En curso');
 });
 
 // --- Ruteo ---

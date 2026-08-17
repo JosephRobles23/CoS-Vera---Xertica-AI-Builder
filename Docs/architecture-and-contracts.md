@@ -131,8 +131,8 @@ archivos. Se agrega un ancla nueva solo cuando un archivo se vuelve una superfic
 | Tests de compartir reportes | `tests/sharing-runtime.test.mjs` | Implemented (15 tests) |
 | Tests de notas de Meet | `tests/meet-notes-runtime.test.mjs` | Implemented (17 tests) |
 | Tests del Morning Briefing + hoja Tareas | `tests/briefing-runtime.test.mjs` | Implemented (19 tests) |
-| Tests del Seguimiento del equipo | `tests/seguimiento-runtime.test.mjs` | Implemented (14 tests) |
-| Tests de Mi seguimiento (carga, Nivel 0, mutadores, foco, higiene, migración R3, índice R2, ruteo) | `tests/miseguimiento-runtime.test.mjs` | Implemented (15 tests) |
+| Tests del Seguimiento del equipo (incluye cache) | `tests/seguimiento-runtime.test.mjs` | Implemented (16 tests) |
+| Tests de Mi seguimiento (carga, Nivel 0, mutadores, foco, higiene, migración R3, índice R2, fecha real de creación, cache, ruteo) | `tests/miseguimiento-runtime.test.mjs` | Implemented (19 tests) |
 | Tests de la Web App de follow-up | `tests/webapp-runtime.test.mjs` | Implemented (14 tests) |
 | Tests de Deep Prep | `tests/deepprep-runtime.test.mjs` | Implemented (12 tests) |
 

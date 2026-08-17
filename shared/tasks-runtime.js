@@ -15,8 +15,18 @@
 
 // R3: 'Espera de' (de quién depende), 'Link' (doc/PR) y 'EventId' (Calendar, ligadas exactas).
 // La migración de hojas existentes es idempotente por encabezado (migrarHeadersTareas_).
-var TAREAS_HEADERS_ = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId'];
-var ANCHOS_TAREAS_ = [320, 140, 100, 90, 110, 220, 120, 110, 180, 120];
+var TAREAS_HEADERS_ = ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId', 'Creada el'];
+var ANCHOS_TAREAS_ = [320, 140, 100, 90, 110, 220, 120, 110, 180, 120, 100];
+
+/**
+ * Fecha REAL de creación desde el sufijo del Origen ('🎥 Título · YYYY-MM-DD'), determinista.
+ * El sufijo lo escribe nuestro código, por eso la regex va ANCLADA al final: una fecha dentro
+ * del título del doc (otro formato) no matchea. '' si el origen no trae sufijo.
+ */
+function fechaDeOrigen_(origen) {
+  var m = /·\s*(\d{4}-\d{2}-\d{2})\s*$/.exec(String(origen == null ? '' : origen));
+  return m ? m[1] : '';
+}
 var ESTADOS_TAREA_ = ['Pendiente', 'En curso', 'Bloqueada', 'Hecha'];
 var PRIORIDADES_TAREA_ = ['Alta', 'Media', 'Baja'];
 
@@ -148,11 +158,14 @@ function agregarTarea_(sheetId, config, t) {
       if (String(ids[i][0]) === id) return false;
     }
   }
+  // 'Creada el': explícita > fecha del sufijo del Origen (reunión real) > hoy.
+  var creada = t.creada || fechaDeOrigen_(t.origen || '') || hoyISO_(config);
   sh.getRange(sh.getLastRow() + 1, 1, 1, TAREAS_HEADERS_.length).setValues([[
     String(t.texto || '').trim(), t.proyecto || '', t.vence || '',
     t.prioridad || 'Media', t.estado || 'Pendiente', t.origen || '✍️ Manual', id,
-    t.espera || '', t.link || '', t.eventId || ''
+    t.espera || '', t.link || '', t.eventId || '', creada
   ]]);
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return true;
 }
 
@@ -219,6 +232,7 @@ function archivarTarea_(sheetId, config, id, todayISO) {
   sh.getRange(1, 1, values.length, TAREAS_HEADERS_.length).setValues(values);
   estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
   aplicarDropdownsTareas_(sh);
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return true;
 }
 
@@ -240,7 +254,8 @@ function listarTareas_(sheetId, config) {
       id: String(r[6] == null ? '' : r[6]).trim(),
       espera: String(r[7] == null ? '' : r[7]).trim(),
       link: String(r[8] == null ? '' : r[8]).trim(),
-      eventId: String(r[9] == null ? '' : r[9]).trim()
+      eventId: String(r[9] == null ? '' : r[9]).trim(),
+      creada: normFechaTarea_(r[10])
     };
   }).filter(function (t) { return t.texto; });
 }
@@ -306,8 +321,10 @@ function guardarIndiceTareas_(root, mapa) {
 function indexarTareas_(root, tareas, todayISO) {
   var mapa = cargarIndiceTareas_(root) || {};
   (tareas || []).forEach(function (t) {
+    var creadaReal = t.creada || fechaDeOrigen_(t.origen) || todayISO;
     var e = mapa[t.id];
-    if (!e) e = mapa[t.id] = { created: todayISO, hecha: '', archivada: '', posp: 0, vence: '', estado: '' };
+    if (!e) e = mapa[t.id] = { created: creadaReal, hecha: '', archivada: '', posp: 0, vence: '', estado: '' };
+    if (creadaReal < e.created) e.created = creadaReal;                 // autocuración retroactiva
     if (e.vence && t.vence !== e.vence) e.posp++;                       // re-fecha = pospuesta
     if (t.estado === 'Hecha' && e.estado !== 'Hecha') e.hecha = todayISO;
     if (t.estado !== 'Hecha' && e.estado === 'Hecha') e.hecha = '';     // reabierta
@@ -399,7 +416,7 @@ function upsertTareaWiki_(carpeta, t, todayISO) {
       page_type: 'task', name: t.texto, project: t.proyecto, due: t.vence,
       priority: t.prioridad, status: t.estado, origin: t.origen,
       waiting_on: t.espera || '', link: t.link || '', event_id: t.eventId || '',
-      created: todayISO, last_updated: todayISO
+      created: t.creada || fechaDeOrigen_(t.origen) || todayISO, last_updated: todayISO
     };
     var body = '# ' + t.texto + '\n\n## Historial\n- [' + todayISO + '] creada (' + t.estado +
       (t.vence ? ', vence ' + t.vence : '') + ')\n' +
@@ -416,12 +433,17 @@ function upsertTareaWiki_(carpeta, t, todayISO) {
   if (str_(f.priority) !== t.prioridad) lineas.push('prioridad: ' + (str_(f.priority) || '?') + ' → ' + t.prioridad);
   // R3 · Espera de: la línea del historial es la fuente de los días del pill "⏳ · Nd".
   if (str_(f.waiting_on) !== (t.espera || '')) lineas.push('espera de: ' + (t.espera || '—'));
-  if (!lineas.length) return false;
+  // Autocuración del created: páginas nacidas en el primer sync llevan la fecha del sync, no la
+  // real de la tarea ('Creada el' / sufijo del Origen). Se corrige sin línea de historial.
+  var creadaReal = t.creada || fechaDeOrigen_(t.origen);
+  var fixCreated = !!(creadaReal && (!str_(f.created) || creadaReal < str_(f.created)));
+  if (!lineas.length && !fixCreated) return false;
 
   var fm2 = mergeFrontmatter_(f, {
     status: t.estado, due: t.vence, priority: t.prioridad, project: t.proyecto,
     waiting_on: t.espera || '', link: t.link || '', last_updated: todayISO
   });
+  if (fixCreated) fm2.created = creadaReal;
   var body2 = page.body + lineas.map(function (l) { return '- [' + todayISO + '] ' + l + '\n'; }).join('');
   escribirArchivoBrain_(carpeta, name, componerPagina_(fm2, body2));
   return true;
@@ -478,5 +500,6 @@ function archivarHechas_(sheetId, config, todayISO) {
   sh.getRange(1, 1, values.length, TAREAS_HEADERS_.length).setValues(values);
   estilizarTabla_(sh, TAREAS_HEADERS_.length, ANCHOS_TAREAS_);
   aplicarDropdownsTareas_(sh);
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return hechas.length;
 }

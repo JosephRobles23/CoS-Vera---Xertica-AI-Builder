@@ -36,6 +36,10 @@ function esPendienteAbierto_(linea) {
  */
 function cargarSeguimiento(sheetId, config, dias) {
   var n = int_(dias, 7);
+  // Cache (TTL 55s, bajo el poll de 60s del modal): releer N páginas de Drive por minuto era el
+  // costo real del modal. resolverPendiente y las operaciones de gobernanza invalidan.
+  var hit = cacheGetJson_(sheetId, 'seg:' + n);
+  if (hit) return hit;
   var tz = config.timezone;
   var hoy = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
   var desdeUTC = isoAUTC_(hoy) - (n - 1) * 86400000;
@@ -63,7 +67,7 @@ function cargarSeguimiento(sheetId, config, dias) {
 
   var desdeFlujoUTC = isoAUTC_(hoy) - 29 * 86400000;
   var flujo = flujoPendientes_(personas, hoy, desdeFlujoUTC);
-  return {
+  var out = {
     brainEnabled: !!root,
     dias: n,
     hoy: hoy,
@@ -81,6 +85,8 @@ function cargarSeguimiento(sheetId, config, dias) {
       actividadBrain: root ? actividadBrainPorDia_(root, hoy, desdeUTC) : []
     }
   };
+  cachePutJson_(sheetId, 'seg:' + n, out);
+  return out;
 }
 
 /**
@@ -131,6 +137,7 @@ function resolverPendiente(sheetId, config, file, linea, accion) {
     '- ' + hoy + ' · ' + etiqueta + ' · ' + name.replace(/\.md$/, '') + ' · ' +
     recorteTexto_(buscada.replace(/^-\s*\[[^\]]*\]\s*/, '').replace(SEG_SUFIJO_RE_, ''), 120) + '\n');
   regenerarIndexBrain_(root, hoy);
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
   return { ok: true, linea: nueva };
 }
 

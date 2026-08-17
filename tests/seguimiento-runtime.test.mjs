@@ -211,6 +211,30 @@ test('la timeline agrega people + projects, en ventana, orden descendente y con 
   assert.ok(!data.actividad.some((i) => /Prehistoria/.test(i.texto)), 'fuera de ventana');
 });
 
+test('cargarSeguimiento cachea por ventana y resolverPendiente invalida', () => {
+  const h = segHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerPersona(h, root, 'ada-x-com.md',
+    { page_type: 'person', name: 'Ada Lovelace', email: 'ada@x.com', last_updated: HOY },
+    '## Pendientes\n- [' + HOY + '] Enviar acta\n');
+
+  const d1 = cargar(h, 7);
+  assert.equal(personaDe(d1, 'Ada Lovelace').pendientes.length, 1);
+
+  // Escritura directa al wiki: dentro del TTL sigue la foto cacheada (aceptado: TTL < poll de 60s).
+  ponerPersona(h, root, 'ada-x-com.md',
+    { page_type: 'person', name: 'Ada Lovelace', email: 'ada@x.com', last_updated: HOY },
+    '## Pendientes\n- [' + HOY + '] Enviar acta\n- [' + HOY + '] Otro pendiente\n');
+  assert.equal(personaDe(cargar(h, 7), 'Ada Lovelace').pendientes.length, 1, 'hit de cache');
+
+  // resolverPendiente (la escritura del propio modal) invalida → carga fresca.
+  h.api.resolverPendiente('SID', config, 'ada-x-com.md', '- [' + HOY + '] Enviar acta', 'resolver');
+  const d3 = cargar(h, 7);
+  assert.equal(personaDe(d3, 'Ada Lovelace').pendientes.length, 2, 'invalidado tras resolver');
+  assert.equal(personaDe(d3, 'Ada Lovelace').pendientes.filter((x) => x.abierto).length, 1);
+});
+
 test('separación: las viñetas de proyecto con autor exponen mio/autor y el sufijo no se pinta', () => {
   const h = segHarness();
   const config = h.api.construirConfig('SID', CONFIG);

@@ -55,6 +55,21 @@ como única fuente de verdad**. Maqueta aprobada: `Docs/html/mi-seguimiento-mock
 - Follow-up desde tarea en espera = **borrador de correo simple** (sin tokens/compromisos); la
   integración con el flujo R2 del equipo merece su propio grill si el uso la pide.
 
+## Post-release (2026-08-17): fecha real de creación + cache
+
+- **Columna `Creada el`** (11ª, migración idempotente): la fecha REAL de la tarea. Al crear:
+  Meet → sufijo del Origen (`'🎥 Título · YYYY-MM-DD'`, parseado con regex ANCLADA al final —
+  determinista, 0 LLM; una fecha dentro del título en otro formato no matchea); manual → hoy.
+  `edad`, el `created` del wiki y `_tasks.json` la usan; el sync se **autocura** (created del
+  primer sync > fecha real → se corrige) y `repararWiki` hace el backfill completo (columna +
+  páginas activas y archivadas, vía `fm.origin`). El equipo NO tenía este problema: sus viñetas
+  llevan la fecha del reporte/reunión desde la ingesta.
+- **CacheService** en `cargarSeguimiento` (claves `seg:7`/`seg:30`) y `cargarMiSeguimiento`
+  (`miseg`): TTL 55 s (bajo el poll de 60 s), namespaced por sheetId, límite 95 KB, best-effort.
+  Invalidación: resolverPendiente y gobernanza (merge/olvidar/reparar) → seg; mutadores del modal,
+  `agregarTarea_` y archivado → miseg. Escrituras a mano en hoja/wiki se ven en ≤55 s (igual que
+  el poll). Snapshot `_seguimiento.json` queda como palanca futura si el wiki crece mucho.
+
 ## Fuera de alcance (explícito)
 
 - Mejora del match del nombre del líder en notas de Meet (contención/alias) — fase posterior.

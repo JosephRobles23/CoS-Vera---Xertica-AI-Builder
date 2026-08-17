@@ -24,6 +24,11 @@ var MISEG_HIST_MAX_ = 10;   // líneas de historial que viajan al modal por tare
  * Datos completos del modal. @return {{hoy, brainEnabled, foco, agenda, proyectos, tareas}}
  */
 function cargarMiSeguimiento(sheetId, config) {
+  // Cache (TTL 55s, bajo el poll de 60s): los mutadores del modal y agregarTarea_/archivado
+  // invalidan, así el líder siempre ve su propia escritura al instante.
+  var hit = cacheGetJson_(sheetId, 'miseg');
+  if (hit) return hit;
+
   var now = new Date();
   var hoy = Utilities.formatDate(now, config.timezone, 'yyyy-MM-dd');
   var brainOn = !!(config.brain && config.brain.enabled);
@@ -32,7 +37,10 @@ function cargarMiSeguimiento(sheetId, config) {
     t.hoy = !!t.vence && t.vence === hoy;
     t.atrasada = !!t.vence && t.vence < hoy && t.estado !== 'Hecha';
     t.bloqueada = t.estado === 'Bloqueada';
-    t.edad = null; t.posp = 0; t.hist = []; t.esperaDias = null;
+    // Edad honesta: 'Creada el' (o el sufijo del Origen) manda; el wiki es el fallback.
+    var creadaReal = t.creada || fechaDeOrigen_(t.origen);
+    t.edad = creadaReal ? Math.max(0, Math.round((isoAUTC_(hoy) - isoAUTC_(creadaReal)) / 86400000)) : null;
+    t.posp = 0; t.hist = []; t.esperaDias = null;
     return t;
   });
 
@@ -53,7 +61,7 @@ function cargarMiSeguimiento(sheetId, config) {
     });
   } catch (e) { roster = []; }
 
-  return {
+  var out = {
     hoy: hoy,
     brainEnabled: brainOn,
     foco: str_(config.briefing && config.briefing.focoManual),
@@ -64,6 +72,8 @@ function cargarMiSeguimiento(sheetId, config) {
     roster: roster,   // R3: dropdown "Espera de" + correo del follow-up
     tareas: tareas
   };
+  cachePutJson_(sheetId, 'miseg', out);
+  return out;
 }
 
 /**
@@ -99,18 +109,21 @@ function crearTarea(sheetId, config, data) {
 function actualizarTarea(sheetId, config, id, campos) {
   var t = actualizarTarea_(sheetId, config, id, campos);
   espejarTareaInmediato_(sheetId, config, t.id);
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return t;
 }
 
 /** Archiva UNA tarea ("esto ya no aplica"), cualquiera sea su estado. @return {{ok:boolean}} */
 function archivarTarea(sheetId, config, id) {
   archivarTarea_(sheetId, config, id, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return { ok: true };
 }
 
 /** Persiste el foco manual del líder (vacío = vuelve el foco sugerido por el LLM). */
 function guardarFoco(sheetId, config, texto) {
   setAjustes_(sheetId, config.sheets.settings, { 'briefing.focoManual': str_(texto) });
+  cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
   return { ok: true };
 }
 
@@ -124,7 +137,7 @@ function enriquecerDesdeWiki_(carpeta, t, hoy) {
 
   var page = parsearPagina_(raw);
   var created = str_((page.frontmatter || {}).created);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(created)) {
+  if (t.edad == null && /^\d{4}-\d{2}-\d{2}$/.test(created)) {   // fallback: sin 'Creada el'/Origen
     t.edad = Math.max(0, Math.round((isoAUTC_(hoy) - isoAUTC_(created)) / 86400000));
   }
   var lineas = [];

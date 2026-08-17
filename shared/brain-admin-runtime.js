@@ -126,6 +126,7 @@ function mergearProyectos(sheetId, config, origenFile, destinoFile) {
   var wiki = carpetaBrain_(root, ['wiki']);
   appendArchivoBrain_(wiki, 'log.md', '- ' + hoyISO_(config) + ' · merge de proyecto · ' + oSlug + ' → ' + dSlug + '\n');
   regenerarIndexBrain_(root, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
   return { ok: true, destino: dName, origen: oName };
 }
 
@@ -188,6 +189,7 @@ function olvidarPersona(sheetId, config, file) {
     '- ' + hoyISO_(config) + ' · 🗑️ olvidar persona · ' + (str_(fm.name) || name) +
     ' · ' + borrados + ' raw borrado(s)\n');
   regenerarIndexBrain_(root, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
   return { ok: true, email: email, raw_borrados: borrados };
 }
 
@@ -225,6 +227,7 @@ function olvidarProyecto(sheetId, config, file) {
   appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
     '- ' + hoyISO_(config) + ' · 🗑️ olvidar proyecto · ' + (str_(fm.name) || slug) + '\n');
   regenerarIndexBrain_(root, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
   return { ok: true, name: str_(fm.name) || slug };
 }
 
@@ -355,14 +358,50 @@ function repararWiki(sheetId, config) {
   });
   guardarPersonasExt_(root, mapaExt2);
 
+  // 2c) Fechas de creación de tareas: el created del primer sync no es la fecha real.
+  informe.fechasCorregidas = repararFechasTareas_(sheetId, config, root);
+
   // 3) Índices + rastro.
   try { reconstruirIndiceTareas_(root); } catch (e) { /* sin tareas todavía */ }
   regenerarIndexBrain_(root, hoy);
   appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
     '- ' + hoy + ' · 🔧 reparación del wiki · ' + informe.personasFusionadas + ' fusionada(s) · ' +
     informe.personasCorregidas + ' corregida(s) · ' + informe.proyectosCatalogados + ' proyecto(s) catalogado(s) · ' +
-    informe.huerfanosPurgados + ' huérfano(s)\n');
+    informe.huerfanosPurgados + ' huérfano(s) · ' + informe.fechasCorregidas + ' fecha(s)\n');
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_.concat(CACHE_MISEGUIMIENTO_));
   return informe;
+}
+
+/**
+ * Backfill determinista de 'Creada el' (hoja) y `created` (wiki/tasks) desde el sufijo del
+ * Origen ('· YYYY-MM-DD', escrito por nuestro código — regex anclada, sin LLM). Cubre también
+ * páginas de tareas ya archivadas (usa fm.origin). Idempotente. @return {number} correcciones
+ */
+function repararFechasTareas_(sheetId, config, root) {
+  var n = 0;
+  var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
+
+  // Hoja: llena 'Creada el' vacías desde el Origen (la migración de encabezados ya corrió en ensure).
+  try {
+    var sh = ensureTareasSheet_(sheetId, config);
+    listarTareas_(sheetId, config).forEach(function (t) {
+      var real = fechaDeOrigen_(t.origen);
+      if (!t.creada && real) { sh.getRange(t.fila, 11).setValue(real); n++; }
+    });
+  } catch (e) { /* sin hoja Tareas todavía */ }
+
+  // Wiki: corrige `created` posterior a la fecha real (páginas activas Y archivadas).
+  listarArchivosBrain_(carpeta, '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var page = parsearPagina_(a.content);
+    var fm = page.frontmatter || {};
+    var real = fechaDeOrigen_(str_(fm.origin));
+    if (real && (!str_(fm.created) || str_(fm.created) > real)) {
+      escribirArchivoBrain_(carpeta, a.name, componerPagina_(mergeFrontmatter_(fm, { created: real }), page.body));
+      n++;
+    }
+  });
+  return n;
 }
 
 /**
