@@ -209,6 +209,7 @@ function urgentesDelBrain_(sheetId, config, today) {
       if (a.name.charAt(0) === '_') return;
       var fm = parsearPagina_(a.content).frontmatter || {};
       if (String(fm.external) === 'true') return;
+      if (String(fm.status) === 'closed') return;   // proyecto archivado: fuera de alertas de silencio
       var nombre = str_(fm.name) || a.name;
       var dias = fm.last_updated ? diasEntreISO_(str_(fm.last_updated), today) : 0;
       var blockers = Array.isArray(fm.open_blockers) ? fm.open_blockers : [];

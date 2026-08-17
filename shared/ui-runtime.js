@@ -66,7 +66,9 @@ var DIALOGOS_ = {
   // Mi seguimiento: las tareas del PROPIO líder (Hoy/Tareas/Tablero + creación) sobre la hoja Tareas.
   miseguimiento: { archivo: 'DialogMiSeguimiento', titulo: 'CoS — Mi seguimiento', ancho: 760, alto: 680 },
   // Guía del CoS: onboarding paso a paso, MODELESS (no bloquea la hoja). Se abre desde el sidebar.
-  asistente: { archivo: 'DialogAsistente', titulo: 'CoS — Guía del CoS', ancho: 460, alto: 640, modeless: true }
+  asistente: { archivo: 'DialogAsistente', titulo: 'CoS — Guía del CoS', ancho: 460, alto: 640, modeless: true },
+  // Centro del Brain: curar wiki (renombrar/cerrar/olvidar), fusionar y salud. MODELESS (no bloquea la hoja).
+  braincentro: { archivo: 'DialogBrainCentro', titulo: 'CoS — Centro del Brain', ancho: 860, alto: 680, modeless: true }
 };
 
 // --- Asistente (Guía del CoS): pasos auto-detectados + apertura de destinos ---
@@ -121,6 +123,13 @@ function marcarPasoAsistente(sheetId, config, id, hecho) {
 /** Abre la Guía como diálogo MODELESS: el líder puede seguir usando la hoja. Público. */
 function abrirGuia(sheetId, config) {
   var d = buildDialog('asistente');
+  SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
+  return { ok: true };
+}
+
+/** Abre el Centro del Brain como diálogo MODELESS: curar la wiki sin bloquear la hoja. Público. */
+function abrirBrainCentro(sheetId, config) {
+  var d = buildDialog('braincentro');
   SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
   return { ok: true };
 }
@@ -227,6 +236,9 @@ var DISPATCH_ = {
   guardarFlags:            function (sid, cfg, a) { return guardarFlags(sid, cfg, a[0]); },
   olvidarPersona:          function (sid, cfg, a) { return olvidarPersona(sid, cfg, a[0]); },
   olvidarProyecto:         function (sid, cfg, a) { return olvidarProyecto(sid, cfg, a[0]); },
+  renombrarProyecto:       function (sid, cfg, a) { return renombrarProyecto(sid, cfg, a[0], a[1]); },
+  cerrarProyecto:          function (sid, cfg, a) { return cerrarProyecto(sid, cfg, a[0], a[1]); },
+  abrirBrainCentro:        function (sid, cfg, a) { return abrirBrainCentro(sid, cfg); },
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
   diagnosticarWiki:        function (sid, cfg, a) { return diagnosticarWiki(sid, cfg); },
   repararWiki:             function (sid, cfg, a) { return repararWiki(sid, cfg); },

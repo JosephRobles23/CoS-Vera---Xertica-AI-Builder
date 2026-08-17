@@ -320,37 +320,10 @@
     <button class="btn btn-ghost" id="btnCancelBackfill" style="display:none" onclick="cancelarBackfillUI()"><i data-lucide="triangle-alert"></i> Pausar importación</button>
 
     <div class="divider"></div>
-    <h3>Wiki</h3>
-    <div class="row2">
-      <select id="w_tipo" onchange="cargarWiki()">
-        <option value="people">Personas</option>
-        <option value="projects">Proyectos</option>
-        <option value="meetings">Reuniones</option>
-      </select>
-      <button class="btn btn-ghost" onclick="cargarWiki()"><i data-lucide="rotate"></i> Recargar</button>
-    </div>
-    <div id="listaWiki"><p class="hint">Selecciona un tipo para listar las páginas.</p></div>
-    <div id="wikiViewer" class="card" style="display:none"></div>
-
-    <div class="divider"></div>
-    <h3>Fusionar proyectos duplicados</h3>
-    <p class="hint">Mueve el contenido del origen al destino y registra el alias.</p>
-    <div class="row2">
-      <div><label>Origen</label><select id="m_origen"></select></div>
-      <div><label>Destino</label><select id="m_destino"></select></div>
-    </div>
-    <button class="btn btn-outline" onclick="fusionarProyectos()"><i data-lucide="git-merge"></i> Fusionar proyectos</button>
-
-    <div class="divider"></div>
-    <h3>Salud del wiki</h3>
-    <p class="hint">Para wikis creados por versiones anteriores: reconcilia páginas de personas con el
-    roster (email/slug/externas mal marcadas), cataloga proyectos y regenera índices. La reparación
-    fusiona con dedup — no borra contenido.</p>
-    <div id="wikiDiag" class="hint" style="margin:6px 0"></div>
-    <div class="row" style="gap:8px">
-      <button class="btn btn-outline" onclick="diagnosticarWikiUI()"><i data-lucide="stethoscope"></i> Diagnosticar</button>
-      <button class="btn btn-outline" onclick="repararWikiUI()"><i data-lucide="wrench"></i> Reparar wiki</button>
-    </div>
+    <h3>Centro del Brain</h3>
+    <p class="hint">Cura tu wiki en un panel dedicado: renombrar, cerrar (archivar) u olvidar
+    proyectos, fusionar duplicados y revisar la salud del wiki. Se abre sin bloquear tu hoja.</p>
+    <button class="btn btn-primary" onclick="abrirBrainCentroUI()"><i data-lucide="brain"></i> Abrir Centro del Brain</button>
   </div>
 
   <div id="toast"></div>
@@ -814,90 +787,14 @@
         .catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
 
-    function cargarWiki() {
-      var tipo = g('w_tipo').value, cont = g('listaWiki');
-      g('wikiViewer').style.display = 'none';
-      cont.innerHTML = '<p class="hint">Cargando…</p>';
-      runB('listarWikiPaginas')(tipo).then(function (ps) {
-        ps = ps || [];
-        if (tipo === 'projects') llenarSelectsMerge(ps);
-        if (!ps.length) { cont.innerHTML = '<p class="hint">Sin páginas todavía.</p>'; return; }
-        cont.innerHTML = '';
-        ps.forEach(function (p) {
-          var nb = (p.open_blockers && p.open_blockers.length) ? '<span class="badge">' + p.open_blockers.length + ' blocker(s)</span>' : '';
-          var div = document.createElement('div'); div.className = 'wiki-item';
-          div.innerHTML =
-            '<span class="meta"><b>' + escHtml(p.name) + '</b><small>' + escHtml(p.last_updated || 's/f') + ' · ' + escHtml(p.resumen || '') + '</small></span>' +
-            '<span class="acts">' + nb +
-            '<button class="icon-btn" title="Ver" onclick="verWiki(\'' + escAttr(tipo) + '\',\'' + escAttr(p.file) + '\')"><i data-lucide="eye"></i></button>' +
-            (tipo === 'people' ? '<button class="icon-btn" title="Olvidar" onclick="olvidar(\'' + escAttr(p.file) + '\',\'' + escAttr(p.name) + '\')"><i data-lucide="trash-2"></i></button>' : '') +
-            (tipo === 'projects' ? '<button class="icon-btn" title="Olvidar proyecto" onclick="olvidarProy(\'' + escAttr(p.file) + '\',\'' + escAttr(p.name) + '\')"><i data-lucide="trash-2"></i></button>' : '') +
-            '</span>';
-          cont.appendChild(div);
-        });
-        icons();
-      }).catch(function (e) { cont.innerHTML = '<p class="hint">Error: ' + escHtml(e.message) + '</p>'; });
-    }
-    function verWiki(tipo, file) {
-      var v = g('wikiViewer');
-      v.style.display = 'block'; v.innerHTML = '<p class="hint">Cargando…</p>';
-      runB('leerWikiPagina')(tipo, file).then(function (pg) {
-        v.innerHTML = '<div class="row"><b>' + escHtml(file) + '</b>' +
-          '<button class="icon-btn" onclick="g(\'wikiViewer\').style.display=\'none\'"><i data-lucide="rotate-ccw"></i></button></div>' +
-          '<pre>' + escHtml(pg.body || '(vacío)') + '</pre>';
-        icons();
-      }).catch(function (e) { v.innerHTML = '<p class="hint">Error: ' + escHtml(e.message) + '</p>'; });
-    }
-    function olvidar(file, name) {
-      if (!confirm('¿Olvidar a «' + name + '»? Borra su página y TODOS sus reportes en bruto. No se puede deshacer.')) return;
-      runB('olvidarPersona')(file).then(function (r) {
-        toast('Olvidado (' + (r.raw_borrados || 0) + ' reportes)'); cargarWiki();
-      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
-    }
-    function olvidarProy(file, name) {
-      if (!confirm('¿Olvidar el proyecto «' + name + '»? Borra su página del wiki y su entrada del catálogo (las menciones en páginas de personas y actas quedan). No se puede deshacer.')) return;
-      runB('olvidarProyecto')(file).then(function () {
-        toast('Proyecto olvidado'); cargarWiki();
-      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
-    }
     // Guía del CoS: diálogo MODELESS (la hoja y este sidebar siguen usables con la guía abierta).
     function abrirGuiaUI() {
       runB('abrirGuia')().catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
-    function diagnosticarWikiUI() {
-      var el = g('wikiDiag'); el.textContent = 'Analizando…';
-      runB('diagnosticarWiki')().then(function (d) {
-        el.innerHTML =
-          '👥 Personas: <b>' + d.personas.paginas + '</b> página(s) · <b>' + d.personas.matchean + '</b> matchean el roster · ' +
-          d.personas.sinEmail + ' sin email · ' + d.personas.externas + ' externas · ' +
-          '<b>' + d.personas.fusionables + '</b> reparable(s)<br>' +
-          '📁 Proyectos: ' + d.proyectos.paginas + ' página(s) · ' + d.proyectos.catalogados + ' catalogado(s) · ' +
-          'catálogos: people ' + (d.catalogos.people ? '✓' : '—') + ' · projects ' + (d.catalogos.projects ? '✓' : '—') +
-          ' · tasks ' + (d.catalogos.tasks ? '✓' : '—');
-      }).catch(function (e) { el.textContent = 'Error: ' + e.message; });
-    }
-    function repararWikiUI() {
-      if (!confirm('¿Reparar el wiki? Fusiona páginas de personas hacia su correo del roster (con dedup), corrige frontmatter, cataloga proyectos y regenera índices. No borra contenido. Puede correrse varias veces.')) return;
-      runB('repararWiki')().then(function (r) {
-        toast('🔧 ' + r.personasFusionadas + ' fusionada(s) · ' + r.personasCorregidas + ' corregida(s) · ' +
-          r.proyectosCatalogados + ' proyecto(s) catalogado(s) · ' + r.huerfanosPurgados + ' huérfano(s)');
-        diagnosticarWikiUI(); cargarWiki();
-      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
-    }
-    function llenarSelectsMerge(ps) {
-      var o = g('m_origen'), d = g('m_destino'), opts = '';
-      ps.forEach(function (p) { opts += '<option value="' + escAttr(p.file) + '">' + escHtml(p.name) + '</option>'; });
-      o.innerHTML = opts; d.innerHTML = opts;
-      if (ps.length > 1) d.selectedIndex = 1;   // por defecto, distinto del origen
-    }
-    function fusionarProyectos() {
-      var origen = g('m_origen').value, destino = g('m_destino').value;
-      if (!origen || !destino) { toast('Elige origen y destino', 'triangle-alert'); return; }
-      if (origen === destino) { toast('Origen y destino deben diferir', 'triangle-alert'); return; }
-      if (!confirm('¿Fusionar «' + origen + '» dentro de «' + destino + '»? El origen se archiva.')) return;
-      runB('mergearProyectos')(origen, destino).then(function () {
-        toast('Proyectos fusionados'); cargarWiki();
-      }).catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    // Centro del Brain: diálogo MODELESS con todo el curado de la wiki (visor, renombrar/cerrar/olvidar,
+    // fusionar y salud). No bloquea la hoja ni este sidebar.
+    function abrirBrainCentroUI() {
+      runB('abrirBrainCentro')().catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
 
     icons();

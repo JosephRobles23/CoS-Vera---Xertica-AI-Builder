@@ -362,6 +362,7 @@ function actividadWiki_(root, desdeUTC, leaderName) {
       var page = parsearPagina_(a.content);
       var fm = page.frontmatter || {};
       if (subcarpeta === 'people' && String(fm.external) === 'true') return;
+      if (subcarpeta === 'projects' && String(fm.status) === 'closed') return;   // archivado: fuera de Actividad
       var quien = quienDe(fm, a.name);
       parseBodySections_(page.body).sections.forEach(function (s) {
         var tipo = SEG_TIPOS_SECCION_[s.name];

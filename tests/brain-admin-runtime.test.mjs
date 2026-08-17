@@ -384,3 +384,146 @@ test('dispatch enruta olvidarProyecto', () => {
   const res = plain(h.api.dispatch('olvidarProyecto', ['alpha.md'], 'SID', config));
   assert.equal(res.ok, true);
 });
+
+// --- renombrarProyecto (rename COMPLETO: name + slug + archivo + catálogo + tareas) ---
+
+function renameHarness() {
+  const h = makeHarness({
+    scriptProperties: { GEMINI_API_KEY: 'K' },
+    spreadsheets: { SID: {
+      Ajustes: [['key', 'value'], ['brain.enabled', 'true']],
+      Equipo: [['Nombre', 'Correo', 'Rol']],
+      Tareas: [
+        ['Tarea', 'Proyecto', 'Vence', 'Prioridad', 'Estado', 'Origen', 'Id', 'Espera de', 'Link', 'EventId', 'Creada el'],
+        ['Cerrar propuesta', 'AI Platform', '', 'Alta', 'Pendiente', '', 't1', '', '', '', '2026-08-01'],
+        ['Otra cosa', 'Discovery', '', 'Media', 'Pendiente', '', 't2', '', '', '', '2026-08-01']
+      ]
+    } }
+  });
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  return { h, config, root };
+}
+
+test('renombrarProyecto cambia name, slug y archivo; el slug viejo queda como alias', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'ai-platform.md',
+    { page_type: 'project', name: 'AI Platform', last_updated: '2026-08-04' }, '# AI Platform\n\nDiscovery técnico.');
+  h.api.guardarProyectos_(root, { 'ai-platform': { name: 'AI Platform', aliases: ['plataforma-ia'] } });
+
+  const res = plain(h.api.renombrarProyecto('SID', config, 'ai-platform.md', 'Plataforma de Agentes'));
+  assert.equal(res.ok, true);
+  assert.equal(res.name, 'Plataforma de Agentes');
+  assert.equal(res.file, 'plataforma-de-agentes.md');
+  assert.equal(res.slugChanged, true);
+
+  const carpeta = h.api.carpetaBrain_(root, ['wiki', 'projects']);
+  assert.equal(h.api.leerArchivoBrain_(carpeta, 'ai-platform.md'), null, 'el archivo viejo se movió');
+  const nueva = h.api.parsearPagina_(h.api.leerArchivoBrain_(carpeta, 'plataforma-de-agentes.md'));
+  assert.equal(nueva.frontmatter.name, 'Plataforma de Agentes');
+  assert.match(nueva.body, /Discovery técnico/, 'el body se conserva');
+
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.equal(mapa['ai-platform'], undefined, 'el canónico viejo ya no está');
+  assert.equal(mapa['plataforma-de-agentes'].name, 'Plataforma de Agentes');
+  assert.ok(mapa['plataforma-de-agentes'].aliases.indexOf('ai-platform') > -1, 'slug viejo como alias');
+  assert.ok(mapa['plataforma-de-agentes'].aliases.indexOf('plataforma-ia') > -1, 'aliases previos preservados');
+});
+
+test('renombrarProyecto reetiqueta las tareas que referencian el proyecto por nombre', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'ai-platform.md', { page_type: 'project', name: 'AI Platform' }, '# AI Platform');
+  h.api.guardarProyectos_(root, { 'ai-platform': { name: 'AI Platform', aliases: [] } });
+  // espejo en wiki/tasks de la tarea t1 (referencia por nombre)
+  ponerWiki(h, root, 'tasks', 't1.md',
+    { task_id: 't1', project: 'AI Platform', priority: 'Alta', status: 'Pendiente' },
+    '## Historial\n- [2026-08-01] creada');
+
+  const res = plain(h.api.renombrarProyecto('SID', config, 'ai-platform.md', 'Plataforma de Agentes'));
+  assert.equal(res.tareas, 1, 'una tarea de la hoja reetiquetada');
+
+  const tareas = plain(h.api.listarTareas_('SID', config));
+  const t1 = tareas.find((t) => t.id === 't1');
+  const t2 = tareas.find((t) => t.id === 't2');
+  assert.equal(t1.proyecto, 'Plataforma de Agentes', 'la tarea del proyecto cambió');
+  assert.equal(t2.proyecto, 'Discovery', 'las otras tareas no se tocan');
+
+  const tp = h.api.parsearPagina_(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'tasks']), 't1.md'));
+  assert.equal(tp.frontmatter.project, 'Plataforma de Agentes', 'el espejo wiki/tasks también');
+  const idx = plain(h.api.cargarIndiceTareas_(root));
+  assert.equal(idx.t1.proyecto, 'Plataforma de Agentes', '_tasks.json reconstruido');
+});
+
+test('renombrarProyecto sin cambiar el slug solo actualiza el name visible', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'discovery.md', { page_type: 'project', name: 'Discovery' }, '# Discovery');
+  h.api.guardarProyectos_(root, { discovery: { name: 'Discovery', aliases: [] } });
+
+  const res = plain(h.api.renombrarProyecto('SID', config, 'discovery.md', 'Discovery'));   // mismo slug
+  assert.equal(res.slugChanged, false);
+  const carpeta = h.api.carpetaBrain_(root, ['wiki', 'projects']);
+  assert.ok(h.api.leerArchivoBrain_(carpeta, 'discovery.md') != null, 'el archivo sigue');
+  const mapa = plain(h.api.cargarProyectos_(root));
+  assert.deepEqual(Object.keys(mapa), ['discovery']);
+  assert.deepEqual(mapa.discovery.aliases, [], 'no se autoañade como alias de sí mismo');
+});
+
+test('renombrarProyecto se niega si el slug destino ya existe (evita fusión encubierta)', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'ai-platform.md', { page_type: 'project', name: 'AI Platform' }, '# AI Platform');
+  ponerWiki(h, root, 'projects', 'discovery.md', { page_type: 'project', name: 'Discovery' }, '# Discovery');
+  assert.throws(() => h.api.renombrarProyecto('SID', config, 'ai-platform.md', 'Discovery'), /Fusionar/);
+  // el original quedó intacto
+  assert.ok(h.api.leerArchivoBrain_(h.api.carpetaBrain_(root, ['wiki', 'projects']), 'ai-platform.md') != null);
+});
+
+test('renombrarProyecto rechaza nombre vacío', () => {
+  const { h, config, root } = renameHarness();
+  ponerWiki(h, root, 'projects', 'ai-platform.md', { page_type: 'project', name: 'AI Platform' }, '# AI Platform');
+  assert.throws(() => h.api.renombrarProyecto('SID', config, 'ai-platform.md', '   '), /vacío/);
+});
+
+// --- cerrarProyecto (archivar/reabrir: silencia alertas sin perder historial) ---
+
+test('cerrarProyecto marca status closed + closed_on y reabrir lo revierte', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerWiki(h, root, 'projects', 'onboarding.md',
+    { page_type: 'project', name: 'Onboarding Q2', last_updated: '2026-06-30' }, '# Onboarding Q2\n\nEntregado.');
+  const carpeta = h.api.carpetaBrain_(root, ['wiki', 'projects']);
+
+  const c = plain(h.api.cerrarProyecto('SID', config, 'onboarding.md', true));
+  assert.deepEqual({ ok: c.ok, name: c.name, cerrado: c.cerrado }, { ok: true, name: 'Onboarding Q2', cerrado: true });
+  let fm = h.api.parsearPagina_(h.api.leerArchivoBrain_(carpeta, 'onboarding.md')).frontmatter;
+  assert.equal(fm.status, 'closed');
+  assert.ok(fm.closed_on, 'registra la fecha de cierre');
+  assert.match(logDe(h, root), /✅ cerrar proyecto · Onboarding Q2/);
+
+  const r = plain(h.api.cerrarProyecto('SID', config, 'onboarding.md', false));
+  assert.equal(r.cerrado, false);
+  fm = h.api.parsearPagina_(h.api.leerArchivoBrain_(carpeta, 'onboarding.md')).frontmatter;
+  assert.equal(fm.status, 'active');
+  assert.equal(fm.closed_on, undefined, 'reabrir borra closed_on');
+  assert.match(logDe(h, root), /↩ reabrir proyecto · Onboarding Q2/);
+});
+
+test('cerrarProyecto falla claro si el proyecto no existe', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  h.api.ensureBrainFolder_('SID', config);
+  assert.throws(() => h.api.cerrarProyecto('SID', config, 'nada.md', true), /no encontrado/);
+});
+
+test('dispatch enruta renombrarProyecto y cerrarProyecto', () => {
+  const h = adminHarness();
+  const config = h.api.construirConfig('SID', CONFIG);
+  const root = h.api.ensureBrainFolder_('SID', config);
+  ponerWiki(h, root, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha' }, '# Alpha');
+  h.api.guardarProyectos_(root, { alpha: { name: 'Alpha', aliases: [] } });
+
+  const cr = plain(h.api.dispatch('cerrarProyecto', ['alpha.md', true], 'SID', config));
+  assert.equal(cr.cerrado, true);
+  const rn = plain(h.api.dispatch('renombrarProyecto', ['alpha.md', 'Alpha 2'], 'SID', config));
+  assert.equal(rn.name, 'Alpha 2');
+});

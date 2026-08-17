@@ -201,6 +201,7 @@ function scanSilencios_(sheetId, config, now) {
       var pagina = parsearPagina_(archivo.content);
       var fm = pagina.frontmatter || {};
       if (String(fm.external) === 'true') return;        // externos (Meet) no reportan: sin silencio
+      if (String(fm.status) === 'closed') return;        // proyecto archivado: no se marca silencio
       var lu = str_(fm.last_updated);
       if (!lu) return;                                   // sin fecha no hay nada que comparar
       var dias = diasEntreISO_(lu, hoy);

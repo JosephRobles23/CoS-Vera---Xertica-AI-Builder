@@ -50,7 +50,9 @@ function listarWikiPaginas(sheetId, config, tipo) {
       name: str_(fm.name) || a.name,
       last_updated: str_(fm.last_updated) || str_(fm.date),
       open_blockers: Array.isArray(fm.open_blockers) ? fm.open_blockers : [],
-      resumen: primerParrafo_(pg.body)
+      resumen: primerParrafo_(pg.body),
+      status: str_(fm.status),                    // 'closed' = proyecto archivado (fuera de alertas)
+      external: String(fm.external) === 'true'    // solo personas: contacto de Meet que no reporta
     });
   });
   out.sort(function (x, y) { return str_(y.last_updated).localeCompare(str_(x.last_updated)); });
@@ -229,6 +231,132 @@ function olvidarProyecto(sheetId, config, file) {
   regenerarIndexBrain_(root, hoyISO_(config));
   cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
   return { ok: true, name: str_(fm.name) || slug };
+}
+
+// --- Curación de proyectos (sidebar): renombrar (completo) y cerrar/reabrir ---
+
+/**
+ * Renombra un proyecto de forma COMPLETA: cambia el `name` visible, el identificador (slug) y el
+ * nombre del archivo .md en wiki/projects, migra la entrada canónica de _projects.json (el slug
+ * viejo queda como ALIAS, para que ingestas futuras del nombre anterior sigan cayendo aquí) y
+ * reetiqueta las tareas que referencian el proyecto por nombre (hoja Tareas + wiki/tasks + índice).
+ * Las menciones en el texto histórico de personas/actas NO se reescriben: son verdad histórica y el
+ * alias cubre las ingestas futuras (mismo criterio que `mergearProyectos`). Público.
+ * @param {string} file          nombre de archivo actual (p.ej. 'ai-platform.md')
+ * @param {string} nuevoNombre   nombre visible nuevo
+ * @return {{ok:boolean, name:string, file:string, slugChanged:boolean, tareas:number}}
+ */
+function renombrarProyecto(sheetId, config, file, nuevoNombre) {
+  var root = ensureBrainFolder_(sheetId, config);
+  var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
+  var oldFile = nombreArchivoSeguro_(file);
+  var nuevo = str_(nuevoNombre).trim();
+  if (!nuevo) throw new Error('El nombre no puede quedar vacío.');
+
+  var oldRaw = leerArchivoBrain_(carpeta, oldFile);
+  if (oldRaw == null) throw new Error('Proyecto no encontrado: ' + oldFile);
+  var page = parsearPagina_(oldRaw);
+  var oldSlug = oldFile.replace(/\.md$/, '');
+  var oldName = str_((page.frontmatter || {}).name) || oldSlug;
+
+  var newSlug = slugBrain_(nuevo);
+  var newFile = newSlug + '.md';
+  var slugChanged = newSlug !== oldSlug;
+
+  // Colisión: renombrar hacia un slug que ya es otro proyecto sería una fusión encubierta.
+  if (slugChanged && leerArchivoBrain_(carpeta, newFile) != null) {
+    throw new Error('Ya existe un proyecto con ese nombre. Usa «Fusionar» para combinarlos.');
+  }
+
+  // 1) Página .md: nuevo name; si cambió el slug, se escribe en el archivo nuevo y se borra el viejo.
+  escribirArchivoBrain_(carpeta, newFile, componerPagina_(mergeFrontmatter_(page.frontmatter, { name: nuevo }), page.body));
+  if (slugChanged) borrarArchivoBrain_(carpeta, oldFile);
+
+  // 2) Catálogo: mueve el canónico oldSlug → newSlug (aliases preservados; el slug viejo pasa a alias).
+  var mapa = cargarProyectos_(root);
+  var prev = mapa[oldSlug] || { name: oldName, aliases: [] };
+  var aliases = (prev.aliases || []).slice();
+  if (slugChanged && aliases.indexOf(oldSlug) === -1) aliases.push(oldSlug);
+  if (mapa[newSlug]) (mapa[newSlug].aliases || []).forEach(function (al) { if (aliases.indexOf(al) === -1) aliases.push(al); });
+  aliases = aliases.filter(function (al) { return al !== newSlug; });
+  if (slugChanged) delete mapa[oldSlug];
+  mapa[newSlug] = { name: nuevo, aliases: aliases };
+  // Por si el nuevo slug estaba registrado como alias de otro canónico (merge previo): purgarlo.
+  Object.keys(mapa).forEach(function (c) {
+    if (c !== newSlug && mapa[c].aliases && mapa[c].aliases.indexOf(newSlug) > -1) {
+      mapa[c].aliases = mapa[c].aliases.filter(function (al) { return al !== newSlug; });
+    }
+  });
+  guardarProyectos_(root, mapa);
+
+  // 3) Tareas que referencian el proyecto por NOMBRE (match exacto): hoja + wiki/tasks + índice.
+  var tareas = renombrarProyectoEnTareas_(sheetId, config, root, oldName, nuevo);
+
+  appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
+    '- ' + hoyISO_(config) + ' · ✏️ renombrar proyecto · ' + oldName + ' → ' + nuevo +
+    (slugChanged ? ' (' + oldSlug + ' → ' + newSlug + ')' : '') + ' · ' + tareas + ' tarea(s)\n');
+  regenerarIndexBrain_(root, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_.concat(CACHE_MISEGUIMIENTO_));
+  return { ok: true, name: nuevo, file: newFile, slugChanged: slugChanged, tareas: tareas };
+}
+
+/** Reetiqueta el proyecto (match exacto por nombre) en la hoja Tareas, wiki/tasks y _tasks.json. */
+function renombrarProyectoEnTareas_(sheetId, config, root, oldName, newName) {
+  var n = 0;
+  // Hoja Tareas (columna 2 = Proyecto).
+  try {
+    var sh = ensureTareasSheet_(sheetId, config);
+    listarTareas_(sheetId, config).forEach(function (t) {
+      if (t.proyecto === oldName) { sh.getRange(t.fila, 2).setValue(newName); n++; }
+    });
+  } catch (e) { /* sin hoja Tareas todavía */ }
+
+  // wiki/tasks: frontmatter `project` (páginas activas y archivadas).
+  var carpeta = carpetaBrain_(root, ['wiki', 'tasks']);
+  listarArchivosBrain_(carpeta, '.md').forEach(function (a) {
+    if (a.name.charAt(0) === '_') return;
+    var pg = parsearPagina_(a.content);
+    if (str_((pg.frontmatter || {}).project) === oldName) {
+      escribirArchivoBrain_(carpeta, a.name, componerPagina_(mergeFrontmatter_(pg.frontmatter, { project: newName }), pg.body));
+    }
+  });
+  // Índice _tasks.json: reconstruir desde las páginas ya corregidas (idempotente).
+  try { reconstruirIndiceTareas_(root); } catch (e) { /* sin tareas todavía */ }
+  return n;
+}
+
+/**
+ * Marca/desmarca un proyecto como CERRADO (`status: closed` en el frontmatter). Un proyecto cerrado
+ * conserva TODO su historial, pero queda fuera de las alertas de silencio del Morning Briefing, del
+ * scan del dispatcher y de la Actividad del Seguimiento. Reversible. Público.
+ * @param {string}  file     nombre de archivo en wiki/projects
+ * @param {boolean} cerrado  true = cerrar/archivar; false = reabrir
+ * @return {{ok:boolean, name:string, cerrado:boolean}}
+ */
+function cerrarProyecto(sheetId, config, file, cerrado) {
+  var root = ensureBrainFolder_(sheetId, config);
+  var carpeta = carpetaBrain_(root, ['wiki', 'projects']);
+  var name = nombreArchivoSeguro_(file);
+  var raw = leerArchivoBrain_(carpeta, name);
+  if (raw == null) throw new Error('Proyecto no encontrado: ' + name);
+  var page = parsearPagina_(raw);
+  var cerrar = bool_(cerrado);
+
+  var fm;
+  if (cerrar) {
+    fm = mergeFrontmatter_(page.frontmatter, { status: 'closed', closed_on: hoyISO_(config) });
+  } else {
+    fm = mergeFrontmatter_(page.frontmatter, { status: 'active' });
+    delete fm.closed_on;
+  }
+  escribirArchivoBrain_(carpeta, name, componerPagina_(fm, page.body));
+
+  appendArchivoBrain_(carpetaBrain_(root, ['wiki']), 'log.md',
+    '- ' + hoyISO_(config) + ' · ' + (cerrar ? '✅ cerrar' : '↩ reabrir') + ' proyecto · ' +
+    (str_(fm.name) || name.replace(/\.md$/, '')) + '\n');
+  regenerarIndexBrain_(root, hoyISO_(config));
+  cacheInvalidar_(sheetId, CACHE_SEGUIMIENTO_);
+  return { ok: true, name: str_(fm.name) || name.replace(/\.md$/, ''), cerrado: cerrar };
 }
 
 // --- Reparación del wiki (gobernanza): reconciliar estructuras viejas con el contrato actual ---

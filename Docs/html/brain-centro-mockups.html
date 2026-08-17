@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CoS · Centro del Brain — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ---- shadcn / Neutral (mismos tokens que Sidebar.html) ---- */
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.145 0 0);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.145 0 0);
+  --primary:oklch(0.205 0 0);--primary-foreground:oklch(0.985 0 0);
+  --secondary:oklch(0.97 0 0);--secondary-foreground:oklch(0.205 0 0);
+  --muted:oklch(0.97 0 0);--muted-foreground:oklch(0.556 0 0);
+  --accent:oklch(0.97 0 0);--accent-foreground:oklch(0.205 0 0);
+  --destructive:oklch(0.577 0.245 27.325);
+  --border:oklch(0.922 0 0);--input:oklch(0.922 0 0);--ring:oklch(0.708 0 0);
+  --scroll:oklch(0.45 0 0 / 0.28);--scroll-hover:oklch(0.45 0 0 / 0.45);
+  --radius:0.625rem;--radius-sm:calc(var(--radius) - 4px);
+  --shadow:0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-lg:0 24px 60px -12px oklch(0 0 0 / 0.30), 0 8px 24px -8px oklch(0 0 0 / 0.18);
+  /* estados semánticos */
+  --green:oklch(0.52 0.13 155);--greenbg:oklch(0.96 0.03 155);
+  --amber:oklch(0.62 0.13 70);--amberbg:oklch(0.96 0.05 82);
+  --red:oklch(0.58 0.20 27);--redbg:oklch(0.96 0.04 27);
+  --blue:oklch(0.55 0.17 258);--bluebg:oklch(0.96 0.03 258);
+  --violet:oklch(0.55 0.18 300);--violetbg:oklch(0.96 0.03 300);
+}
+*{box-sizing:border-box;margin:0;scrollbar-width:thin;scrollbar-color:var(--scroll) transparent}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:999px}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-hover)}
+body{font-family:'Inter',-apple-system,system-ui,sans-serif;color:var(--foreground);font-size:13px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;background:#eceef1;min-height:100vh}
+svg{width:16px;height:16px;display:inline-flex;vertical-align:-3px}
+.demo-note{max-width:940px;margin:0 auto;padding:16px 18px 4px;color:var(--muted-foreground);font-size:12px}
+.demo-note b{color:var(--foreground)}
+
+/* ---- "Sheet" de fondo, para transmitir que el diálogo es MODELESS (la hoja sigue visible/usable) ---- */
+.stage{position:relative;max-width:940px;margin:8px auto 48px;padding:0 18px}
+.sheet-bg{position:absolute;inset:0 18px;border-radius:14px;overflow:hidden;border:1px solid #dfe2e6;background:#fff}
+.sheet-bg .sheet-top{height:34px;background:#f7f8fa;border-bottom:1px solid #e7e9ec;display:flex;align-items:center;gap:8px;padding:0 12px;color:#9aa0a8;font-size:11px}
+.sheet-bg .dotr{display:flex;gap:5px}.sheet-bg .dotr i{width:9px;height:9px;border-radius:50%;background:#e0e3e7}
+.sheet-bg .grid{position:absolute;inset:34px 0 0 0;
+  background-image:linear-gradient(#eef0f3 1px,transparent 1px),linear-gradient(90deg,#eef0f3 1px,transparent 1px);
+  background-size:100% 26px, 92px 26px;opacity:.9}
+.sheet-hint{position:absolute;left:50%;top:52%;transform:translateX(-50%);color:#b7bcc3;font-size:12px;text-align:center;width:80%}
+
+/* ---- Diálogo modeless flotante ---- */
+.dialog{position:relative;z-index:2;width:100%;max-width:720px;margin:40px auto;background:var(--card);
+  border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;max-height:78vh}
+.head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 12px;border-bottom:1px solid var(--border)}
+.mark{width:34px;height:34px;border-radius:9px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;flex:0 0 auto;font-size:16px}
+.head .t{flex:1;min-width:0}
+.head h1{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.head p{font-size:11.5px;color:var(--muted-foreground);margin-top:1px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;color:var(--green);
+  background:var(--greenbg);border:1px solid oklch(0.52 0.13 155 / .25);padding:3px 8px;border-radius:999px;white-space:nowrap;margin-top:2px}
+.pill i{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.x{border:0;background:var(--secondary);width:30px;height:30px;border-radius:8px;color:var(--muted-foreground);cursor:pointer;flex:0 0 auto;font-size:16px}
+.x:hover{background:var(--accent);color:var(--foreground)}
+
+/* tabs */
+.tabs{display:flex;gap:2px;background:var(--muted);margin:12px 18px 0;padding:3px;border-radius:var(--radius)}
+.tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;border:0;background:transparent;cursor:pointer;
+  padding:8px 6px;border-radius:var(--radius-sm);color:var(--muted-foreground);font:inherit;font-size:12px;font-weight:600;transition:.15s}
+.tab:hover{color:var(--foreground)}
+.tab[aria-selected="true"]{background:var(--background);color:var(--foreground);box-shadow:var(--shadow)}
+.tab .badge{font-size:10px}
+
+.body{padding:14px 18px 18px;overflow:auto}
+.view{display:none;animation:fade .18s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1}}
+
+/* toolbar segmentado + búsqueda */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.seg{display:flex;gap:2px;background:var(--muted);padding:3px;border-radius:var(--radius-sm)}
+.seg button{border:0;background:transparent;cursor:pointer;padding:6px 11px;border-radius:calc(var(--radius-sm) - 2px);
+  color:var(--muted-foreground);font:inherit;font-size:12px;font-weight:600;transition:.15s}
+.seg button[aria-selected="true"]{background:var(--background);color:var(--foreground);box-shadow:var(--shadow)}
+.search{flex:1;min-width:150px;position:relative}
+.search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--muted-foreground);width:14px;height:14px}
+.search input{width:100%;padding:8px 9px 8px 30px;font:inherit;font-size:12.5px;color:var(--foreground);
+  background:var(--background);border:1px solid var(--input);border-radius:var(--radius-sm);outline:none}
+.search input:focus{border-color:var(--ring);box-shadow:0 0 0 3px oklch(0.708 0 0 / .25)}
+
+/* chips de filtro */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--border);background:var(--background);color:var(--muted-foreground);border-radius:999px;
+  padding:5px 11px;font-size:11.5px;font-weight:600;cursor:pointer;transition:.15s}
+.chip:hover{background:var(--accent)}
+.chip.on{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+
+/* nota contextual (ligada al Morning Briefing) */
+.hintbar{display:flex;gap:9px;align-items:flex-start;background:var(--bluebg);border:1px solid oklch(0.55 0.17 258 / .22);
+  border-radius:var(--radius-sm);padding:9px 11px;margin-bottom:12px;font-size:11.5px;color:oklch(0.4 0.09 258)}
+.hintbar svg{flex:0 0 auto;color:var(--blue);margin-top:1px}
+
+/* lista de páginas */
+.item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;background:var(--card);transition:.15s}
+.item:hover{border-color:var(--ring)}
+.item.closed{opacity:.72;background:var(--secondary)}
+.item .meta{flex:1;min-width:0}
+.item .meta .name{font-weight:600;font-size:13px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.item .meta .sub{font-size:11px;color:var(--muted-foreground);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .acts{flex:0 0 auto;display:flex;gap:3px}
+.ib{border:1px solid transparent;background:transparent;width:30px;height:30px;border-radius:8px;color:var(--muted-foreground);cursor:pointer;display:grid;place-items:center;transition:.15s}
+.ib:hover{background:var(--accent);color:var(--foreground)}
+.ib.danger:hover{background:var(--redbg);color:var(--red)}
+.ib.ok:hover{background:var(--greenbg);color:var(--green)}
+.ib svg{width:15px;height:15px}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;background:var(--muted);color:var(--muted-foreground);white-space:nowrap}
+.badge.red{background:var(--redbg);color:var(--red)}
+.badge.amber{background:var(--amberbg);color:var(--amber)}
+.badge.green{background:var(--greenbg);color:var(--green)}
+.badge.violet{background:var(--violetbg);color:var(--violet)}
+.badge.gray{background:var(--muted);color:var(--muted-foreground)}
+.empty{padding:26px;text-align:center;color:var(--muted-foreground);font-size:12px}
+
+/* botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:var(--radius-sm);cursor:pointer;
+  font:inherit;font-size:12.5px;font-weight:600;padding:8px 13px;transition:.15s}
+.btn svg{width:14px;height:14px}
+.btn-primary{background:var(--primary);color:var(--primary-foreground)}
+.btn-primary:hover{opacity:.9}
+.btn-outline{background:var(--background);color:var(--foreground);border:1px solid var(--border)}
+.btn-outline:hover{background:var(--accent)}
+.btn-ghost{background:transparent;color:var(--muted-foreground)}
+.btn-ghost:hover{background:var(--accent);color:var(--foreground)}
+
+/* fusionar */
+.merge{display:grid;grid-template-columns:1fr 34px 1fr;gap:12px;align-items:end;margin-bottom:14px}
+.merge .arrow{display:grid;place-items:center;height:38px;color:var(--muted-foreground)}
+label{display:block;font-size:11px;font-weight:600;color:var(--muted-foreground);margin:0 0 5px}
+select{width:100%;padding:9px 10px;font:inherit;font-size:12.5px;color:var(--foreground);background:var(--background);
+  border:1px solid var(--input);border-radius:var(--radius-sm);outline:none}
+select:focus{border-color:var(--ring);box-shadow:0 0 0 3px oklch(0.708 0 0 / .25)}
+.preview{border:1px dashed var(--border);border-radius:var(--radius);padding:12px 13px;font-size:12px;color:var(--muted-foreground);background:var(--secondary);margin-bottom:14px}
+.preview b{color:var(--foreground)}
+
+/* salud */
+.diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.stat{border:1px solid var(--border);border-radius:var(--radius);padding:12px 13px;background:var(--card)}
+.stat h4{font-size:11px;font-weight:600;color:var(--muted-foreground);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.stat .rowk{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+.stat .rowk b{font-weight:700}
+.stat .rowk.warn b{color:var(--amber)}
+.diag-empty{color:var(--muted-foreground);font-size:12px;padding:6px 0 12px}
+
+.section-title{font-size:12px;font-weight:600;margin:2px 0 8px;color:var(--foreground)}
+.section-desc{font-size:11.5px;color:var(--muted-foreground);margin-bottom:12px}
+
+/* lector lateral (dentro del diálogo) */
+.reader-back{position:absolute;inset:0;background:oklch(0 0 0 / .18);border-radius:16px;display:none;z-index:5}
+.reader-back.open{display:block}
+.reader{position:absolute;top:0;right:0;height:100%;width:min(380px,86%);background:var(--card);border-left:1px solid var(--border);
+  box-shadow:-14px 0 40px -12px oklch(0 0 0 / .25);transform:translateX(102%);transition:transform .22s ease;z-index:6;display:flex;flex-direction:column}
+.reader.open{transform:translateX(0)}
+.reader .rhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:15px 16px 12px;border-bottom:1px solid var(--border)}
+.reader .rhead h2{font-size:14px;font-weight:600}
+.reader .rhead .fm{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.reader .rbody{padding:14px 16px;overflow:auto;font-size:12.5px}
+.reader .rbody h5{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-foreground);margin:14px 0 6px}
+.reader .rbody h5:first-child{margin-top:0}
+.reader .rbody ul{margin:0;padding-left:18px;color:var(--foreground)}
+.reader .rbody li{margin:3px 0}
+
+/* renombrar inline */
+.rename{display:flex;gap:6px;align-items:center;flex:1}
+.rename input{flex:1;padding:6px 9px;font:inherit;font-size:13px;border:1px solid var(--ring);border-radius:var(--radius-sm);outline:none;box-shadow:0 0 0 3px oklch(0.708 0 0 / .2)}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(12px);background:var(--primary);color:var(--primary-foreground);
+  border-radius:10px;padding:11px 16px;font-size:12.5px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.22s;z-index:20;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media(max-width:640px){
+  .dialog{max-width:100%;margin:12px auto;max-height:88vh}
+  .diag-grid{grid-template-columns:1fr}
+  .merge{grid-template-columns:1fr;gap:8px}.merge .arrow{transform:rotate(90deg);height:24px}
+  .sheet-hint{display:none}
+}
+</style>
+</head>
+<body>
+
+<p class="demo-note"><b>Prototipo navegable · Centro del Brain.</b> Datos demostrativos para validar jerarquía, interacciones y UX. El diálogo es <b>modeless</b> (no bloquea la hoja) — se abriría desde un botón en el tab «Brain» del sidebar, análogo al de «Guía». Los proyectos de ejemplo replican los del Morning Briefing para mostrar el flujo de curación.</p>
+
+<div class="stage">
+  <!-- Hoja de fondo para transmitir "modeless" -->
+  <div class="sheet-bg" aria-hidden="true">
+    <div class="sheet-top"><span class="dotr"><i></i><i></i><i></i></span><span>CoS · Google Sheets — tu hoja sigue activa detrás</span></div>
+    <div class="grid"></div>
+    <div class="sheet-hint">La hoja permanece usable mientras el Centro del Brain está abierto.</div>
+  </div>
+
+  <!-- Diálogo -->
+  <section class="dialog" role="dialog" aria-label="Centro del Brain">
+    <div class="head">
+      <div class="mark">🧠</div>
+      <div class="t">
+        <h1>Centro del Brain</h1>
+        <p>Cura, fusiona y mantén sano tu segundo cerebro.</p>
+        <span class="pill"><i></i>No bloquea tu hoja</span>
+      </div>
+      <button class="x" data-toast="Cerrar el diálogo (la hoja sigue como estaba).">×</button>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-tab="paginas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>Páginas</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="fusionar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4"/></svg>Fusionar</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="salud"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2 6 4-12 2 6h6"/></svg>Salud</button>
+    </div>
+
+    <div class="body">
+
+      <!-- ============ PÁGINAS ============ -->
+      <div class="view active" id="paginas" role="tabpanel">
+        <div class="toolbar">
+          <div class="seg" id="tipoSeg">
+            <button aria-selected="true" data-tipo="projects">📁 Proyectos</button>
+            <button aria-selected="false" data-tipo="people">👤 Personas</button>
+            <button aria-selected="false" data-tipo="meetings">📅 Reuniones</button>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>
+            <input id="q" placeholder="Buscar…" oninput="render()">
+          </div>
+        </div>
+
+        <div class="chips" id="estadoChips">
+          <button class="chip on" data-estado="activos">Activos <span id="cAct"></span></button>
+          <button class="chip" data-estado="cerrados">Cerrados <span id="cCer"></span></button>
+          <button class="chip" data-estado="todos">Todos</button>
+        </div>
+
+        <div class="hintbar" id="briefHint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          <span><b>Cerrar</b> un proyecto conserva todo su historial pero lo saca de las alertas «sin novedades» del Morning Briefing y del Seguimiento. Úsalo para lo que ya terminó; <b>Olvidar</b> (🗑) es el borrado definitivo.</span>
+        </div>
+
+        <div id="lista"></div>
+      </div>
+
+      <!-- ============ FUSIONAR ============ -->
+      <div class="view" id="fusionar" role="tabpanel">
+        <div class="section-title">Fusionar proyectos duplicados</div>
+        <div class="section-desc">Cuando el mismo proyecto quedó con dos nombres (p. ej. «AI Platform» y «Plataforma IA»), únelos en uno. El origen se archiva y su nombre queda como <em>alias</em>, así las ingestas futuras del nombre viejo caen en el proyecto correcto.</div>
+        <div class="merge">
+          <div>
+            <label>Origen — se fusiona y desaparece</label>
+            <select id="mOrigen"></select>
+          </div>
+          <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+          <div>
+            <label>Destino — se conserva</label>
+            <select id="mDestino"></select>
+          </div>
+        </div>
+        <div class="preview" id="mPreview"></div>
+        <button class="btn btn-primary" onclick="doMerge()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2"/><circle cx="6" cy="6" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4"/></svg> Fusionar proyectos</button>
+      </div>
+
+      <!-- ============ SALUD ============ -->
+      <div class="view" id="salud" role="tabpanel">
+        <div class="section-title">Salud del wiki</div>
+        <div class="section-desc">Para wikis creados por versiones anteriores: reconcilia páginas de personas con el roster (email/slug/externas mal marcadas), cataloga proyectos y regenera índices. La reparación no borra contenido y puede correrse varias veces.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="diagnosticar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.8 3v6a4.2 4.2 0 0 0 8.4 0V3"/><path d="M9 21a3 3 0 0 0 3-3v-3"/><circle cx="18" cy="9" r="2"/></svg> Diagnosticar</button>
+          <button class="btn btn-outline" onclick="reparar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2-2 2.6-2.6z"/></svg> Reparar wiki</button>
+        </div>
+        <div id="diag"><div class="diag-empty">Ejecuta «Diagnosticar» para ver el estado del wiki.</div></div>
+      </div>
+
+    </div>
+
+    <!-- Lector lateral -->
+    <div class="reader-back" id="readerBack" onclick="closeReader()"></div>
+    <aside class="reader" id="reader">
+      <div class="rhead">
+        <div>
+          <h2 id="rName">—</h2>
+          <div class="fm" id="rFm"></div>
+        </div>
+        <button class="x" onclick="closeReader()">×</button>
+      </div>
+      <div class="rbody" id="rBody"></div>
+    </aside>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- datos demo (reflejan el contrato real + la captura del briefing) ---------------- */
+var DATA = {
+  projects: [
+    {file:'redpublica-hack.md', name:'RedPublica Hack', last_updated:'2026-07-31', dias:17, blockers:[], status:'active', resumen:'Hackathon para exponer datos públicos; equipo definido y kickoff hecho.'},
+    {file:'ai-platform.md', name:'AI Platform', last_updated:'2026-08-04', dias:13, blockers:[], status:'active', resumen:'Plataforma interna de agentes; en fase de discovery técnico.'},
+    {file:'discovery.md', name:'Discovery', last_updated:'2026-08-03', dias:14, blockers:[], status:'active', resumen:'Entrevistas con usuarios y mapa de oportunidades.'},
+    {file:'leakage.md', name:'Leakage', last_updated:'2026-07-31', dias:17, blockers:[], status:'active', resumen:'Auditoría de fugas de datos en pipelines.'},
+    {file:'test-app-aap.md', name:'Test App AAP', last_updated:'2026-07-31', dias:17, blockers:[], status:'active', resumen:'App de pruebas para el programa AAP.'},
+    {file:'benchmarking.md', name:'Benchmarking', last_updated:'2026-07-27', dias:21, blockers:[], status:'active', resumen:'Comparativa de proveedores de modelos.'},
+    {file:'transformacion-de-procesos.md', name:'Transformación de Procesos', last_updated:'2026-07-27', dias:21, blockers:[], status:'active', resumen:'Rediseño de procesos internos con automatización.'},
+    {file:'chief.md', name:'Chief', last_updated:'2026-07-27', dias:21, blockers:['Los reportes diarios no se enviaron por horario de cierre mal configurado'], status:'active', resumen:'Asistente ejecutivo interno.'},
+    {file:'onboarding-q2.md', name:'Onboarding Q2', last_updated:'2026-06-30', dias:48, blockers:[], status:'closed', resumen:'Programa de onboarding del segundo trimestre — entregado.'},
+    {file:'landing-v1.md', name:'Landing v1', last_updated:'2026-05-20', dias:89, blockers:[], status:'closed', resumen:'Primera landing pública — reemplazada por v2.'}
+  ],
+  people: [
+    {file:'carlos-paredes-x-com.md', name:'Carlos Paredes', last_updated:'2026-08-17', dias:0, blockers:[], external:false, resumen:'Cerró la propuesta de arquitectura de AI Platform.'},
+    {file:'ana-ruiz-x-com.md', name:'Ana Ruiz', last_updated:'2026-08-16', dias:1, blockers:[], external:false, resumen:'Confirmó agenda del comité de producto.'},
+    {file:'maria-campos-x-com.md', name:'María Campos', last_updated:'2026-08-10', dias:7, blockers:['Aprobación de accesos del cliente'], external:false, resumen:'Bloqueada por accesos del cliente en AI Academy.'},
+    {file:'proveedor-externo.md', name:'Proveedor Externo (Meet)', last_updated:'2026-08-05', dias:12, blockers:[], external:true, resumen:'Contacto detectado en notas de Meet; no reporta.'}
+  ],
+  meetings: [
+    {file:'2026-08-04-alineacion-interna.md', name:'Alineación interna · 04 ago', last_updated:'2026-08-04', dias:13, blockers:[], resumen:'Decisión: priorizar integración de accesos. 2 compromisos.'},
+    {file:'2026-08-01-comite-producto.md', name:'Comité de producto · 01 ago', last_updated:'2026-08-01', dias:16, blockers:[], resumen:'Riesgo: validación legal pendiente. 1 compromiso.'}
+  ]
+};
+var BODY_DEMO = {
+  'Avances':['Kickoff realizado con el equipo completo','Definido el alcance de la primera entrega'],
+  'Blockers':[],
+  'Decisiones':['Se prioriza la integración de accesos sobre el reporting']
+};
+
+/* ---------------- estado UI ---------------- */
+var tipo='projects', estado='activos';
+var $=function(s){return document.querySelector(s)};
+var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+
+function toast(msg){var t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(window._t);window._t=setTimeout(function(){t.classList.remove('show')},2600);}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+
+/* ---------------- render lista ---------------- */
+function visibles(){
+  var arr=DATA[tipo].slice();
+  var q=$('#q').value.trim().toLowerCase();
+  if(q) arr=arr.filter(function(p){return p.name.toLowerCase().indexOf(q)>-1});
+  if(tipo==='projects'){
+    if(estado==='activos') arr=arr.filter(function(p){return p.status!=='closed'});
+    else if(estado==='cerrados') arr=arr.filter(function(p){return p.status==='closed'});
+  }
+  return arr;
+}
+
+function render(){
+  // chips solo para proyectos
+  $('#estadoChips').style.display = tipo==='projects' ? 'flex' : 'none';
+  $('#briefHint').style.display   = tipo==='projects' ? 'flex' : 'none';
+  if(tipo==='projects'){
+    $('#cAct').textContent = '· '+DATA.projects.filter(function(p){return p.status!=='closed'}).length;
+    $('#cCer').textContent = '· '+DATA.projects.filter(function(p){return p.status==='closed'}).length;
+  }
+
+  var arr=visibles();
+  var el=$('#lista');
+  if(!arr.length){el.innerHTML='<div class="empty">Sin páginas para este filtro.</div>';return;}
+
+  el.innerHTML = arr.map(function(p){
+    var i = DATA[tipo].indexOf(p);
+    var closed = p.status==='closed';
+    var badges='';
+    if(closed) badges+='<span class="badge green">✓ Cerrado</span>';
+    if(p.external) badges+='<span class="badge gray">Externo</span>';
+    if(p.blockers && p.blockers.length) badges+='<span class="badge red">'+p.blockers.length+' blocker</span>';
+    if(!closed && !p.external && tipo!=='meetings' && p.dias>=7) badges+='<span class="badge amber">'+p.dias+'d sin novedades</span>';
+
+    var acts='<button class="ib" title="Ver" onclick="verPagina('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>';
+    if(tipo==='projects'){
+      acts+='<button class="ib" title="Renombrar" onclick="renombrar('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>';
+      acts+= closed
+        ? '<button class="ib" title="Reabrir" onclick="toggleClose('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>'
+        : '<button class="ib ok" title="Cerrar / archivar" onclick="toggleClose('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg></button>';
+      acts+='<button class="ib danger" title="Olvidar (borrar)" onclick="olvidar('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
+    } else if(tipo==='people'){
+      acts+='<button class="ib danger" title="Olvidar persona (derecho al olvido)" onclick="olvidar('+i+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></button>';
+    }
+
+    return '<div class="item'+(closed?' closed':'')+'">'+
+      '<div class="meta"><div class="name">'+esc(p.name)+badges+'</div>'+
+      '<div class="sub">Actualizado '+esc(p.last_updated)+' · '+esc(p.resumen)+'</div></div>'+
+      '<div class="acts">'+acts+'</div></div>';
+  }).join('');
+}
+
+/* ---------------- acciones (simuladas) ---------------- */
+function verPagina(i){
+  var p=DATA[tipo][i];
+  $('#rName').textContent=p.name;
+  var fm='<span class="badge">Actualizado '+esc(p.last_updated)+'</span>';
+  if(p.status==='closed') fm+='<span class="badge green">Cerrado</span>';
+  if(p.external) fm+='<span class="badge gray">Externo</span>';
+  if(p.blockers&&p.blockers.length) fm+='<span class="badge red">'+p.blockers.length+' blocker</span>';
+  $('#rFm').innerHTML=fm;
+  var b='<h5>Resumen</h5><p>'+esc(p.resumen)+'</p>';
+  b+='<h5>Avances</h5><ul>'+BODY_DEMO['Avances'].map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>';
+  if(p.blockers&&p.blockers.length){b+='<h5>Blockers</h5><ul>'+p.blockers.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>';}
+  b+='<h5>Decisiones</h5><ul>'+BODY_DEMO['Decisiones'].map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ul>';
+  $('#rBody').innerHTML=b;
+  $('#reader').classList.add('open');$('#readerBack').classList.add('open');
+}
+function closeReader(){$('#reader').classList.remove('open');$('#readerBack').classList.remove('open');}
+
+function renombrar(i){
+  var p=DATA[tipo][i];
+  var item=$$('#lista .item')[visibles().indexOf(p)];
+  var meta=item.querySelector('.meta');
+  meta.innerHTML='<div class="rename"><input id="renInput" value="'+esc(p.name)+'">'+
+    '<button class="btn btn-primary" style="padding:6px 10px" onclick="saveRename('+i+')">Guardar</button>'+
+    '<button class="btn btn-ghost" style="padding:6px 8px" onclick="render()">Cancelar</button></div>';
+  var inp=$('#renInput');inp.focus();inp.select();
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter')saveRename(i);if(e.key==='Escape')render();});
+}
+function saveRename(i){
+  var v=$('#renInput').value.trim();
+  if(!v){toast('El nombre no puede quedar vacío');return;}
+  DATA[tipo][i].name=v;render();fillMerge();toast('Nombre actualizado — el slug y el historial se conservan');
+}
+
+function toggleClose(i){
+  var p=DATA.projects[i];
+  p.status = p.status==='closed' ? 'active' : 'closed';
+  render();
+  toast(p.status==='closed'
+    ? '«'+p.name+'» cerrado — ya no generará alertas en el briefing'
+    : '«'+p.name+'» reabierto');
+}
+
+function olvidar(i){
+  var p=DATA[tipo][i];
+  var msg = tipo==='people'
+    ? '¿Olvidar a «'+p.name+'»? Borra su página y TODO su raw (derecho al olvido). No se puede deshacer.'
+    : '¿Olvidar el proyecto «'+p.name+'»? Borra su página y su entrada del catálogo. Las menciones en personas y actas quedan. No se puede deshacer.';
+  if(!confirm(msg)) return;
+  DATA[tipo].splice(i,1);render();fillMerge();toast('«'+p.name+'» olvidado');
+}
+
+/* ---------------- fusionar ---------------- */
+function fillMerge(){
+  var opts=DATA.projects.map(function(p){return '<option value="'+p.file+'">'+esc(p.name)+'</option>'}).join('');
+  $('#mOrigen').innerHTML=opts;$('#mDestino').innerHTML=opts;
+  if(DATA.projects.length>1) $('#mDestino').selectedIndex=1;
+  previewMerge();
+}
+function previewMerge(){
+  var o=$('#mOrigen'),d=$('#mDestino');
+  var on=o.options[o.selectedIndex],dn=d.options[d.selectedIndex];
+  if(!on||!dn){$('#mPreview').textContent='';return;}
+  if(o.value===d.value){$('#mPreview').innerHTML='⚠️ Origen y destino son el mismo proyecto. Elige dos distintos.';return;}
+  $('#mPreview').innerHTML='Se unirán las secciones y blockers de <b>'+esc(on.text)+'</b> dentro de <b>'+esc(dn.text)+'</b>. '+
+    '<b>'+esc(on.text)+'</b> se archivará y su nombre quedará como <em>alias</em> de <b>'+esc(dn.text)+'</b>.';
+}
+function doMerge(){
+  var o=$('#mOrigen'),d=$('#mDestino');
+  if(o.value===d.value){toast('Elige un origen y un destino distintos');return;}
+  var oi=DATA.projects.findIndex(function(p){return p.file===o.value});
+  var dn=d.options[d.selectedIndex].text, on=o.options[o.selectedIndex].text;
+  DATA.projects.splice(oi,1);
+  render();fillMerge();
+  toast('«'+on+'» fusionado en «'+dn+'»');
+}
+
+/* ---------------- salud ---------------- */
+function diagnosticar(){
+  $('#diag').innerHTML =
+    '<div class="diag-grid">'+
+      '<div class="stat"><h4>👤 Personas</h4>'+
+        '<div class="rowk"><span>Páginas</span><b>4</b></div>'+
+        '<div class="rowk"><span>Coinciden con roster</span><b>2</b></div>'+
+        '<div class="rowk warn"><span>Sin email</span><b>1</b></div>'+
+        '<div class="rowk"><span>Externas</span><b>1</b></div>'+
+        '<div class="rowk warn"><span>Fusionables</span><b>1</b></div>'+
+      '</div>'+
+      '<div class="stat"><h4>📁 Proyectos</h4>'+
+        '<div class="rowk"><span>Páginas</span><b>10</b></div>'+
+        '<div class="rowk warn"><span>Catalogados</span><b>8</b></div>'+
+        '<div class="rowk"><span>Cerrados</span><b>2</b></div>'+
+      '</div>'+
+      '<div class="stat" style="grid-column:1/-1"><h4>🗂️ Catálogos</h4>'+
+        '<div class="rowk"><span>_people.json</span><b class="badge green">OK</b></div>'+
+        '<div class="rowk"><span>_projects.json</span><b class="badge green">OK</b></div>'+
+        '<div class="rowk"><span>_tasks.json</span><b class="badge amber">Falta</b></div>'+
+      '</div>'+
+    '</div>'+
+    '<div class="section-desc">Hay 1 persona fusionable y 1 sin email. «Reparar wiki» lo reconcilia sin borrar contenido.</div>';
+  toast('Diagnóstico completo');
+}
+function reparar(){
+  if(!confirm('¿Reparar el wiki? Fusiona páginas de personas hacia su correo del roster, corrige frontmatter, cataloga proyectos y regenera índices. No borra contenido.')) return;
+  $('#diag').innerHTML='<div class="stat"><h4>✅ Reparación completada</h4>'+
+    '<div class="rowk"><span>Personas fusionadas</span><b>1</b></div>'+
+    '<div class="rowk"><span>Personas corregidas</span><b>1</b></div>'+
+    '<div class="rowk"><span>Proyectos catalogados</span><b>2</b></div>'+
+    '<div class="rowk"><span>Huérfanos purgados</span><b>0</b></div></div>';
+  toast('Wiki reparado');
+}
+
+/* ---------------- wiring ---------------- */
+$$('.tab').forEach(function(b){b.addEventListener('click',function(){
+  $$('.tab').forEach(function(x){x.setAttribute('aria-selected',x===b)});
+  $$('.view').forEach(function(v){v.classList.toggle('active',v.id===b.dataset.tab)});
+});});
+$$('#tipoSeg button').forEach(function(b){b.addEventListener('click',function(){
+  $$('#tipoSeg button').forEach(function(x){x.setAttribute('aria-selected',x===b)});
+  tipo=b.dataset.tipo;render();
+});});
+$$('#estadoChips .chip').forEach(function(b){b.addEventListener('click',function(){
+  $$('#estadoChips .chip').forEach(function(x){x.classList.toggle('on',x===b)});
+  estado=b.dataset.estado;render();
+});});
+$('#mOrigen').addEventListener('change',previewMerge);
+$('#mDestino').addEventListener('change',previewMerge);
+document.addEventListener('click',function(e){var t=e.target.closest('[data-toast]');if(t)toast(t.dataset.toast);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeReader();});
+
+render();fillMerge();
+</script>
+</body></html>
