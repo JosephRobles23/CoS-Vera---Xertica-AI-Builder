@@ -72,7 +72,7 @@ test('Telegram abre un modal y sus acciones quedan registradas en el dispatcher'
   });
 });
 
-test('la UI de Telegram guarda secretos sin exponerlos y renderiza QR solo en el cliente', () => {
+test('la UI de Telegram guía el despliegue por copia, guarda secretos sin exponerlos y renderiza QR solo en el cliente', () => {
   const dialog = readShared('DialogTelegram.html');
   const sidebar = readShared('Sidebar.html');
 
@@ -83,6 +83,11 @@ test('la UI de Telegram guarda secretos sin exponerlos y renderiza QR solo en el
   assert.doesNotMatch(dialog, /innerHTML\s*=\s*[^;]*token/i, 'el token no puede renderizarse en HTML');
   assert.doesNotMatch(dialog, /https?:\/\/[^'"\s]*(?:qr|qrcode|chart\.google)/i, 'el QR no puede usar servicios externos');
   assert.match(dialog, /function renderQr\(/, 'el QR se genera localmente');
+  assert.match(dialog, /Implementar → Nueva implementación/);
+  assert.match(dialog, /Aplicación web/);
+  assert.match(dialog, /Quién tiene acceso.*Cualquier usuario/);
+  assert.match(dialog, /id="comprobarWebApp"/);
+  assert.match(dialog, /webApp\.ready/, 'el modal bloquea el pairing hasta detectar el Web App');
   assert.match(dialog, /addEventListener\(['"]click['"]/, 'los controles dinámicos usan listeners, no handlers construidos');
   assert.match(sidebar, /abrirTelegramUI/);
   assert.match(sidebar, /runB\('abrirTelegram'\)/);

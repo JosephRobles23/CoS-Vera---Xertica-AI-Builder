@@ -17,6 +17,25 @@ function harness() {
   return h;
 }
 
+test('cargarTelegram expone el preflight del Web App sin revelar URL ni secretos', () => {
+  const h = harness();
+  const ready = plain(h.api.cargarTelegram(SID, BASE));
+  assert.equal(ready.webApp.ready, true);
+  assert.match(ready.webApp.message, /detectado/i);
+  assert.ok(!JSON.stringify(ready).includes('/exec'), 'el estado visible no expone la URL del Web App');
+
+  const missing = plain(h.api.cargarTelegram(SID, { ...BASE, webapp: {} }));
+  assert.equal(missing.webApp.ready, false);
+  assert.match(missing.webApp.message, /Publica/i);
+});
+
+test('iniciarPairingTelegram exige un Web App de producción antes de registrar el webhook', () => {
+  const h = harness();
+  h.api.guardarTokenTelegram(SID, BASE, '123456:abcdefghijklmnopqrstuvwxyz_ABCDE');
+  assert.throws(() => h.api.iniciarPairingTelegram(SID, { ...BASE, webapp: { url: 'https://script.google.com/macros/s/example/dev' } }), /\/exec/i);
+  assert.equal(h.fetchCalls.filter((c) => /setWebhook$/.test(c.url)).length, 0);
+});
+
 test('guardarTokenTelegram valida el bot, guarda el secreto solo en Script Properties y deja estado en Ajustes', () => {
   const h = harness();
   const res = plain(h.api.guardarTokenTelegram(SID, BASE, '123456:abcdefghijklmnopqrstuvwxyz_ABCDE'));

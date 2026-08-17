@@ -14,6 +14,12 @@ function telegramJson_(sheetId, name) {
   try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
 }
 function telegramHtml_(text) { return HtmlService.createHtmlOutput(String(text)); }
+function telegramWebAppStatus_(config) {
+  var base = String(urlWebApp_(config) || '').trim();
+  if (!base) return { ready: false, message: 'Publica primero tu Web App para abrir la puerta segura entre Telegram y tu CoS.' };
+  if (!/^https:\/\/[^?]+\/exec(?:\?.*)?$/.test(base)) return { ready: false, message: 'La dirección detectada no es la versión publicada. Usa la URL que termina en /exec, no /dev.' };
+  return { ready: true, message: 'Web App detectado. Telegram podrá entregar tus mensajes cuando completes el enlace.' };
+}
 function telegramWebhookUrl_(config, route) {
   var base = urlWebApp_(config);
   if (!/^https:\/\/[^?]+\/exec(?:\?.*)?$/.test(base)) throw new Error('Publica primero el Web App estable (/exec) para conectar Telegram.');
@@ -125,8 +131,9 @@ function telegramRequest_(sheetId, method, payload) {
 
 function cargarTelegram(sheetId, config) {
   var aj = getAjustes_(sheetId, config.sheets.settings);
-  var props = telegramProps_();
+  var props = telegramProps_(), webApp = telegramWebAppStatus_(config);
   return {
+    webApp: webApp,
     configured: !!telegramToken_(sheetId), enabled: !!(aj.telegram && aj.telegram.enabled),
     botUsername: (aj.telegram && aj.telegram.botUsername) || '',
     paired: !!props.getProperty(telegramPropKey_(sheetId, 'allowedUserId')),
@@ -156,6 +163,7 @@ function guardarTokenTelegram(sheetId, config, token) {
 
 function iniciarPairingTelegram(sheetId, config) {
   var estado = cargarTelegram(sheetId, config);
+  if (!estado.webApp.ready) throw new Error(estado.webApp.message);
   if (!estado.configured || !estado.botUsername) throw new Error('Primero valida el token del bot.');
   var nonce = String(Utilities.getUuid()).replace(/[^A-Za-z0-9_-]/g, '') + String(new Date().getTime());
   var props = telegramProps_();
