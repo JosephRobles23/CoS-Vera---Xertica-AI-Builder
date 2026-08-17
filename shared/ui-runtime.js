@@ -69,8 +69,8 @@ var DIALOGOS_ = {
   asistente: { archivo: 'DialogAsistente', titulo: 'CoS — Guía del CoS', ancho: 460, alto: 640, modeless: true },
   // Centro del Brain: curar wiki (renombrar/cerrar/olvidar), fusionar y salud. MODELESS (no bloquea la hoja).
   braincentro: { archivo: 'DialogBrainCentro', titulo: 'CoS — Centro del Brain', ancho: 860, alto: 680, modeless: true },
-  // Telegram: el token queda en Script Properties; el modal nunca lo vuelve a mostrar.
-  telegram: { archivo: 'DialogTelegram', titulo: 'CoS — Conectar Telegram', ancho: 620, alto: 620 }
+  // Telegram: guía modeless para onboarding; el token queda en Script Properties y nunca se vuelve a mostrar.
+  telegram: { archivo: 'DialogTelegram', titulo: 'CoS — Guía para conectar Telegram', ancho: 540, alto: 720, modeless: true }
 };
 
 // --- Asistente (Guía del CoS): pasos auto-detectados + apertura de destinos ---
@@ -136,10 +136,10 @@ function abrirBrainCentro(sheetId, config) {
   return { ok: true };
 }
 
-/** Abre el asistente de conexión de Telegram como modal. Público. */
+/** Abre la guía de conexión Telegram sin bloquear la hoja. Público. */
 function abrirTelegram(sheetId, config) {
   var d = buildDialog('telegram');
-  SpreadsheetApp.getUi().showModalDialog(d.html, d.titulo);
+  SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
   return { ok: true };
 }
 

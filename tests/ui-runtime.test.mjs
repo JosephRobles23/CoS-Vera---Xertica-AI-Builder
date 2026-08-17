@@ -58,13 +58,13 @@ test('Telegram abre un modal y sus acciones quedan registradas en el dispatcher'
   const h = makeHarness({ spreadsheets: { [SID]: { Ajustes: [['key', 'value']] } } });
   const d = h.api.buildDialog('telegram');
   assert.equal(d.html._file, 'DialogTelegram');
-  assert.equal(d.html._width, 620);
-  assert.equal(d.html._height, 620);
+  assert.equal(d.html._width, 540);
+  assert.equal(d.html._height, 720);
 
   const res = h.api.dispatch('abrirTelegram', [], SID, config);
   assert.deepEqual({ ...res }, { ok: true });
   assert.equal(h.uiCalls.length, 1);
-  assert.equal(h.uiCalls[0].kind, 'modal');
+  assert.equal(h.uiCalls[0].kind, 'modeless', 'la guía debe permitir seguir usando la hoja');
   assert.equal(h.uiCalls[0].html._file, 'DialogTelegram');
 
   ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram'].forEach((name) => {
