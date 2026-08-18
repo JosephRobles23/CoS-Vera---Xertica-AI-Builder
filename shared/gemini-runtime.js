@@ -87,6 +87,38 @@ function callGemini_(model, systemText, userText, opts) {
   throw new Error('Gemini falló: ' + lastErr);
 }
 
+/** Consulta pública bajo demanda: Google Search, respuesta breve y fuentes verificables. */
+function callGeminiGrounded_(model, systemText, userText) {
+  if (!model) throw new Error('callGeminiGrounded_: falta el ID de modelo.');
+  var payload = {
+    systemInstruction: { parts: [{ text: String(systemText == null ? '' : systemText) }] },
+    contents: [{ role: 'user', parts: [{ text: String(userText == null ? '' : userText) }] }],
+    generationConfig: { temperature: 0.2 },
+    tools: [{ googleSearch: {} }]
+  };
+  var url = GEMINI_ENDPOINT_ + '/' + encodeURIComponent(model) + ':generateContent';
+  var res = UrlFetchApp.fetch(url, {
+    method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': getGeminiKey_() },
+    payload: JSON.stringify(payload), muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) throw new Error('La investigación web no está disponible en este momento.');
+  var result = extractGeminiGrounded_(res.getContentText());
+  if (!result.text) throw new Error('La investigación web no devolvió una respuesta utilizable.');
+  return result;
+}
+
+function extractGeminiGrounded_(body) {
+  var json;
+  try { json = JSON.parse(body); } catch (e) { return { text: '', sources: [] }; }
+  var cand = json.candidates && json.candidates[0], metadata = cand && cand.groundingMetadata;
+  var seen = {}, sources = [];
+  ((metadata && metadata.groundingChunks) || []).forEach(function (chunk) {
+    var web = chunk && chunk.web, url = web && web.uri;
+    if (url && !seen[url]) { seen[url] = true; sources.push({ title: String(web.title || url), url: String(url) }); }
+  });
+  return { text: extractGeminiText_(body), sources: sources.slice(0, 4) };
+}
+
 /**
  * Extrae el texto del primer candidate. Devuelve '' si vino bloqueado o sin partes,
  * para que callGemini_ lo trate como fallo claro (nunca escribimos un Summary vacío).

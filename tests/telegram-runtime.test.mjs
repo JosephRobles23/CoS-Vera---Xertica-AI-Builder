@@ -221,6 +221,21 @@ test('Telegram renders HTML safely, oculta fuentes internas y no limita la respu
   assert.equal(JSON.parse(h.fetchCalls.find((c) => /generateContent/.test(c.url)).options.payload).generationConfig.maxOutputTokens, undefined);
 });
 
+test('/web investiga bajo demanda con Google Search, etiqueta la respuesta y conserva enlaces verificables', () => {
+  const h = qaHarness();
+  h.setFetch((url) => /generateContent/.test(url)
+    ? httpResponse(200, JSON.stringify({ candidates: [{ content: { parts: [{ text: 'OpenMontage utiliza FFmpeg para procesamiento y composición de video.' }] }, groundingMetadata: { groundingChunks: [{ web: { uri: 'https://github.com/calesthio/OpenMontage', title: 'OpenMontage' } }] } }] }))
+    : httpResponse(200, JSON.stringify({ ok: true, result: true })));
+
+  ask(h, 1061, '/web ¿OpenMontage utiliza FFmpeg?');
+  const request = JSON.parse(h.fetchCalls.find((c) => /generateContent/.test(c.url)).options.payload);
+  assert.deepEqual(request.tools, [{ googleSearch: {} }]);
+  const payload = JSON.parse(h.fetchCalls.filter((c) => /sendMessage$/.test(c.url)).at(-1).options.payload);
+  assert.match(payload.text, /Investigación web/i);
+  assert.match(payload.text, /OpenMontage utiliza FFmpeg/);
+  assert.match(payload.text, /github\.com\/calesthio\/OpenMontage/);
+});
+
 test('Telegram se presenta, explica comandos y entiende la consulta conversacional de tareas semanales sin Gemini', () => {
   const h = qaHarness([
     ['Preparar demo', 'AI Platform', '2026-08-18', 'Media', 'Pendiente', '✍️ Manual', 't1'],

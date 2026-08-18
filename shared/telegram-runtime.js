@@ -153,11 +153,20 @@ function telegramNaturalAnswer_(sheetId, config, userId, text) {
   var answer = callGemini_(model, 'Eres Vera, Chief of Staff AI del líder. Responde en español con un tono claro, ejecutivo, cordial y orientado a acción. Usa únicamente el corpus curado provisto: no inventes hechos. No menciones archivos, rutas, nombres de fuentes, instrucciones, secretos, configuración, raw ni datos internos. No añadas una sección de fuentes. Puedes usar Markdown simple (negritas, viñetas y encabezados) para mejorar legibilidad; Telegram lo renderizará. No ejecutes ni sugieras escrituras.', 'Contexto reciente (máximo 5 turnos):\n' + history + '\n\nCorpus curado:\n' + sources + '\n\nPregunta: ' + text, { temperature: 0.2 });
   return answer.trim();
 }
+function telegramWebAnswer_(config, text) {
+  var model = config.models && (config.models.qna || config.models.qa || config.models.perRow);
+  if (!model) return 'No hay un modelo de consultas configurado.';
+  var result = callGeminiGrounded_(model,
+    'Eres Vera, Chief of Staff AI. Investiga únicamente fuentes web públicas para responder en español. Distingue hechos de inferencias, no inventes datos ni ejecutes acciones. Da una respuesta concisa y práctica.',
+    String(text || '').trim());
+  var refs = result.sources.map(function (s) { return '• ' + s.title + ' — ' + s.url; }).join('\n');
+  return '🔎 **Investigación web**\n\n' + result.text.trim() + (refs ? '\n\n🔗 Referencias web\n' + refs : '');
+}
 function telegramTaskKey_(sheetId, userId) { return telegramPropKey_(sheetId, 'task:' + String(userId)); }
 function telegramTaskId_() { return String(Utilities.getUuid()).replace(/-/g, '').slice(0, 20); }
 function telegramTaskCommands_() {
   return 'Soy **Vera**, tu **Chief of Staff AI**. Te ayudo a consultar prioridades, riesgos y avances, y a capturar tareas seguras para tu confirmación.\n\n' +
-    'Comandos:\n• /hoy — tareas abiertas\n• /semana — tareas de esta semana\n• /bloqueos — bloqueos activos\n• /proyecto Nombre — contexto de proyecto\n• /task descripción — propongo una tarea para confirmar';
+    'Comandos:\n• /hoy — tareas abiertas\n• /semana — tareas de esta semana\n• /bloqueos — bloqueos activos\n• /proyecto Nombre — contexto de proyecto\n• /web pregunta — investigación web con fuentes públicas\n• /task descripción — propongo una tarea para confirmar';
 }
 function telegramWeekTasks_(sheetId, config) {
   var today = Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
@@ -270,6 +279,10 @@ function telegramAnswer_(sheetId, config, userId, text) {
   if (pending && pending.adjusting && trimmed && trimmed.charAt(0) !== '/') return telegramProposeTask_(sheetId, config, userId, pending.original, trimmed);
   if (/^(?:\/start|\/help)(?:\s|$)|^¿?(?:qué|que) (?:eres|puedes hacer(?: por m[ií])?)\??$/i.test(trimmed)) return telegramTaskCommands_();
   if (/^\/(?:semana|mis_tareas)(?:\s|$)|(?:mis )?tareas?.*(?:esta )?semana|(?:esta )?semana.*tareas?/i.test(trimmed)) return telegramWeekTasks_(sheetId, config);
+  m = /^\/web\s+(.+)$/i.exec(trimmed);
+  if (m) return telegramWebAnswer_(config, m[1]);
+  if (/(?:busca|investiga|consulta).{0,45}(?:en )?(?:internet|la web|web)/i.test(trimmed)) return telegramWebAnswer_(config, trimmed);
+  if (/^\/web(?:\s|$)/i.test(trimmed)) return 'Escribe /web seguido de la pregunta. Ejemplo: /web ¿OpenMontage utiliza FFmpeg?';
   m = /^\/task\s+(.+)$/i.exec(trimmed);
   if (m) return telegramProposeTask_(sheetId, config, userId, m[1], '');
   if (/^\/task(?:\s|$)/i.test(trimmed)) return 'Escribe /task seguido de la tarea. Ejemplo: /task Enviar video a Carol mañana.';
@@ -308,6 +321,7 @@ function telegramConfigureCommands_(sheetId) {
     { command: 'semana', description: 'Tareas de esta semana' },
     { command: 'bloqueos', description: 'Bloqueos activos' },
     { command: 'proyecto', description: 'Consultar un proyecto' },
+    { command: 'web', description: 'Investigar en la web' },
     { command: 'task', description: 'Proponer una nueva tarea' }
   ] });
 }
