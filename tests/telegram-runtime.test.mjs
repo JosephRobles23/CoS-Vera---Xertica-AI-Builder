@@ -241,6 +241,10 @@ test('/task propone, espera confirmación callback y crea una sola tarea con ori
     ? httpResponse(200, geminiOk(JSON.stringify({ texto: 'Enviar video a Carol sobre AI Platform', proyecto: 'AI Platform', persona: 'Carol', vence: '2026-08-19', prioridad: 'Media' })))
     : httpResponse(200, JSON.stringify({ ok: true, result: true })));
   ask(h, 108, '/task Envíale a Carol el video de AI Platform para mañana');
+  const geminiRequest = JSON.parse(h.fetchCalls.find((c) => /generateContent/.test(c.url)).options.payload);
+  assert.equal(geminiRequest.generationConfig.responseMimeType, 'application/json');
+  assert.ok(geminiRequest.generationConfig.responseSchema.properties.texto);
+  assert.equal(geminiRequest.generationConfig.maxOutputTokens, undefined);
   const proposed = h.fetchCalls.filter((c) => /sendMessage$/.test(c.url)).at(-1);
   const proposal = JSON.parse(proposed.options.payload);
   assert.match(proposal.text, /Propongo crear esta tarea/i);

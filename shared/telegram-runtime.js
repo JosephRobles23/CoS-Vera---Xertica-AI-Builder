@@ -182,15 +182,27 @@ function telegramResolveCatalog_(value, candidates, label) {
   if (matches.length > 1) throw new Error('Encontré varias coincidencias para ' + label + '. Indica un nombre más específico.');
   return '';
 }
+var TELEGRAM_TASK_SCHEMA_ = {
+  type: 'object',
+  properties: {
+    texto: { type: 'string' },
+    proyecto: { type: 'string' },
+    persona: { type: 'string' },
+    espera: { type: 'string' },
+    vence: { type: 'string' },
+    prioridad: { type: 'string', enum: ['Alta', 'Media', 'Baja'] }
+  },
+  required: ['texto', 'proyecto', 'persona', 'espera', 'vence', 'prioridad']
+};
 function telegramTaskParse_(sheetId, config, userId, original, correction) {
   var model = config.models && (config.models.qna || config.models.qa || config.models.perRow);
   if (!model) throw new Error('No hay un modelo de consultas configurado.');
   var today = Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd'), catalog = telegramTaskCatalog_(sheetId, config);
-  var prompt = 'Interpreta una tarea del líder y responde SOLO JSON válido sin markdown con estas claves: texto, proyecto, persona, espera, vence, prioridad. ' +
+  var prompt = 'Interpreta una tarea del líder. Para cada clave del JSON responde un string; usa cadena vacía cuando el dato no sea explícito. ' +
     'vence debe ser YYYY-MM-DD o vacío; usa hoy=' + today + ' y zona horaria=' + config.timezone + ' para fechas relativas. prioridad solo Alta, Media o Baja; si no es explícita usa Media. ' +
     'Solo usa un proyecto o persona de los catálogos si hay coincidencia clara; de otro modo deja vacío. "espera" se usa únicamente si el texto expresa que se espera una respuesta/entregable de esa persona. ' +
     'Personas: ' + JSON.stringify(catalog.people) + '. Proyectos: ' + JSON.stringify(catalog.projects) + '.\n\nTarea original: ' + original + (correction ? '\nCorrección: ' + correction : '');
-  var raw = callGemini_(model, 'Devuelve únicamente JSON. No inventes información ni ejecutes acciones.', prompt, { temperature: 0, maxOutputTokens: 350 });
+  var raw = callGemini_(model, 'Extrae una propuesta de tarea estructurada. No inventes información ni ejecutes acciones.', prompt, { temperature: 0, responseSchema: TELEGRAM_TASK_SCHEMA_ });
   raw = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   var data; try { data = JSON.parse(raw); } catch (e) { throw new Error('No pude interpretar esa tarea. Reformúlala con la acción y, si aplica, la fecha.'); }
   var text = String(data.texto || '').trim();
