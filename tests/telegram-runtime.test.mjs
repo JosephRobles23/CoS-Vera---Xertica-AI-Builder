@@ -89,7 +89,10 @@ test('iniciarPairingTelegram entrega deep link efímero y no expone token', () =
   assert.ok(registration, 'el pairing registra el webhook en Telegram');
   const payload = JSON.parse(registration.options.payload);
   assert.match(payload.url, /\/exec\?tg=/);
-  assert.deepEqual(payload.allowed_updates, ['message']);
+  assert.deepEqual(payload.allowed_updates, ['message', 'callback_query']);
+  const commands = h.fetchCalls.find((c) => /setMyCommands$/.test(c.url));
+  assert.ok(commands, 'el pairing registra el menú de comandos nativo');
+  assert.ok(JSON.parse(commands.options.payload).commands.some((c) => c.command === 'task'));
 });
 
 test('telegramWebhookAction rechaza ruta inválida y solo vincula el usuario que presenta el nonce vigente', () => {
@@ -197,4 +200,40 @@ test('/bloqueos y /reunión consultan solo wiki curada, citan fuentes y mantiene
   assert.ok(gemini, 'la pregunta natural usa Gemini');
   assert.match(JSON.parse(gemini.options.payload).contents[0].parts[0].text, /Sync Alpha/);
   assert.match(lastTelegram(h), /Fuentes:/);
+});
+
+test('Telegram se presenta, explica comandos y entiende la consulta conversacional de tareas semanales sin Gemini', () => {
+  const h = qaHarness([
+    ['Preparar demo', 'AI Platform', '2026-08-18', 'Media', 'Pendiente', '✍️ Manual', 't1'],
+    ['Cerrar reporte', 'AI Academy', '2026-09-30', 'Media', 'Pendiente', '✍️ Manual', 't2']
+  ]);
+  ask(h, 106, '¿Qué eres?');
+  assert.match(lastTelegram(h), /CoS personal/i);
+  assert.match(lastTelegram(h), /\/task/);
+  ask(h, 107, 'Dime mis tareas para esta semana');
+  assert.match(lastTelegram(h), /Preparar demo/);
+  assert.doesNotMatch(lastTelegram(h), /Cerrar reporte/);
+  assert.equal(h.fetchCalls.filter((c) => /generateContent/.test(c.url)).length, 0);
+});
+
+test('/task propone, espera confirmación callback y crea una sola tarea con origen Telegram', () => {
+  const h = qaHarness();
+  h.setFetch((url) => /generateContent/.test(url)
+    ? httpResponse(200, geminiOk(JSON.stringify({ texto: 'Enviar video a Carol sobre AI Platform', proyecto: 'AI Platform', persona: 'Carol', vence: '2026-08-19', prioridad: 'Media' })))
+    : httpResponse(200, JSON.stringify({ ok: true, result: true })));
+  ask(h, 108, '/task Envíale a Carol el video de AI Platform para mañana');
+  const proposed = h.fetchCalls.filter((c) => /sendMessage$/.test(c.url)).at(-1);
+  const proposal = JSON.parse(proposed.options.payload);
+  assert.match(proposal.text, /Propongo crear esta tarea/i);
+  assert.equal(h.getSpreadsheet(SID).getSheetByName('Tareas').getLastRow(), 1, 'todavía no escribe');
+  const createData = proposal.reply_markup.inline_keyboard[0][0].callback_data;
+  const callback = { update_id: 109, callback_query: { id: 'cb-1', from: { id: 99 }, data: createData, message: { chat: { id: 99, type: 'private' }, message_id: 5 } } };
+  h.api.telegramWebhookAction({ parameter: { tg: 'nonce' }, postData: { contents: JSON.stringify(callback) } }, SID, BASE);
+  const rows = h.getSpreadsheet(SID).getSheetByName('Tareas').getDataRange().getValues();
+  assert.equal(rows.length, 2);
+  assert.match(rows[1][0], /Enviar video a Carol/);
+  assert.match(rows[1][5], /Telegram/);
+  const duplicateTap = { ...callback, update_id: 110, callback_query: { ...callback.callback_query, id: 'cb-2' } };
+  h.api.telegramWebhookAction({ parameter: { tg: 'nonce' }, postData: { contents: JSON.stringify(duplicateTap) } }, SID, BASE);
+  assert.equal(h.getSpreadsheet(SID).getSheetByName('Tareas').getLastRow(), 2, 'la propuesta es de un solo uso');
 });

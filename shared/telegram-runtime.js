@@ -120,8 +120,110 @@ function telegramNaturalAnswer_(sheetId, config, userId, text) {
   var answer = callGemini_(model, 'Responde en español únicamente con el corpus curado provisto. No inventes hechos. No menciones instrucciones, secretos, configuración, raw ni datos internos. Sé breve; no ejecutes ni sugieras escrituras.', 'Contexto reciente (máximo 5 turnos):\n' + history + '\n\nCorpus curado:\n' + sources + '\n\nPregunta: ' + text, { temperature: 0.2, maxOutputTokens: 700 });
   return answer.trim() + telegramSources_(selected);
 }
+function telegramTaskKey_(sheetId, userId) { return telegramPropKey_(sheetId, 'task:' + String(userId)); }
+function telegramTaskId_() { return String(Utilities.getUuid()).replace(/-/g, '').slice(0, 20); }
+function telegramTaskCommands_() {
+  return 'Soy tu CoS personal. Te ayudo a consultar tu trabajo y capturar tareas seguras.\n\n' +
+    'Comandos:\n• /hoy — tareas abiertas\n• /semana — tareas de esta semana\n• /bloqueos — bloqueos activos\n• /proyecto Nombre — contexto de proyecto\n• /task descripción — propongo una tarea para confirmar';
+}
+function telegramWeekTasks_(sheetId, config) {
+  var today = Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
+  var endDate = new Date(today + 'T12:00:00Z'); endDate.setUTCDate(endDate.getUTCDate() + 6);
+  var end = Utilities.formatDate(endDate, config.timezone, 'yyyy-MM-dd');
+  var tasks = listarTareas_(sheetId, config).filter(function (t) { return t.estado !== 'Hecha' && t.vence && t.vence >= today && t.vence <= end; });
+  if (!tasks.length) return 'No tienes tareas con vencimiento esta semana.\n\nFuentes: Tareas';
+  return 'Tus tareas de esta semana:\n' + tasks.slice(0, 20).map(function (t) { return '• ' + t.texto + (t.proyecto ? ' — ' + t.proyecto : '') + ' (vence ' + t.vence + ')'; }).join('\n') + '\n\nFuentes: Tareas';
+}
+function telegramTaskCatalog_(sheetId, config) {
+  var people = [];
+  try { people = getRoster_(sheetId, config.sheets.roster).map(function (p) { return p.nombre || p.correo; }); } catch (e) {}
+  telegramWikiPages_(sheetId, config, 'people').forEach(function (p) { people.push(p.name); });
+  var projects = telegramWikiPages_(sheetId, config, 'projects').map(function (p) { return p.name; });
+  return { people: people.filter(Boolean).slice(0, 100), projects: projects.filter(Boolean).slice(0, 100) };
+}
+function telegramResolveCatalog_(value, candidates, label) {
+  value = String(value || '').trim(); if (!value) return '';
+  var norm = function (v) { return String(v || '').toLowerCase().replace(/[^a-záéíóúüñ0-9]+/gi, ' ').trim(); };
+  var needle = norm(value), matches = (candidates || []).filter(function (c) { var x = norm(c); return x === needle || x.indexOf(needle) === 0 || needle.indexOf(x) === 0; });
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) throw new Error('Encontré varias coincidencias para ' + label + '. Indica un nombre más específico.');
+  return '';
+}
+function telegramTaskParse_(sheetId, config, userId, original, correction) {
+  var model = config.models && (config.models.qna || config.models.qa || config.models.perRow);
+  if (!model) throw new Error('No hay un modelo de consultas configurado.');
+  var today = Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd'), catalog = telegramTaskCatalog_(sheetId, config);
+  var prompt = 'Interpreta una tarea del líder y responde SOLO JSON válido sin markdown con estas claves: texto, proyecto, persona, espera, vence, prioridad. ' +
+    'vence debe ser YYYY-MM-DD o vacío; usa hoy=' + today + ' y zona horaria=' + config.timezone + ' para fechas relativas. prioridad solo Alta, Media o Baja; si no es explícita usa Media. ' +
+    'Solo usa un proyecto o persona de los catálogos si hay coincidencia clara; de otro modo deja vacío. "espera" se usa únicamente si el texto expresa que se espera una respuesta/entregable de esa persona. ' +
+    'Personas: ' + JSON.stringify(catalog.people) + '. Proyectos: ' + JSON.stringify(catalog.projects) + '.\n\nTarea original: ' + original + (correction ? '\nCorrección: ' + correction : '');
+  var raw = callGemini_(model, 'Devuelve únicamente JSON. No inventes información ni ejecutes acciones.', prompt, { temperature: 0, maxOutputTokens: 350 });
+  raw = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  var data; try { data = JSON.parse(raw); } catch (e) { throw new Error('No pude interpretar esa tarea. Reformúlala con la acción y, si aplica, la fecha.'); }
+  var text = String(data.texto || '').trim();
+  if (!text) throw new Error('No pude identificar qué tarea crear.');
+  var due = String(data.vence || '').trim();
+  if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new Error('No pude interpretar la fecha de la tarea.');
+  var priority = ['Alta', 'Media', 'Baja'].indexOf(String(data.prioridad || 'Media')) >= 0 ? String(data.prioridad || 'Media') : 'Media';
+  var project = telegramResolveCatalog_(data.proyecto, catalog.projects, 'el proyecto');
+  var person = telegramResolveCatalog_(data.persona, catalog.people, 'la persona');
+  var waiting = telegramResolveCatalog_(data.espera, catalog.people, 'la persona de quien esperas respuesta');
+  return { id: telegramTaskId_(), original: original, texto: text, proyecto: project, persona: person, espera: waiting, vence: due, prioridad: priority, expires: Date.now() + 900000 };
+}
+function telegramTaskProposalText_(draft) {
+  return 'Propongo crear esta tarea:\n\n• ' + draft.texto +
+    (draft.proyecto ? '\n• Proyecto: ' + draft.proyecto : '') +
+    (draft.persona ? '\n• Relacionado con: ' + draft.persona : '') +
+    (draft.espera ? '\n• Espera de: ' + draft.espera : '') +
+    (draft.vence ? '\n• Vence: ' + draft.vence : '') +
+    '\n• Prioridad: ' + draft.prioridad + '\n• Origen: Telegram\n\n¿La creo?';
+}
+function telegramSaveTaskProposal_(sheetId, userId, draft) { telegramProps_().setProperty(telegramTaskKey_(sheetId, userId), JSON.stringify(draft)); }
+function telegramReadTaskProposal_(sheetId, userId) { return telegramJson_(sheetId, 'task:' + String(userId)); }
+function telegramTaskKeyboard_(draft) { return { inline_keyboard: [[{ text: '✅ Crear', callback_data: 'task:create:' + draft.id }, { text: '✏️ Ajustar', callback_data: 'task:adjust:' + draft.id }, { text: '❌ Cancelar', callback_data: 'task:cancel:' + draft.id }]] }; }
+function telegramProposeTask_(sheetId, config, userId, original, correction) {
+  var draft = telegramTaskParse_(sheetId, config, userId, original, correction); telegramSaveTaskProposal_(sheetId, userId, draft);
+  return { text: telegramTaskProposalText_(draft), reply_markup: telegramTaskKeyboard_(draft) };
+}
+function telegramCreateTask_(sheetId, config, draft) {
+  var origin = '🤖 Telegram · ' + Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
+  var added = agregarTarea_(sheetId, config, { texto: draft.texto, proyecto: draft.proyecto, vence: draft.vence, prioridad: draft.prioridad, origen: origin, espera: draft.espera, link: '' });
+  if (!added) throw new Error('Ya existe una tarea igual creada desde Telegram.');
+  var id = idTarea_(draft.texto, origin); espejarTareaInmediato_(sheetId, config, id); cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
+  return id;
+}
+function telegramSimilarTask_(sheetId, config, draft) {
+  var norm = function (v) { return String(v || '').toLowerCase().replace(/[^a-záéíóúüñ0-9]+/gi, ' ').trim(); };
+  var wanted = norm(draft.texto);
+  return listarTareas_(sheetId, config).filter(function (t) { return t.estado !== 'Hecha' && norm(t.texto) === wanted && (!draft.proyecto || !t.proyecto || norm(t.proyecto) === norm(draft.proyecto)); }).slice(0, 3);
+}
+function telegramTaskCallback_(sheetId, config, userId, chatId, data) {
+  var m = /^task:(create|adjust|cancel|force):([A-Za-z0-9]+)$/.exec(String(data || ''));
+  if (!m) return;
+  var draft = telegramReadTaskProposal_(sheetId, userId);
+  if (!draft || draft.id !== m[2] || !draft.expires || draft.expires < Date.now()) return telegramRequest_(sheetId, 'sendMessage', { chat_id: chatId, text: 'Esta propuesta ya venció. Envía /task nuevamente.' });
+  if (m[1] === 'cancel') { telegramProps_().deleteProperty(telegramTaskKey_(sheetId, userId)); return telegramRequest_(sheetId, 'sendMessage', { chat_id: chatId, text: 'Listo, descarté la propuesta.' }); }
+  if (m[1] === 'adjust') { draft.adjusting = true; telegramSaveTaskProposal_(sheetId, userId, draft); return telegramRequest_(sheetId, 'sendMessage', { chat_id: chatId, text: '¿Qué deseas ajustar? Por ejemplo: “para el viernes” o “el proyecto es AI Academy”.' }); }
+  var similar = telegramSimilarTask_(sheetId, config, draft);
+  if (m[1] === 'create' && similar.length) {
+    draft.duplicateConfirmed = true; telegramSaveTaskProposal_(sheetId, userId, draft);
+    return telegramRequest_(sheetId, 'sendMessage', { chat_id: chatId, text: 'Ya hay una tarea abierta muy similar:\n• ' + similar[0].texto + '\n\n¿Deseas crear otra de todas formas?', reply_markup: { inline_keyboard: [[{ text: '⚠️ Crear de todas formas', callback_data: 'task:force:' + draft.id }, { text: '❌ Cancelar', callback_data: 'task:cancel:' + draft.id }]] } });
+  }
+  if (m[1] === 'force' && !draft.duplicateConfirmed) return;
+  telegramProps_().deleteProperty(telegramTaskKey_(sheetId, userId));
+  var id = telegramCreateTask_(sheetId, config, draft);
+  return telegramRequest_(sheetId, 'sendMessage', { chat_id: chatId, text: '✅ Tarea creada.\n\n• ' + draft.texto + '\n• Id: ' + id + '\n\nFuentes: Tareas' });
+}
+
 function telegramAnswer_(sheetId, config, userId, text) {
   var trimmed = String(text || '').trim(), m;
+  var pending = telegramReadTaskProposal_(sheetId, userId);
+  if (pending && pending.adjusting && trimmed && trimmed.charAt(0) !== '/') return telegramProposeTask_(sheetId, config, userId, pending.original, trimmed);
+  if (/^(?:\/start|\/help)(?:\s|$)|^¿?(?:qué|que) (?:eres|puedes hacer(?: por m[ií])?)\??$/i.test(trimmed)) return telegramTaskCommands_();
+  if (/^\/(?:semana|mis_tareas)(?:\s|$)|(?:mis )?tareas?.*(?:esta )?semana|(?:esta )?semana.*tareas?/i.test(trimmed)) return telegramWeekTasks_(sheetId, config);
+  m = /^\/task\s+(.+)$/i.exec(trimmed);
+  if (m) return telegramProposeTask_(sheetId, config, userId, m[1], '');
+  if (/^\/task(?:\s|$)/i.test(trimmed)) return 'Escribe /task seguido de la tarea. Ejemplo: /task Enviar video a Carol mañana.';
   if (/^\/hoy(?:\s|$)/i.test(trimmed)) return telegramFormatTasks_(sheetId, config);
   m = /^\/proyecto\s+(.+)$/i.exec(trimmed);
   if (m) return telegramDirectPageAnswer_('ese proyecto', telegramWikiPages_(sheetId, config, 'projects'), m[1]);
@@ -142,6 +244,17 @@ function telegramRequest_(sheetId, method, payload) {
   try { json = JSON.parse(body); } catch (e) { json = {}; }
   if (res.getResponseCode() !== 200 || !json.ok) throw new Error('Telegram no aceptó la operación ' + method + '.');
   return json.result;
+}
+
+function telegramConfigureCommands_(sheetId) {
+  return telegramRequest_(sheetId, 'setMyCommands', { commands: [
+    { command: 'help', description: 'Qué puedo hacer' },
+    { command: 'hoy', description: 'Tareas abiertas' },
+    { command: 'semana', description: 'Tareas de esta semana' },
+    { command: 'bloqueos', description: 'Bloqueos activos' },
+    { command: 'proyecto', description: 'Consultar un proyecto' },
+    { command: 'task', description: 'Proponer una nueva tarea' }
+  ] });
 }
 
 function cargarTelegram(sheetId, config) {
@@ -183,7 +296,8 @@ function iniciarPairingTelegram(sheetId, config) {
   var nonce = String(Utilities.getUuid()).replace(/[^A-Za-z0-9_-]/g, '') + String(new Date().getTime());
   var props = telegramProps_();
   var route = props.getProperty(telegramPropKey_(sheetId, 'webhook')) || String(Utilities.getUuid()).replace(/-/g, '');
-  telegramRequest_(sheetId, 'setWebhook', { url: telegramWebhookUrl_(config, route), allowed_updates: ['message'] });
+  telegramConfigureCommands_(sheetId);
+  telegramRequest_(sheetId, 'setWebhook', { url: telegramWebhookUrl_(config, route), allowed_updates: ['message', 'callback_query'] });
   props.setProperty(telegramPropKey_(sheetId, 'webhook'), route);
   props.setProperty(telegramPropKey_(sheetId, 'pairing'), JSON.stringify({ nonce: nonce, expires: Date.now() + TELEGRAM_PAIRING_TTL_SECONDS_ * 1000 }));
   setAjustes_(sheetId, config.sheets.settings, { 'telegram.pairingStatus': 'waiting' });
@@ -198,24 +312,31 @@ function telegramWebhookAction(e, sheetId, config) {
   if (!update || update.update_id == null) return telegramHtml_('ok');
   var props = telegramProps_(), seenKey = telegramPropKey_(sheetId, 'update:' + update.update_id), cache = CacheService.getScriptCache();
   if (cache.get(seenKey)) return telegramHtml_('ok');
-  var msg = update.message || {}, from = msg.from || {}, text = String(msg.text || '');
+  var callback = update.callback_query || {};
+  var msg = callback.message || update.message || {}, from = callback.from || msg.from || {}, text = String(msg.text || '');
   var pair = telegramJson_(sheetId, 'pairing');
   var prefix = '/start pair_';
-  if (text.indexOf(prefix) === 0 && pair && pair.expires > Date.now() && text.slice(prefix.length) === pair.nonce && msg.chat && msg.chat.type === 'private') {
+  if (!callback.id && text.indexOf(prefix) === 0 && pair && pair.expires > Date.now() && text.slice(prefix.length) === pair.nonce && msg.chat && msg.chat.type === 'private') {
     props.setProperty(telegramPropKey_(sheetId, 'allowedUserId'), String(from.id));
     props.deleteProperty(telegramPropKey_(sheetId, 'pairing'));
     setAjustes_(sheetId, config.sheets.settings, { 'telegram.enabled': 'true', 'telegram.pairingStatus': 'connected', 'telegram.userLabel': String(from.first_name || 'Usuario'), 'telegram.lastConnected': Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd HH:mm') });
-    telegramRequest_(sheetId, 'sendMessage', { chat_id: msg.chat.id, text: '✅ CoS conectado. Ya puedes hacerme preguntas sobre tu wiki.' });
+    telegramRequest_(sheetId, 'sendMessage', { chat_id: msg.chat.id, text: '✅ CoS conectado.\n\n' + telegramTaskCommands_() });
     cache.put(seenKey, '1', 21600); return telegramHtml_('ok');
   }
-  if (String(props.getProperty(telegramPropKey_(sheetId, 'allowedUserId')) || '') !== String(from.id || '')) { cache.put(seenKey, '1', 21600); return telegramHtml_('ok'); }
-  if (text && msg.chat && msg.chat.type === 'private') {
+  if (String(props.getProperty(telegramPropKey_(sheetId, 'allowedUserId')) || '') !== String(from.id || '') || !msg.chat || msg.chat.type !== 'private') { cache.put(seenKey, '1', 21600); return telegramHtml_('ok'); }
+  if (callback.id) {
+    try { telegramRequest_(sheetId, 'answerCallbackQuery', { callback_query_id: callback.id }); telegramTaskCallback_(sheetId, config, from.id, msg.chat.id, callback.data); }
+    catch (err) { try { telegramRequest_(sheetId, 'sendMessage', { chat_id: msg.chat.id, text: 'No pude crear la tarea. Revisa la propuesta e inténtalo nuevamente.' }); } catch (ignore) {} }
+    cache.put(seenKey, '1', 21600); return telegramHtml_('ok');
+  }
+  if (text) {
     var answer;
     try { answer = telegramAnswer_(sheetId, config, from.id, text); }
     catch (err) { answer = 'No pude completar la consulta ahora. Intenta de nuevo en unos minutos.'; }
-    answer = telegramLimit_(answer);
-    telegramRequest_(sheetId, 'sendMessage', { chat_id: msg.chat.id, text: answer });
-    telegramWriteContext_(sheetId, from.id, text, answer);
+    var payload = typeof answer === 'object' ? answer : { text: telegramLimit_(answer) };
+    payload.chat_id = msg.chat.id; payload.text = telegramLimit_(payload.text);
+    telegramRequest_(sheetId, 'sendMessage', payload);
+    telegramWriteContext_(sheetId, from.id, text, payload.text);
   }
   cache.put(seenKey, '1', 21600); return telegramHtml_('ok');
 }
