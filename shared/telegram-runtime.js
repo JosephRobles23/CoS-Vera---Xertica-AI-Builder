@@ -212,3 +212,18 @@ function revocarTelegram(sheetId, config) {
   setAjustes_(sheetId, config.sheets.settings, { 'telegram.enabled': 'false', 'telegram.pairingStatus': 'revoked', 'telegram.userLabel': '', 'telegram.lastConnected': '' });
   return { ok: true };
 }
+
+/** Borra por completo la conexión local: token, rutas, allowlist y filas telegram.* de Ajustes. */
+function restablecerTelegram(sheetId, config) {
+  var props = telegramProps_();
+  if (telegramToken_(sheetId)) { try { telegramRequest_(sheetId, 'deleteWebhook', { drop_pending_updates: true }); } catch (e) {} }
+  var prefix = telegramPropKey_(sheetId, '');
+  Object.keys(props.getProperties()).forEach(function (key) { if (key.indexOf(prefix) === 0) props.deleteProperty(key); });
+
+  var sh = ensureKeyValueTab_(sheetId, config.sheets.settings), map = getHeaderMap_(sh);
+  var rows = sh.getDataRange().getValues(), keyIndex = map.key - 1;
+  var kept = rows.filter(function (row, index) { return index === 0 || String(row[keyIndex] || '').indexOf('telegram.') !== 0; });
+  var removed = rows.length - kept.length;
+  if (removed) { sh.clearContents(); sh.getRange(1, 1, kept.length, kept[0].length).setValues(kept); }
+  return { ok: true, removedSettings: removed };
+}

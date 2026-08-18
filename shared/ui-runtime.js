@@ -253,6 +253,7 @@ var DISPATCH_ = {
   guardarTokenTelegram:    function (sid, cfg, a) { return guardarTokenTelegram(sid, cfg, a[0]); },
   iniciarPairingTelegram:  function (sid, cfg, a) { return iniciarPairingTelegram(sid, cfg); },
   revocarTelegram:         function (sid, cfg, a) { return revocarTelegram(sid, cfg); },
+  restablecerTelegram:     function (sid, cfg, a) { return restablecerTelegram(sid, cfg); },
   limpiarGuardasMeet:      function (sid, cfg, a) { return limpiarGuardasMeet(sid); },
   diagnosticarWiki:        function (sid, cfg, a) { return diagnosticarWiki(sid, cfg); },
   repararWiki:             function (sid, cfg, a) { return repararWiki(sid, cfg); },

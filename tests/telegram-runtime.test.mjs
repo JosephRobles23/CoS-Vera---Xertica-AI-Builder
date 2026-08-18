@@ -36,6 +36,23 @@ test('iniciarPairingTelegram exige un Web App de producción antes de registrar 
   assert.equal(h.fetchCalls.filter((c) => /setWebhook$/.test(c.url)).length, 0);
 });
 
+test('restablecerTelegram borra secretos, webhook remoto y filas telegram.* de Ajustes sin tocar los demás ajustes', () => {
+  const h = makeHarness({ spreadsheets: { [SID]: { Ajustes: [['key', 'value'], ['leader.name', 'Ada'], ['telegram.enabled', 'true'], ['telegram.botUsername', 'old_bot'], ['telegram.pairingStatus', 'connected']] } } });
+  h.setFetch(() => httpResponse(200, JSON.stringify({ ok: true, result: true })));
+  h.scriptProps.set('telegram:SHEET_1:token', '123456:abcdefghijklmnopqrstuvwxyz_ABCDE');
+  h.scriptProps.set('telegram:SHEET_1:webhook', 'nonce');
+  h.scriptProps.set('telegram:SHEET_1:allowedUserId', '99');
+  h.scriptProps.set('telegram:SHEET_1:pairing', '{"nonce":"x"}');
+
+  const out = plain(h.api.restablecerTelegram(SID, BASE));
+  assert.deepEqual(out, { ok: true, removedSettings: 3 });
+  assert.equal(h.scriptProps.has('telegram:SHEET_1:token'), false);
+  assert.equal(h.scriptProps.has('telegram:SHEET_1:webhook'), false);
+  assert.equal(h.fetchCalls.filter((c) => /deleteWebhook$/.test(c.url)).length, 1);
+  const rows = h.getSpreadsheet(SID).getSheetByName('Ajustes').getDataRange().getValues();
+  assert.deepEqual(rows, [['key', 'value'], ['leader.name', 'Ada']]);
+});
+
 test('guardarTokenTelegram valida el bot, guarda el secreto solo en Script Properties y deja estado en Ajustes', () => {
   const h = harness();
   const res = plain(h.api.guardarTokenTelegram(SID, BASE, '123456:abcdefghijklmnopqrstuvwxyz_ABCDE'));

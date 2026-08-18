@@ -67,7 +67,7 @@ test('Telegram abre un modal y sus acciones quedan registradas en el dispatcher'
   assert.equal(h.uiCalls[0].kind, 'modeless', 'la guía debe permitir seguir usando la hoja');
   assert.equal(h.uiCalls[0].html._file, 'DialogTelegram');
 
-  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram'].forEach((name) => {
+  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
     assert.equal(typeof h.api.DISPATCH_[name], 'function', name + ' debe estar permitido vía cosRun');
   });
 });
@@ -76,7 +76,7 @@ test('la UI de Telegram guía el despliegue por copia, guarda secretos sin expon
   const dialog = readShared('DialogTelegram.html');
   const sidebar = readShared('Sidebar.html');
 
-  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram'].forEach((name) => {
+  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
     assert.match(dialog, new RegExp("run\\('" + name + "'\\)"), name + ' debe usar cosRun');
   });
   assert.match(dialog, /type="password"/);
