@@ -250,6 +250,7 @@ var DISPATCH_ = {
   abrirBrainCentro:        function (sid, cfg, a) { return abrirBrainCentro(sid, cfg); },
   abrirTelegram:           function (sid, cfg, a) { return abrirTelegram(sid, cfg); },
   cargarTelegram:          function (sid, cfg, a) { return cargarTelegram(sid, cfg); },
+  guardarUrlWebApp:        function (sid, cfg, a) { return guardarUrlWebApp(sid, cfg, a[0]); },
   guardarTokenTelegram:    function (sid, cfg, a) { return guardarTokenTelegram(sid, cfg, a[0]); },
   iniciarPairingTelegram:  function (sid, cfg, a) { return iniciarPairingTelegram(sid, cfg); },
   revocarTelegram:         function (sid, cfg, a) { return revocarTelegram(sid, cfg); },

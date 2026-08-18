@@ -17,16 +17,28 @@ function harness() {
   return h;
 }
 
+test('guardarUrlWebApp crea webapp.url en Ajustes, acepta solo la URL /exec y la usa como fuente explícita', () => {
+  const h = harness();
+  const config = plain(BASE); config.webapp.url = '';
+  const url = 'https://script.google.com/a/macros/example.com/s/deployment/exec';
+
+  const result = h.api.guardarUrlWebApp(SID, config, url);
+  const rows = h.getSpreadsheet(SID).getSheetByName('Ajustes').getDataRange().getValues();
+  assert.equal(result.webApp.ready, true);
+  assert.equal(rows.some(([key, value]) => key === 'webapp.url' && value === url), true);
+  assert.throws(() => h.api.guardarUrlWebApp(SID, config, 'https://script.google.com/macros/s/dev'), /\/exec/);
+});
+
 test('cargarTelegram expone el preflight del Web App sin revelar URL ni secretos', () => {
   const h = harness();
   const ready = plain(h.api.cargarTelegram(SID, BASE));
   assert.equal(ready.webApp.ready, true);
-  assert.match(ready.webApp.message, /detectado/i);
+  assert.match(ready.webApp.message, /URL guardada/i);
   assert.ok(!JSON.stringify(ready).includes('/exec'), 'el estado visible no expone la URL del Web App');
 
   const missing = plain(h.api.cargarTelegram(SID, { ...BASE, webapp: {} }));
   assert.equal(missing.webApp.ready, false);
-  assert.match(missing.webApp.message, /Publica/i);
+  assert.match(missing.webApp.message, /Pega la URL/i);
 });
 
 test('iniciarPairingTelegram exige un Web App de producción antes de registrar el webhook', () => {

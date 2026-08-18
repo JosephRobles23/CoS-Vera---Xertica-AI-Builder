@@ -67,7 +67,7 @@ test('Telegram abre un modal y sus acciones quedan registradas en el dispatcher'
   assert.equal(h.uiCalls[0].kind, 'modeless', 'la guía debe permitir seguir usando la hoja');
   assert.equal(h.uiCalls[0].html._file, 'DialogTelegram');
 
-  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
+  ['cargarTelegram', 'guardarUrlWebApp', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
     assert.equal(typeof h.api.DISPATCH_[name], 'function', name + ' debe estar permitido vía cosRun');
   });
 });
@@ -76,7 +76,7 @@ test('la UI de Telegram guía el despliegue por copia, guarda secretos sin expon
   const dialog = readShared('DialogTelegram.html');
   const sidebar = readShared('Sidebar.html');
 
-  ['cargarTelegram', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
+  ['cargarTelegram', 'guardarUrlWebApp', 'guardarTokenTelegram', 'iniciarPairingTelegram', 'revocarTelegram', 'restablecerTelegram'].forEach((name) => {
     assert.match(dialog, new RegExp("run\\('" + name + "'\\)"), name + ' debe usar cosRun');
   });
   assert.match(dialog, /type="password"/);
@@ -86,8 +86,10 @@ test('la UI de Telegram guía el despliegue por copia, guarda secretos sin expon
   assert.match(dialog, /Implementar → Nueva implementación/);
   assert.match(dialog, /Aplicación web/);
   assert.match(dialog, /Quién tiene acceso.*Cualquier usuario/);
-  assert.match(dialog, /id="comprobarWebApp"/);
-  assert.match(dialog, /webApp\.ready/, 'el modal bloquea el pairing hasta detectar el Web App');
+  assert.match(dialog, /id="webappUrl"/);
+  assert.match(dialog, /id="guardarWebApp"/);
+  assert.match(dialog, /webapp\.url/);
+  assert.match(dialog, /web\.ready/, 'el modal bloquea el pairing hasta guardar la URL del Web App');
   assert.match(dialog, /addEventListener\(['"]click['"]/, 'los controles dinámicos usan listeners, no handlers construidos');
   assert.match(sidebar, /abrirTelegramUI/);
   assert.match(sidebar, /runB\('abrirTelegram'\)/);

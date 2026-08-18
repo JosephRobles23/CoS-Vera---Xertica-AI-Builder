@@ -14,16 +14,31 @@ function telegramJson_(sheetId, name) {
   try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
 }
 function telegramHtml_(text) { return HtmlService.createHtmlOutput(String(text)); }
+function telegramWebAppUrl_(config) {
+  return String(config && config.webapp && config.webapp.url || '').trim();
+}
+function telegramValidWebAppUrl_(url) {
+  return /^https:\/\/[^?#]+\/exec(?:\?[^#]*)?$/i.test(String(url || ''));
+}
 function telegramWebAppStatus_(config) {
-  var base = String(urlWebApp_(config) || '').trim();
-  if (!base) return { ready: false, message: 'Publica primero tu Web App para abrir la puerta segura entre Telegram y tu CoS.' };
-  if (!/^https:\/\/[^?]+\/exec(?:\?.*)?$/.test(base)) return { ready: false, message: 'La dirección detectada no es la versión publicada. Usa la URL que termina en /exec, no /dev.' };
-  return { ready: true, message: 'Web App detectado. Telegram podrá entregar tus mensajes cuando completes el enlace.' };
+  var base = telegramWebAppUrl_(config);
+  if (!base) return { ready: false, message: 'Pega la URL /exec de tu Web App para que Telegram use exactamente esa puerta pública.' };
+  if (!telegramValidWebAppUrl_(base)) return { ready: false, message: 'La dirección no es una Web App publicada. Usa la URL HTTPS que termina en /exec, no /dev.' };
+  return { ready: true, message: 'URL guardada. Telegram usará exactamente este Web App público.' };
 }
 function telegramWebhookUrl_(config, route) {
-  var base = urlWebApp_(config);
-  if (!/^https:\/\/[^?]+\/exec(?:\?.*)?$/.test(base)) throw new Error('Publica primero el Web App estable (/exec) para conectar Telegram.');
+  var base = telegramWebAppUrl_(config);
+  if (!telegramValidWebAppUrl_(base)) throw new Error('Pega primero la URL estable de tu Web App (/exec) para conectar Telegram.');
   return base + (base.indexOf('?') > -1 ? '&' : '?') + 'tg=' + encodeURIComponent(route);
+}
+function guardarUrlWebApp(sheetId, config, url) {
+  url = String(url || '').trim();
+  if (!telegramValidWebAppUrl_(url)) throw new Error('Pega la URL HTTPS publicada que termina en /exec. No uses una URL /dev.');
+  setAjustes_(sheetId, config.sheets.settings, { 'webapp.url': url });
+  var siguiente = {};
+  Object.keys(config).forEach(function (k) { siguiente[k] = config[k]; });
+  siguiente.webapp = { url: url };
+  return { ok: true, webApp: telegramWebAppStatus_(siguiente) };
 }
 
 /** Solo lee el brain ya configurado: una consulta jamás crea carpetas ni archivos. */
