@@ -186,11 +186,15 @@ function telegramProposeTask_(sheetId, config, userId, original, correction) {
   return { text: telegramTaskProposalText_(draft), reply_markup: telegramTaskKeyboard_(draft) };
 }
 function telegramCreateTask_(sheetId, config, draft) {
-  var origin = '🤖 Telegram · ' + Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
-  var added = agregarTarea_(sheetId, config, { texto: draft.texto, proyecto: draft.proyecto, vence: draft.vence, prioridad: draft.prioridad, origen: origin, espera: draft.espera, link: '' });
-  if (!added) throw new Error('Ya existe una tarea igual creada desde Telegram.');
-  var id = idTarea_(draft.texto, origin); espejarTareaInmediato_(sheetId, config, id); cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
-  return id;
+  var lock = (typeof LockService !== 'undefined' && LockService.getScriptLock) ? LockService.getScriptLock() : null;
+  if (lock) lock.waitLock(5000);
+  try {
+    var origin = '🤖 Telegram ' + draft.id + ' · ' + Utilities.formatDate(new Date(), config.timezone, 'yyyy-MM-dd');
+    var added = agregarTarea_(sheetId, config, { texto: draft.texto, proyecto: draft.proyecto, vence: draft.vence, prioridad: draft.prioridad, origen: origin, espera: draft.espera, link: '' });
+    if (!added) throw new Error('Esta propuesta ya fue creada o coincide exactamente con una tarea existente.');
+    var id = idTarea_(draft.texto, origin); espejarTareaInmediato_(sheetId, config, id); cacheInvalidar_(sheetId, CACHE_MISEGUIMIENTO_);
+    return id;
+  } finally { if (lock) lock.releaseLock(); }
 }
 function telegramSimilarTask_(sheetId, config, draft) {
   var norm = function (v) { return String(v || '').toLowerCase().replace(/[^a-záéíóúüñ0-9]+/gi, ' ').trim(); };
@@ -332,7 +336,7 @@ function telegramWebhookAction(e, sheetId, config) {
   if (text) {
     var answer;
     try { answer = telegramAnswer_(sheetId, config, from.id, text); }
-    catch (err) { answer = 'No pude completar la consulta ahora. Intenta de nuevo en unos minutos.'; }
+    catch (err) { answer = (err && err.message) ? String(err.message) : 'No pude completar la consulta ahora. Intenta de nuevo en unos minutos.'; }
     var payload = typeof answer === 'object' ? answer : { text: telegramLimit_(answer) };
     payload.chat_id = msg.chat.id; payload.text = telegramLimit_(payload.text);
     telegramRequest_(sheetId, 'sendMessage', payload);
