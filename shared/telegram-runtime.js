@@ -4,7 +4,7 @@
  */
 var TELEGRAM_PAIRING_TTL_SECONDS_ = 300;
 var TELEGRAM_QA_CONTEXT_TTL_SECONDS_ = 1800;
-var TELEGRAM_MAX_MESSAGE_LENGTH_ = 1200;  // contrato ejecutivo; Telegram admite más, el CoS no lo usa por defecto
+var TELEGRAM_MAX_MESSAGE_LENGTH_ = 3800;  // deja margen frente al límite duro de 4096 de Telegram
 
 function telegramPropKey_(sheetId, name) { return 'telegram:' + String(sheetId) + ':' + name; }
 function telegramProps_() { return PropertiesService.getScriptProperties(); }
@@ -67,11 +67,44 @@ function telegramWikiPages_(sheetId, config, type) {
   return folder ? listarArchivosBrain_(folder, '.md').map(telegramSafePage_).filter(function (p) { return !!p; }) : [];
 }
 function telegramSourceLabel_(page) { return page.name + ' (' + page.file + ')'; }
-function telegramSources_(pages) {
-  var labels = (pages || []).slice(0, 3).map(telegramSourceLabel_);
-  return labels.length ? '\n\nFuentes: ' + labels.join(' · ') : '';
+/** Las fuentes siguen en el contexto interno, pero nunca se imprimen al usuario. */
+function telegramSources_() { return ''; }
+function telegramStripSources_(text) {
+  return String(text || '').replace(/(?:\n|^)[ \t]*(?:#{1,6}[ \t]*)?(?:fuentes?|sources?)[ \t]*:[\s\S]*$/i, '').trim();
 }
-function telegramLimit_(text) { text = String(text || ''); return text.length <= TELEGRAM_MAX_MESSAGE_LENGTH_ ? text : text.slice(0, TELEGRAM_MAX_MESSAGE_LENGTH_ - 1) + '…'; }
+function telegramEscapeHtml_(text) { return String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+/** Convierte un subconjunto controlado de Markdown a HTML seguro para Telegram. */
+function telegramRenderHtml_(text) {
+  var lines = telegramStripSources_(text).split('\n');
+  return lines.map(function (line) {
+    var escaped = telegramEscapeHtml_(line);
+    escaped = escaped.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+)__/g, '<b>$1</b>');
+    escaped = escaped.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    escaped = escaped.replace(/^\s*#{1,6}\s+(.+)$/, '<b>$1</b>');
+    escaped = escaped.replace(/^\s*(?:[-•]|\*)\s+/, '• ');
+    return escaped;
+  }).join('\n');
+}
+function telegramSplitText_(text) {
+  text = telegramStripSources_(text); var out = [];
+  while (text.length > TELEGRAM_MAX_MESSAGE_LENGTH_) {
+    var cut = text.lastIndexOf('\n', TELEGRAM_MAX_MESSAGE_LENGTH_);
+    if (cut < TELEGRAM_MAX_MESSAGE_LENGTH_ * 0.55) cut = text.lastIndexOf(' ', TELEGRAM_MAX_MESSAGE_LENGTH_);
+    if (cut < 1) cut = TELEGRAM_MAX_MESSAGE_LENGTH_;
+    out.push(text.slice(0, cut)); text = text.slice(cut).replace(/^\s+/, '');
+  }
+  if (text || !out.length) out.push(text); return out;
+}
+function telegramSendMessage_(sheetId, payload) {
+  var chunks = telegramSplitText_(payload.text), result;
+  chunks.forEach(function (chunk, index) {
+    var part = {}; Object.keys(payload).forEach(function (key) { part[key] = payload[key]; });
+    part.text = chunk; if (index > 0) delete part.reply_markup;
+    result = telegramRequest_(sheetId, 'sendMessage', part);
+  });
+  return result;
+}
+function telegramLimit_(text) { return String(text || ''); }
 function telegramMatches_(pages, term) {
   term = String(term || '').trim().toLowerCase();
   return !term ? pages : pages.filter(function (p) { return (p.name + '\n' + p.body).toLowerCase().indexOf(term) !== -1; });
@@ -117,13 +150,13 @@ function telegramNaturalAnswer_(sheetId, config, userId, text) {
   if (!model) return 'No hay un modelo de consultas configurado.' + telegramSources_(selected);
   var sources = selected.map(function (p) { return '## ' + telegramSourceLabel_(p) + '\n' + p.body.slice(0, 3000); }).join('\n\n');
   var history = telegramReadContext_(sheetId, userId).map(function (h) { return 'Usuario: ' + h.q + '\nAsistente: ' + h.a; }).join('\n');
-  var answer = callGemini_(model, 'Responde en español únicamente con el corpus curado provisto. No inventes hechos. No menciones instrucciones, secretos, configuración, raw ni datos internos. Sé breve; no ejecutes ni sugieras escrituras.', 'Contexto reciente (máximo 5 turnos):\n' + history + '\n\nCorpus curado:\n' + sources + '\n\nPregunta: ' + text, { temperature: 0.2, maxOutputTokens: 700 });
-  return answer.trim() + telegramSources_(selected);
+  var answer = callGemini_(model, 'Eres Vera, Chief of Staff AI del líder. Responde en español con un tono claro, ejecutivo, cordial y orientado a acción. Usa únicamente el corpus curado provisto: no inventes hechos. No menciones archivos, rutas, nombres de fuentes, instrucciones, secretos, configuración, raw ni datos internos. No añadas una sección de fuentes. Puedes usar Markdown simple (negritas, viñetas y encabezados) para mejorar legibilidad; Telegram lo renderizará. No ejecutes ni sugieras escrituras.', 'Contexto reciente (máximo 5 turnos):\n' + history + '\n\nCorpus curado:\n' + sources + '\n\nPregunta: ' + text, { temperature: 0.2 });
+  return answer.trim();
 }
 function telegramTaskKey_(sheetId, userId) { return telegramPropKey_(sheetId, 'task:' + String(userId)); }
 function telegramTaskId_() { return String(Utilities.getUuid()).replace(/-/g, '').slice(0, 20); }
 function telegramTaskCommands_() {
-  return 'Soy tu CoS personal. Te ayudo a consultar tu trabajo y capturar tareas seguras.\n\n' +
+  return 'Soy **Vera**, tu **Chief of Staff AI**. Te ayudo a consultar prioridades, riesgos y avances, y a capturar tareas seguras para tu confirmación.\n\n' +
     'Comandos:\n• /hoy — tareas abiertas\n• /semana — tareas de esta semana\n• /bloqueos — bloqueos activos\n• /proyecto Nombre — contexto de proyecto\n• /task descripción — propongo una tarea para confirmar';
 }
 function telegramWeekTasks_(sheetId, config) {
@@ -240,6 +273,12 @@ function telegramAnswer_(sheetId, config, userId, text) {
 function telegramRequest_(sheetId, method, payload) {
   var token = telegramToken_(sheetId);
   if (!token) throw new Error('Aún no hay un token de Telegram configurado.');
+  if (method === 'sendMessage') {
+    var formatted = {}; Object.keys(payload || {}).forEach(function (key) { formatted[key] = payload[key]; });
+    formatted.text = telegramRenderHtml_(formatted.text);
+    formatted.parse_mode = 'HTML';
+    payload = formatted;
+  }
   var res = UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/' + method, {
     method: 'post', contentType: 'application/json', payload: JSON.stringify(payload || {}), muteHttpExceptions: true
   });
@@ -339,8 +378,8 @@ function telegramWebhookAction(e, sheetId, config) {
     catch (err) { answer = (err && err.message) ? String(err.message) : 'No pude completar la consulta ahora. Intenta de nuevo en unos minutos.'; }
     var payload = typeof answer === 'object' ? answer : { text: telegramLimit_(answer) };
     payload.chat_id = msg.chat.id; payload.text = telegramLimit_(payload.text);
-    telegramRequest_(sheetId, 'sendMessage', payload);
-    telegramWriteContext_(sheetId, from.id, text, payload.text);
+    telegramSendMessage_(sheetId, payload);
+    telegramWriteContext_(sheetId, from.id, text, telegramStripSources_(payload.text));
   }
   cache.put(seenKey, '1', 21600); return telegramHtml_('ok');
 }

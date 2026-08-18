@@ -157,7 +157,7 @@ function wikiPage(h, folder, name, fm, body) {
     h.api.componerPagina_(fm, body));
 }
 
-test('/hoy responde directamente desde Tareas, sin Gemini, y cita la hoja', () => {
+test('/hoy responde directamente desde Tareas, sin Gemini y sin exponer fuentes internas', () => {
   const h = qaHarness([
     ['Enviar propuesta', 'Alpha', '2026-08-17', 'Alta', 'Pendiente', '✍️ Manual', 't1'],
     ['Terminado', 'Alpha', '2026-08-17', 'Media', 'Hecha', '✍️ Manual', 't2']
@@ -166,7 +166,7 @@ test('/hoy responde directamente desde Tareas, sin Gemini, y cita la hoja', () =
   const text = lastTelegram(h);
   assert.match(text, /Enviar propuesta/);
   assert.doesNotMatch(text, /Terminado/);
-  assert.match(text, /Fuentes: Tareas/);
+  assert.doesNotMatch(text, /Fuentes:/);
   assert.equal(h.fetchCalls.filter((c) => /generateContent/.test(c.url)).length, 0);
 });
 
@@ -185,21 +185,40 @@ test('/proyecto excluye páginas cerradas o merged, internas/raw, y pide reformu
   assert.match(text, /reformula/i);
 });
 
-test('/bloqueos y /reunión consultan solo wiki curada, citan fuentes y mantienen contexto breve para Gemini', () => {
+test('/bloqueos y /reunión consultan solo wiki curada, sin revelar fuentes y mantienen contexto breve para Gemini', () => {
   const h = qaHarness();
   wikiPage(h, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha', status: 'active', open_blockers: ['Esperando legal'], sources: ['weekly-7'] }, '## Bloqueos\nEsperando legal.');
   wikiPage(h, 'meetings', 'alpha-sync.md', { page_type: 'meeting', name: 'Sync Alpha', date: '2026-08-16', sources: ['meet-9'] }, '# Sync Alpha\nDecidimos lanzar el viernes.');
   ask(h, 103, '/bloqueos');
   assert.match(lastTelegram(h), /Esperando legal/);
-  assert.match(lastTelegram(h), /Fuentes:.*Alpha/);
+  assert.doesNotMatch(lastTelegram(h), /Fuentes:|\.md\b/);
   ask(h, 104, '/reunión alpha');
   assert.match(lastTelegram(h), /Sync Alpha/);
-  assert.match(lastTelegram(h), /Fuentes:.*Sync Alpha/);
+  assert.doesNotMatch(lastTelegram(h), /Fuentes:|\.md\b/);
   ask(h, 105, '¿Cuál es el estado?');
   const gemini = h.fetchCalls.find((c) => /generateContent/.test(c.url));
   assert.ok(gemini, 'la pregunta natural usa Gemini');
   assert.match(JSON.parse(gemini.options.payload).contents[0].parts[0].text, /Sync Alpha/);
-  assert.match(lastTelegram(h), /Fuentes:/);
+  assert.doesNotMatch(lastTelegram(h), /Fuentes:|\.md\b/);
+});
+
+test('Telegram renders HTML safely, oculta fuentes internas y no limita la respuesta natural a 700 tokens ni 1200 caracteres', () => {
+  const h = qaHarness();
+  wikiPage(h, 'projects', 'alpha.md', { page_type: 'project', name: 'Alpha', status: 'active' }, 'Estado activo.');
+  const longAnswer = '**Vera**\n- Primer avance\n- Segundo avance\n\n' + 'detalle '.repeat(220) + '\nFuentes: Alpha (alpha.md)';
+  h.setFetch((url) => /generateContent/.test(url)
+    ? httpResponse(200, geminiOk(longAnswer))
+    : httpResponse(200, JSON.stringify({ ok: true, result: true })));
+
+  ask(h, 1060, 'Dame el estado de Alpha');
+  const sent = h.fetchCalls.filter((c) => /sendMessage$/.test(c.url));
+  const payload = JSON.parse(sent.at(-1).options.payload);
+  assert.equal(payload.parse_mode, 'HTML');
+  assert.match(payload.text, /<b>Vera<\/b>/);
+  assert.match(payload.text, /• Primer avance/);
+  assert.doesNotMatch(payload.text, /Fuentes:|alpha\.md/);
+  assert.match(payload.text, /detalle detalle/, 'la respuesta no se trunca al límite ejecutivo anterior');
+  assert.equal(JSON.parse(h.fetchCalls.find((c) => /generateContent/.test(c.url)).options.payload).generationConfig.maxOutputTokens, undefined);
 });
 
 test('Telegram se presenta, explica comandos y entiende la consulta conversacional de tareas semanales sin Gemini', () => {
@@ -208,7 +227,7 @@ test('Telegram se presenta, explica comandos y entiende la consulta conversacion
     ['Cerrar reporte', 'AI Academy', '2026-09-30', 'Media', 'Pendiente', '✍️ Manual', 't2']
   ]);
   ask(h, 106, '¿Qué eres?');
-  assert.match(lastTelegram(h), /CoS personal/i);
+  assert.match(lastTelegram(h), /Vera|Chief of Staff AI/i);
   assert.match(lastTelegram(h), /\/task/);
   ask(h, 107, 'Dime mis tareas para esta semana');
   assert.match(lastTelegram(h), /Preparar demo/);
