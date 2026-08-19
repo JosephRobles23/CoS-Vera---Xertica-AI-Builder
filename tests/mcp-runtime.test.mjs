@@ -271,3 +271,72 @@ test('edit_calendar_event edita si eres organizador y rechaza si no', () => {
   const noExiste = call(h, 'edit_calendar_event', { secret: SECRET, args: { id: 'nope', campos: { titulo: 'X' } } }, CONFIG_CAL);
   assert.equal(noExiste.ok, false);
 });
+
+// --- Fase A: Deep Prep control + read_reports ---
+
+function prepHarness(calendar = []) {
+  return makeHarness({
+    spreadsheets: { [SID]: { Ajustes: [['key', 'value']] } },
+    calendar,
+    scriptProperties: { ['mcp:' + SID + ':secret']: SECRET }
+  });
+}
+
+test('set_meeting_prep activa el prep y list_calendar lo refleja', () => {
+  const start = new Date(Date.now() + 2 * 86400000), end = new Date(Date.now() + 2 * 86400000 + 3600000);
+  const h = prepHarness([{ id: 'ev-1', title: 'Junta A', start, end, guests: ['x@y.com'] }]);
+
+  let r = call(h, 'list_calendar', { secret: SECRET, args: {} });
+  assert.equal(r.ok, true);
+  assert.equal(r.meetings.find((m) => m.id === 'ev-1').seleccionado, false);
+
+  const sp = call(h, 'set_meeting_prep', { secret: SECRET, args: { eventId: 'ev-1', on: true } });
+  assert.equal(sp.ok, true);
+  assert.ok(sp.selected.includes('ev-1'));
+
+  r = call(h, 'list_calendar', { secret: SECRET, args: {} });
+  assert.equal(r.meetings.find((m) => m.id === 'ev-1').seleccionado, true);
+});
+
+test('set_meeting_prep sin eventId → error', () => {
+  assert.equal(call(prepHarness(), 'set_meeting_prep', { secret: SECRET, args: {} }).ok, false);
+});
+
+test('set_deepprep_lead valida y persiste las horas', () => {
+  const h = prepHarness();
+  const ok = call(h, 'set_deepprep_lead', { secret: SECRET, args: { horas: 6 } });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.leadHours, 6);
+  assert.equal(h.api.getAjustes_(SID, 'Ajustes').deepPrep.leadHours, 6);   // persistido
+  assert.equal(call(h, 'set_deepprep_lead', { secret: SECRET, args: { horas: 0 } }).ok, false);
+  assert.equal(call(h, 'set_deepprep_lead', { secret: SECRET, args: { horas: 999 } }).ok, false);
+});
+
+test('run_deep_prep sin reuniones responde ok:false con error claro', () => {
+  const r = call(prepHarness([]), 'run_deep_prep', { secret: SECRET, args: {} });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /reuniones/i);
+});
+
+test('read_reports devuelve respuestas crudas del Daily y filtra por persona', () => {
+  const h = makeHarness({
+    spreadsheets: { [SID]: { Daily: [
+      ['Marca temporal', 'Nombre', 'Correo', '¿Avances?', '¿Bloqueos?', 'Summary'],
+      [new Date('2026-08-18T12:00:00Z'), 'Ada', 'ada@x.com', 'Cerré la API', 'Ninguno', 'Ada avanzó en API'],
+      [new Date('2026-08-19T12:00:00Z'), 'Beto', 'beto@x.com', 'Diseño UI', 'Falta data', 'Beto en UI']
+    ] } },
+    scriptProperties: { ['mcp:' + SID + ':secret']: SECRET }
+  });
+  const all = call(h, 'read_reports', { secret: SECRET, args: { tipo: 'daily' } });
+  assert.equal(all.ok, true);
+  assert.equal(all.reports.length, 2);
+  assert.equal(all.reports[0].persona, 'Beto');   // más reciente primero (orden de fila)
+  assert.ok(all.reports[0].respuestas.some((p) => p.q === '¿Avances?' && p.a === 'Diseño UI'));
+  assert.ok(all.reports.every((r) => !r.respuestas.some((p) => p.q === 'Summary')));  // Summary NO es Q&A
+
+  const soloAda = call(h, 'read_reports', { secret: SECRET, args: { tipo: 'daily', persona: 'ada' } });
+  assert.equal(soloAda.reports.length, 1);
+  assert.equal(soloAda.reports[0].correo, 'ada@x.com');
+
+  assert.equal(call(h, 'read_reports', { secret: SECRET, args: { tipo: 'mensual' } }).ok, false);   // tipo inválido
+});

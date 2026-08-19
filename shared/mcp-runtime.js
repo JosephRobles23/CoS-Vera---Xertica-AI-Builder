@@ -81,6 +81,16 @@ function mcpAction(e, sheetId, config) {
         return mcpJson_({ ok: true, event: mcpCreateEvent_(config, args) });
       case 'edit_calendar_event':
         return mcpJson_({ ok: true, event: mcpEditEvent_(config, args) });
+      case 'list_calendar':
+        return mcpJson_({ ok: true, meetings: listarReunionesProximas(sheetId, config, args && args.dias) });
+      case 'set_meeting_prep':
+        return mcpJson_(mcpSetMeetingPrep_(sheetId, config, args));
+      case 'set_deepprep_lead':
+        return mcpJson_(mcpSetDeepPrepLead_(sheetId, config, (args || {}).horas));
+      case 'run_deep_prep':
+        return mcpJson_(mcpRunDeepPrep_(sheetId, config, args));
+      case 'read_reports':
+        return mcpJson_({ ok: true, reports: mcpReadReports_(sheetId, config, args) });
       default:
         return mcpError_('unknown-op');
     }
@@ -184,6 +194,75 @@ function mcpEditTask_(sheetId, config, args) {
   if (!id) throw new Error('Falta el id de la tarea.');
   var t = actualizarTarea(sheetId, config, id, args.campos || {});  // valida enums/fechas, espeja, invalida cache
   return mcpTaskView_(t);
+}
+
+// --- Fase A: Deep Prep (activar/anticipación/generar) + lectura de reportes crudos ---
+
+/** Activa/desactiva el Deep Prep de una reunión (reusa toggleReunionPrep). */
+function mcpSetMeetingPrep_(sheetId, config, args) {
+  args = args || {};
+  var eventId = String(args.eventId || '').trim();
+  if (!eventId) throw new Error('Falta eventId.');
+  var res = toggleReunionPrep(sheetId, config, eventId, args.on);
+  return { ok: true, selected: res.selected };
+}
+
+/** Edita las horas de anticipación con las que se envía el Deep Prep (Ajustes → deepPrep.leadHours). */
+function mcpSetDeepPrepLead_(sheetId, config, horas) {
+  var n = parseInt(horas, 10);
+  if (!(n >= 1 && n <= 168)) throw new Error('Las horas de anticipación deben ser un entero entre 1 y 168.');
+  setAjustes_(sheetId, config.sheets.settings, { 'deepPrep.leadHours': String(n) });
+  return { ok: true, leadHours: n };
+}
+
+/** Genera+envía YA el Deep Prep (reusa probarDeepPrep; envía correo al líder). */
+function mcpRunDeepPrep_(sheetId, config, args) {
+  args = args || {};
+  var res = probarDeepPrep(sheetId, config, args.eventId ? String(args.eventId) : undefined);
+  return { ok: true, enviado: res.enviado, eventId: res.eventId, archivo: res.archivo };
+}
+
+/** Lee respuestas crudas de la hoja Daily/Weekly (pregunta→respuesta + Summary por persona/fecha). */
+function mcpReadReports_(sheetId, config, args) {
+  args = args || {};
+  var tipo = String(args.tipo || '').toLowerCase();
+  var sheetName = tipo === 'daily' ? ((config.sheets && config.sheets.daily) || 'Daily')
+    : tipo === 'weekly' ? ((config.sheets && config.sheets.weekly) || 'Weekly') : '';
+  if (!sheetName) throw new Error('tipo debe ser "daily" o "weekly".');
+
+  var sh;
+  try { sh = getSheet_(sheetId, sheetName); } catch (e) { return []; }   // hoja ausente → sin datos
+  if (sh.getLastRow() < 2) return [];
+
+  var map = getHeaderMap_(sh);
+  var colTs = map['Marca temporal'], colSummary = map['Summary'];
+  var colNombre = map['Nombre'], colEmail = map['Correo'] || map['Dirección de correo electrónico'];
+  var desde = String(args.desde || ''), hasta = String(args.hasta || '');
+  var persona = String(args.persona || '').toLowerCase();
+  var limit = (args.limit && args.limit > 0) ? Math.min(args.limit, 100) : 20;
+  var tz = config.timezone;
+
+  var rows = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  var out = [];
+  for (var i = rows.length - 1; i >= 0 && out.length < limit; i--) {   // más recientes primero
+    var r = rows[i];
+    var ts = colTs ? r[colTs - 1] : null;
+    if (!(ts instanceof Date)) continue;                                // solo respuestas reales del Form
+    var fecha = Utilities.formatDate(ts, tz, 'yyyy-MM-dd');
+    if (desde && fecha < desde) continue;
+    if (hasta && fecha > hasta) continue;
+    var nombre = colNombre ? String(r[colNombre - 1] || '').trim() : '';
+    var correo = colEmail ? String(r[colEmail - 1] || '').trim() : '';
+    if (persona && (nombre + ' ' + correo).toLowerCase().indexOf(persona) === -1) continue;
+    out.push({
+      persona: nombre || correo || '(sin nombre)',
+      correo: correo,
+      fecha: fecha,
+      summary: colSummary ? String(r[colSummary - 1] || '').trim() : '',
+      respuestas: extraerQA_(map, r)
+    });
+  }
+  return out;
 }
 
 // --- Sidebar: Conectar / Desconectar (funciones del server via dispatch) ---

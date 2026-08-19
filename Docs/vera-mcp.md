@@ -82,9 +82,24 @@ calendario del propio líder, **sin CASA**). Lógica en `shared/calendar-runtime
 `shared/appsscript.json` y el stub). Al cambiar scopes, **cada líder re-autoriza + re-despliega su
 Web App**. Escritura = HITL (confirmación nativa del cliente).
 
+## Tools de lectura + Deep Prep (Fase A)
+
+Sin scope nuevo. Reusan `deepprep-runtime.js` y los helpers de hojas.
+
+| Tool | Input | Reusa |
+|---|---|---|
+| `list_calendar` | `{dias?}` | `listarReunionesProximas` (con flag `seleccionado` de Deep Prep) |
+| `set_meeting_prep` | `{eventId, on?}` | `toggleReunionPrep` (Ajustes → `deepPrep.selected`) |
+| `set_deepprep_lead` | `{horas}` (1–168) | `setAjustes_` (`deepPrep.leadHours`) |
+| `run_deep_prep` | `{eventId?}` | `probarDeepPrep` (genera + envía correo) |
+| `read_reports` | `{tipo(daily/weekly), desde?, hasta?, persona?, limit?}` | `getSheet_`+`getHeaderMap_`+`extraerQA_` — respuestas crudas del Form + Summary |
+
+`read_reports` complementa a `search_wiki`: da el feed **operativo crudo** (pregunta→respuesta por
+persona/fecha), funciona **con o sin brain**, y expone lo que la wiki curada no guarda verbatim.
+
 ## Alcance
 
-- **v1:** los 5 tools base + los 2 de Calendar (Fase B).
+- **v1:** 5 tools base + Fase B (2 Calendar) + Fase A (5) = **12 tools**.
 - **v1.1 fast-follows** (lógica ya existe → baratos): `get_briefing`, `list_blockers`,
   `meeting_prep` (Deep Prep), `team_status` (silencios/seguimiento). Convierten a Vera
   de "bot de tareas" en copiloto de Chief-of-Staff.

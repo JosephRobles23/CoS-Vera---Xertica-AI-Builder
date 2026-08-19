@@ -114,5 +114,36 @@ export function buildServer(env: Env): McpServer {
     }
   }, async (args) => proxy(env, 'edit_calendar_event', args));
 
+  server.registerTool('list_calendar', {
+    description: 'Lista las reuniones próximas del calendario del líder, con flag de si tienen Deep Prep activado.',
+    inputSchema: { dias: z.number().int().positive().max(60).optional() }
+  }, async (args) => proxy(env, 'list_calendar', args));
+
+  server.registerTool('set_meeting_prep', {
+    description: 'Activa/desactiva el Deep Prep para una reunión (eventId de list_calendar). Sin "on", alterna.',
+    inputSchema: { eventId: z.string().min(1), on: z.boolean().optional() }
+  }, async (args) => proxy(env, 'set_meeting_prep', args));
+
+  server.registerTool('set_deepprep_lead', {
+    description: 'Edita las horas de anticipación con que se envía el Deep Prep antes de cada reunión (1–168).',
+    inputSchema: { horas: z.number().int().min(1).max(168) }
+  }, async (args) => proxy(env, 'set_deepprep_lead', args));
+
+  server.registerTool('run_deep_prep', {
+    description: 'Genera y envía YA el Deep Prep de una reunión (o de la próxima si no das eventId). Envía un correo al líder.',
+    inputSchema: { eventId: z.string().optional() }
+  }, async (args) => proxy(env, 'run_deep_prep', args));
+
+  server.registerTool('read_reports', {
+    description: 'Lee las respuestas crudas de los formularios Daily/Weekly del equipo (pregunta→respuesta + Summary por persona y fecha).',
+    inputSchema: {
+      tipo: z.enum(['daily', 'weekly']),
+      desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      persona: z.string().optional(),
+      limit: z.number().int().positive().max(100).optional()
+    }
+  }, async (args) => proxy(env, 'read_reports', args));
+
   return server;
 }
