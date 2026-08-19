@@ -237,9 +237,16 @@ test('/web investiga bajo demanda con Google Search, etiqueta la respuesta y con
 });
 
 test('Telegram se presenta, explica comandos y entiende la consulta conversacional de tareas semanales sin Gemini', () => {
+  // Fechas relativas a hoy (con las mismas partes locales que Utilities.formatDate del harness):
+  // así el test no caduca. "esta semana" = vence en [hoy, hoy+6]; el lejano queda fuera.
+  const p2 = (n) => String(n).padStart(2, '0');
+  const isoLocal = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+  const now = Date.now();
+  const enSemana = isoLocal(new Date(now + 2 * 86400000));
+  const lejano = isoLocal(new Date(now + 40 * 86400000));
   const h = qaHarness([
-    ['Preparar demo', 'AI Platform', '2026-08-18', 'Media', 'Pendiente', '✍️ Manual', 't1'],
-    ['Cerrar reporte', 'AI Academy', '2026-09-30', 'Media', 'Pendiente', '✍️ Manual', 't2']
+    ['Preparar demo', 'AI Platform', enSemana, 'Media', 'Pendiente', '✍️ Manual', 't1'],
+    ['Cerrar reporte', 'AI Academy', lejano, 'Media', 'Pendiente', '✍️ Manual', 't2']
   ]);
   ask(h, 106, '¿Qué eres?');
   assert.match(lastTelegram(h), /Vera|Chief of Staff AI/i);

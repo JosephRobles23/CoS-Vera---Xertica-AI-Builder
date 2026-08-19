@@ -328,6 +328,10 @@
     <h3>Telegram</h3>
     <p class="hint">Conecta tu bot para recibir respuestas del CoS en Telegram. El token se guarda de forma segura y nunca se muestra aquí.</p>
     <button class="btn btn-outline" onclick="abrirTelegramUI()"><i data-lucide="share-2"></i> Conectar Telegram…</button>
+    <div class="divider"></div>
+    <h3>Claude / ChatGPT</h3>
+    <p class="hint">Usa tu CoS desde Claude o ChatGPT: consulta y crea tareas desde el chat. La conexión se hace con un código temporal.</p>
+    <button class="btn btn-outline" onclick="abrirMcpUI()"><i data-lucide="plug"></i> Conectar Claude/ChatGPT…</button>
   </div>
 
   <div id="toast"></div>
@@ -802,6 +806,9 @@
     }
     function abrirTelegramUI() {
       runB('abrirTelegram')().catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
+    }
+    function abrirMcpUI() {
+      runB('abrirMcp')().catch(function (e) { toast('Error: ' + e.message, 'triangle-alert'); });
     }
 
     icons();

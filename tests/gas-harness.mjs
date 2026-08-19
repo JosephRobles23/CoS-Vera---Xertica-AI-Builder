@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -45,6 +46,7 @@ const RUNTIME_FILES = [
   'miseguimiento-runtime.js',
   'webapp-runtime.js',
   'telegram-runtime.js',
+  'mcp-runtime.js',
   'ui-runtime.js'
 ];
 
@@ -317,7 +319,12 @@ export function makeHarness(opts = {}) {
       sleep: () => {},
       formatDate: (d, tz, fmt) => formatDate_(d, tz, fmt),
       newBlob: (content, mime, name) => makeBlob(content, mime, name),
-      getUuid: (() => { let n = 0; return () => 'uuid-' + (++n); })()
+      getUuid: (() => { let n = 0; return () => 'uuid-' + (++n); })(),
+      // HMAC-SHA256 real (determinista) para el challenge-response de Vera-MCP.
+      computeHmacSha256Signature: (msg, key) =>
+        Array.from(crypto.createHmac('sha256', String(key)).update(String(msg)).digest()),
+      base64Encode: (data) =>
+        Buffer.from(typeof data === 'string' ? Buffer.from(data, 'utf8') : Uint8Array.from(data)).toString('base64')
     },
     UrlFetchApp: {
       fetch: (url, options) => {
@@ -337,6 +344,19 @@ export function makeHarness(opts = {}) {
     },
     Logger: { log: (...a) => state.logs.push(a) },
     ScriptApp: { getOAuthToken: () => 'TEST_OAUTH_TOKEN' },
+    // ContentService: salida JSON de la API MCP (mcpAction). Expone getContent() para los tests.
+    ContentService: {
+      createTextOutput: (s) => {
+        const out = {
+          _text: String(s == null ? '' : s), _mime: null,
+          getContent: () => out._text,
+          getContentText: () => out._text,
+          setMimeType(m) { out._mime = m; return out; }
+        };
+        return out;
+      },
+      MimeType: { JSON: 'application/json' }
+    },
     DriveApp: drive,
     CalendarApp: calendar,
     SpreadsheetApp: {

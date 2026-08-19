@@ -199,6 +199,10 @@ function grupoDeItem_(file, linea) {
  * @return {HtmlOutput}
  */
 function webAction(metodo, e, sheetId, config) {
+  // Vera-MCP: el Worker de Cloudflare entra por aquí con ?mcp=1 (POST). Enrutar en la
+  // librería (no en el stub) hace que el soporte MCP llegue a los líderes por versión.
+  if (metodo === 'post' && e && e.parameter && e.parameter.mcp) return mcpAction(e, sheetId, config);
+
   var token = (e && e.parameter && e.parameter.t) || '';
   var tok = null;
   try { tok = buscarToken_(sheetId, token); } catch (err) { tok = null; }

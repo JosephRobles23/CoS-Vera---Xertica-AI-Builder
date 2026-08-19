@@ -1,0 +1,23 @@
+# wrangler.toml — Vera-MCP Worker (Cloudflare, plan Free).
+# URL final: https://vera-mcp.<tu-subdominio>.workers.dev/mcp  (sin dominio propio — Q13b).
+# Antes del primer deploy, crear los recursos y pegar los ids reales (ver README.md):
+#   wrangler d1 create vera-mcp        →  database_id
+#   wrangler kv namespace create OAUTH_KV  →  id
+#   wrangler secret put ... (si aplica; ver README)
+
+name = "vera-mcp"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1: mapping tenant (token→{webAppUrl, secreto}) + pairings pendientes.
+[[d1_databases]]
+binding = "DB"
+database_name = "vera-mcp"
+database_id = "50557007-8cc6-4f89-810c-526ed817beff"
+
+# KV: estado OAuth del provider (@cloudflare/workers-oauth-provider).
+# OJO plan Free: 1k KV-writes/día — monitorear con `wrangler tail` (Q14b).
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "ac91443572fc4f37858f219d0f611005"

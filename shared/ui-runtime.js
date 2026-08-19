@@ -70,7 +70,9 @@ var DIALOGOS_ = {
   // Centro del Brain: curar wiki (renombrar/cerrar/olvidar), fusionar y salud. MODELESS (no bloquea la hoja).
   braincentro: { archivo: 'DialogBrainCentro', titulo: 'CoS — Centro del Brain', ancho: 860, alto: 680, modeless: true },
   // Telegram: guía modeless para onboarding; el token queda en Script Properties y nunca se vuelve a mostrar.
-  telegram: { archivo: 'DialogTelegram', titulo: 'CoS — Guía para conectar Telegram', ancho: 540, alto: 720, modeless: true }
+  telegram: { archivo: 'DialogTelegram', titulo: 'CoS — Guía para conectar Telegram', ancho: 540, alto: 720, modeless: true },
+  // Vera-MCP: conectar el CoS a Claude/ChatGPT (pairing-code → Worker). MODELESS.
+  mcp: { archivo: 'DialogMcp', titulo: 'CoS — Conectar Claude/ChatGPT', ancho: 560, alto: 640, modeless: true }
 };
 
 // --- Asistente (Guía del CoS): pasos auto-detectados + apertura de destinos ---
@@ -139,6 +141,13 @@ function abrirBrainCentro(sheetId, config) {
 /** Abre la guía de conexión Telegram sin bloquear la hoja. Público. */
 function abrirTelegram(sheetId, config) {
   var d = buildDialog('telegram');
+  SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
+  return { ok: true };
+}
+
+/** Abre la guía para conectar el CoS a Claude/ChatGPT (Vera-MCP) sin bloquear la hoja. Público. */
+function abrirMcp(sheetId, config) {
+  var d = buildDialog('mcp');
   SpreadsheetApp.getUi().showModelessDialog(d.html, d.titulo);
   return { ok: true };
 }
@@ -249,6 +258,7 @@ var DISPATCH_ = {
   cerrarProyecto:          function (sid, cfg, a) { return cerrarProyecto(sid, cfg, a[0], a[1]); },
   abrirBrainCentro:        function (sid, cfg, a) { return abrirBrainCentro(sid, cfg); },
   abrirTelegram:           function (sid, cfg, a) { return abrirTelegram(sid, cfg); },
+  abrirMcp:                function (sid, cfg, a) { return abrirMcp(sid, cfg); },
   cargarTelegram:          function (sid, cfg, a) { return cargarTelegram(sid, cfg); },
   guardarUrlWebApp:        function (sid, cfg, a) { return guardarUrlWebApp(sid, cfg, a[0]); },
   guardarTokenTelegram:    function (sid, cfg, a) { return guardarTokenTelegram(sid, cfg, a[0]); },
@@ -287,7 +297,11 @@ var DISPATCH_ = {
   enviarBriefingPrueba:    function (sid, cfg) { return enviarBriefingPrueba(sid, cfg); },
   // Seguimiento del equipo (modal 3 tabs + cierre de pendientes).
   cargarSeguimiento:       function (sid, cfg, a) { return cargarSeguimiento(sid, cfg, a[0]); },
-  resolverPendiente:       function (sid, cfg, a) { return resolverPendiente(sid, cfg, a[0], a[1], a[2]); }
+  resolverPendiente:       function (sid, cfg, a) { return resolverPendiente(sid, cfg, a[0], a[1], a[2]); },
+  // Vera-MCP: conectar/desconectar el CoS a Claude/ChatGPT (pairing-code → Worker /enroll).
+  cargarMcp:               function (sid, cfg) { return cargarMcp(sid, cfg); },
+  iniciarConexionMcp:      function (sid, cfg) { return iniciarConexionMcp(sid, cfg); },
+  desconectarMcp:          function (sid, cfg) { return desconectarMcp(sid, cfg); }
 };
 
 /**
