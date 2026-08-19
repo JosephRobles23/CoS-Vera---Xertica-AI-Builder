@@ -68,9 +68,23 @@ Drive de cada CLEVE a través de su GAS Web App (sin mirror central).
   (`actualizarTarea_` localiza por id→fila y nunca reescribe esa celda). `create_task`
   devuelve el `id` para poder editar de inmediato.
 
+## Tools de Calendar (Fase B)
+
+Escritura de Google Calendar vía `CalendarApp` (Web App corre "ejecutar como: yo" → sobre el
+calendario del propio líder, **sin CASA**). Lógica en `shared/calendar-runtime.js`.
+
+| Tool | Input | Nota |
+|---|---|---|
+| `create_calendar_event` | `{titulo*, inicio*, fin*, descripcion?, ubicacion?, invitados?[]}` | fechas ISO 8601 con offset |
+| `edit_calendar_event` | `{id*, campos:{titulo?, inicio?, fin?, descripcion?, ubicacion?}}` | **solo si el líder es organizador** (`getCreators()` incluye su email) |
+
+⚠️ **Requiere scope `https://www.googleapis.com/auth/calendar`** (reemplaza `calendar.readonly` en
+`shared/appsscript.json` y el stub). Al cambiar scopes, **cada líder re-autoriza + re-despliega su
+Web App**. Escritura = HITL (confirmación nativa del cliente).
+
 ## Alcance
 
-- **v1:** los 5 tools de arriba.
+- **v1:** los 5 tools base + los 2 de Calendar (Fase B).
 - **v1.1 fast-follows** (lógica ya existe → baratos): `get_briefing`, `list_blockers`,
   `meeting_prep` (Deep Prep), `team_status` (silencios/seguimiento). Convierten a Vera
   de "bot de tareas" en copiloto de Chief-of-Staff.

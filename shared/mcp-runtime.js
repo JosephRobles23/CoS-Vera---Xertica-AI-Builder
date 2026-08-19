@@ -77,6 +77,10 @@ function mcpAction(e, sheetId, config) {
         return mcpJson_(mcpCreateTaskOp_(sheetId, config, args));
       case 'edit_task':
         return mcpJson_({ ok: true, task: mcpEditTask_(sheetId, config, args) });
+      case 'create_calendar_event':
+        return mcpJson_({ ok: true, event: mcpCreateEvent_(config, args) });
+      case 'edit_calendar_event':
+        return mcpJson_({ ok: true, event: mcpEditEvent_(config, args) });
       default:
         return mcpError_('unknown-op');
     }

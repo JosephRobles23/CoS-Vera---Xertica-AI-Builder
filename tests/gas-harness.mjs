@@ -46,6 +46,7 @@ const RUNTIME_FILES = [
   'miseguimiento-runtime.js',
   'webapp-runtime.js',
   'telegram-runtime.js',
+  'calendar-runtime.js',
   'mcp-runtime.js',
   'ui-runtime.js'
 ];
@@ -236,8 +237,9 @@ function makeDriveMock() {
 }
 
 // --- Mock de CalendarApp (calendario por defecto respaldado por una lista de eventos) ---
-// Cada spec: { id, title, start:Date, end?:Date, description?, location?, guests?:[email] }
-function makeCalendarMock(events = []) {
+// Cada spec: { id, title, start:Date, end?:Date, description?, location?, guests?:[email], creators?:[email] }
+function makeCalendarMock(events = [], ownerEmail = 'me@test') {
+  let seq = 0;
   const wrap = (e) => ({
     getId: () => e.id,
     getTitle: () => e.title || '',
@@ -245,13 +247,31 @@ function makeCalendarMock(events = []) {
     getEndTime: () => e.end || null,
     getDescription: () => e.description || '',
     getLocation: () => e.location || '',
-    getGuestList: () => (e.guests || []).map((email) => ({ getEmail: () => email }))
+    getGuestList: () => (e.guests || []).map((email) => ({ getEmail: () => email })),
+    getCreators: () => (e.creators || []),
+    // Mutadores (Fase B: create/edit). Escriben en el spec compartido y devuelven el wrap.
+    setTitle: (t) => { e.title = t; return wrap(e); },
+    setDescription: (d) => { e.description = d; return wrap(e); },
+    setLocation: (l) => { e.location = l; return wrap(e); },
+    setTime: (s, en) => { e.start = s; e.end = en; return wrap(e); },
+    deleteEvent: () => { const i = events.indexOf(e); if (i > -1) events.splice(i, 1); }
   });
   const cal = {
     getEvents: (start, end) => events
       .filter((e) => e.start && e.start.getTime() >= start.getTime() && e.start.getTime() <= end.getTime())
       .map(wrap),
-    getEventById: (id) => { const e = events.find((x) => x.id === id); return e ? wrap(e) : null; }
+    getEventById: (id) => { const e = events.find((x) => x.id === id); return e ? wrap(e) : null; },
+    createEvent: (title, start, end, options) => {
+      const o = options || {};
+      const e = {
+        id: 'ev-' + (++seq), title, start, end,
+        description: o.description || '', location: o.location || '',
+        guests: o.guests ? String(o.guests).split(',').map((s) => s.trim()).filter(Boolean) : [],
+        creators: [ownerEmail]
+      };
+      events.push(e);
+      return wrap(e);
+    }
   };
   return { getDefaultCalendar: () => cal, _events: events };
 }
@@ -293,7 +313,7 @@ export function makeHarness(opts = {}) {
   Object.keys(spec).forEach((sid) => { byId[sid] = makeSpreadsheet(sid, spec[sid]); });
 
   const drive = makeDriveMock();
-  const calendar = makeCalendarMock(opts.calendar || []);
+  const calendar = makeCalendarMock(opts.calendar || [], opts.calendarOwner);
 
   const sandbox = {
     console,

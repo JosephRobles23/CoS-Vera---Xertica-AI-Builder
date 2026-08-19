@@ -88,5 +88,31 @@ export function buildServer(env: Env): McpServer {
     }
   }, async (args) => proxy(env, 'edit_task', args));
 
+  server.registerTool('create_calendar_event', {
+    description: 'Crea un evento en el calendario del líder. Fechas en ISO 8601 con offset de zona (p.ej. 2026-08-20T15:00:00-05:00).',
+    inputSchema: {
+      titulo: z.string().min(1),
+      inicio: z.string().min(1),
+      fin: z.string().min(1),
+      descripcion: z.string().optional(),
+      ubicacion: z.string().optional(),
+      invitados: z.array(z.string()).optional()
+    }
+  }, async (args) => proxy(env, 'create_calendar_event', args));
+
+  server.registerTool('edit_calendar_event', {
+    description: 'Edita un evento existente por id — solo si el líder es organizador. Envía en campos solo lo que cambia; inicio/fin en ISO 8601 con offset.',
+    inputSchema: {
+      id: z.string().min(1),
+      campos: z.object({
+        titulo: z.string().optional(),
+        inicio: z.string().optional(),
+        fin: z.string().optional(),
+        descripcion: z.string().optional(),
+        ubicacion: z.string().optional()
+      })
+    }
+  }, async (args) => proxy(env, 'edit_calendar_event', args));
+
   return server;
 }

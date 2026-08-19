@@ -35,10 +35,10 @@ function harness(tareas = [], opts = {}) {
   return h;
 }
 
-function call(h, op, extra = {}) {
+function call(h, op, extra = {}, cfg = CONFIG) {
   const body = Object.assign({ op }, extra);
   const e = { parameter: { mcp: '1' }, postData: { contents: JSON.stringify(body) } };
-  return JSON.parse(h.api.mcpAction(e, SID, CONFIG).getContent());
+  return JSON.parse(h.api.mcpAction(e, SID, cfg).getContent());
 }
 
 // --- Auth ---
@@ -219,4 +219,55 @@ test('desconectarMcp borra el secreto → cargarMcp queda desconectado', () => {
   assert.equal(h.api.desconectarMcp(SID, CONFIG_WEB).ok, true);
   assert.equal(h.scriptProps.has('mcp:' + SID + ':secret'), false);
   assert.equal(h.api.cargarMcp(SID, CONFIG_WEB).connected, false);
+});
+
+// --- Calendar (Fase B): create_calendar_event / edit_calendar_event ---
+
+const LIDER = 'lider@x.com';
+const CONFIG_CAL = Object.assign({}, CONFIG, { leader: { email: LIDER } });
+
+function calHarness(events = []) {
+  return makeHarness({
+    spreadsheets: { [SID]: { Tareas: [HEADERS], Equipo: [['Nombre', 'Correo', 'Rol']] } },
+    scriptProperties: { ['mcp:' + SID + ':secret']: SECRET },
+    calendar: events,
+    calendarOwner: LIDER
+  });
+}
+
+test('create_calendar_event crea el evento (fechas ISO) y lo persiste', () => {
+  const h = calHarness();
+  const r = call(h, 'create_calendar_event', { secret: SECRET, args: {
+    titulo: 'Sync Helios', inicio: '2026-08-20T15:00:00-05:00', fin: '2026-08-20T16:00:00-05:00',
+    ubicacion: 'Meet', invitados: ['ana@x.com']
+  } }, CONFIG_CAL);
+  assert.equal(r.ok, true);
+  assert.equal(r.event.titulo, 'Sync Helios');
+  assert.deepEqual(r.event.invitados, ['ana@x.com']);
+  assert.ok(r.event.id);
+  assert.equal(h.getCalendar()._events.length, 1);
+});
+
+test('create_calendar_event rechaza fecha inválida y fin<=inicio', () => {
+  const h = calHarness();
+  assert.equal(call(h, 'create_calendar_event', { secret: SECRET, args: { titulo: 'X', inicio: 'no-fecha', fin: '2026-08-20T16:00:00-05:00' } }, CONFIG_CAL).ok, false);
+  assert.equal(call(h, 'create_calendar_event', { secret: SECRET, args: { titulo: 'X', inicio: '2026-08-20T16:00:00-05:00', fin: '2026-08-20T15:00:00-05:00' } }, CONFIG_CAL).ok, false);
+});
+
+test('edit_calendar_event edita si eres organizador y rechaza si no', () => {
+  const own = { id: 'ev-own', title: 'Antiguo', start: new Date('2026-08-20T15:00:00-05:00'), end: new Date('2026-08-20T16:00:00-05:00'), creators: [LIDER] };
+  const ajeno = { id: 'ev-ajeno', title: 'Ajeno', start: new Date('2026-08-21T10:00:00-05:00'), end: new Date('2026-08-21T11:00:00-05:00'), creators: ['jefe@x.com'] };
+  const h = calHarness([own, ajeno]);
+
+  const ok = call(h, 'edit_calendar_event', { secret: SECRET, args: { id: 'ev-own', campos: { titulo: 'Nuevo título', ubicacion: 'Sala 2' } } }, CONFIG_CAL);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.event.titulo, 'Nuevo título');
+  assert.equal(ok.event.ubicacion, 'Sala 2');
+
+  const rej = call(h, 'edit_calendar_event', { secret: SECRET, args: { id: 'ev-ajeno', campos: { titulo: 'Hack' } } }, CONFIG_CAL);
+  assert.equal(rej.ok, false);
+  assert.match(rej.error, /organizador/i);
+
+  const noExiste = call(h, 'edit_calendar_event', { secret: SECRET, args: { id: 'nope', campos: { titulo: 'X' } } }, CONFIG_CAL);
+  assert.equal(noExiste.ok, false);
 });
